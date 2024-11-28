@@ -41,6 +41,7 @@ const vscode = __importStar(require("vscode"));
 const TerminalHistoryDataProvider_1 = require("./view/TerminalHistoryDataProvider");
 const TerminalHistory_1 = require("./model/TerminalHistory");
 const BashCommandViewmodel_1 = require("./viewmodel/BashCommandViewmodel");
+const MyDecorator_1 = require("./view/MyDecorator");
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
@@ -56,12 +57,14 @@ function activate(context) {
     vscode.window.registerTreeDataProvider('bash-commands', bashHistoryDataProvider);
     const bashArchiveDataProvider = new TerminalHistoryDataProvider_1.TerminalHistoryDataProvider(viewModel, true);
     vscode.window.registerTreeDataProvider('bash-commands-archive', bashArchiveDataProvider);
-    //Register terminal commands, update view
+    vscode.window.registerFileDecorationProvider(new MyDecorator_1.TodoDecorationProvider());
+    //Register terminal listener, update view
     vscode.window.onDidEndTerminalShellExecution(event => {
         const commandLine = event.execution.commandLine;
         console.log(`Command run: \n${commandLine.value}`);
         viewModel.addCommand(commandLine.value, 0, true);
     });
+    //Register vscode commands
     const print_rule = vscode.commands.registerCommand('print-rule', (event) => {
         if (event && event.bashCommand) {
             viewModel.printRule(event.bashCommand);
@@ -96,6 +99,42 @@ function activate(context) {
         }
     });
     context.subscriptions.push(restore_commands);
+    const delete_command = vscode.commands.registerCommand('delete-command', (event) => {
+        if (event && event.bashCommand) {
+            viewModel.deleteCommand(event.bashCommand);
+        }
+        else {
+            //TODO: can open menu to select command
+            vscode.window.showInformationMessage('No command selected');
+        }
+    });
+    context.subscriptions.push(delete_command);
+    const delete_all_commands = vscode.commands.registerCommand('delete-all-commands', () => {
+        viewModel.deleteAllCommmands();
+    });
+    context.subscriptions.push(delete_all_commands);
+    const archive_all_commands = vscode.commands.registerCommand('archive-all-commands', () => {
+        viewModel.archiveCommands([]);
+    });
+    context.subscriptions.push(archive_all_commands);
+    const set_command_important = vscode.commands.registerCommand('set-command-important', (event) => {
+        if (event && event.bashCommand) {
+            viewModel.setCommandImportance(event.bashCommand, true);
+        }
+        else {
+            vscode.window.showInformationMessage('No command selected');
+        }
+    });
+    context.subscriptions.push(set_command_important);
+    const set_command_unimportant = vscode.commands.registerCommand('set-command-unimportant', (event) => {
+        if (event && event.bashCommand) {
+            viewModel.setCommandImportance(event.bashCommand, false);
+        }
+        else {
+            vscode.window.showInformationMessage('No command selected');
+        }
+    });
+    context.subscriptions.push(set_command_unimportant);
     //Stupid examples:
     //1-Command from palette example
     // The command has been defined in the package.json file

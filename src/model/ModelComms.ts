@@ -8,7 +8,7 @@ export class LLAMA_ModelComms{
     async run_query(query: string): Promise<string>{
         //Fetch
         const url = "https://api.groq.com/openai/v1/chat/completions";
-        const apiKey = "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"
+        const apiKey = "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";
         const response = await fetch(url, {
             method: "POST",
             headers: {

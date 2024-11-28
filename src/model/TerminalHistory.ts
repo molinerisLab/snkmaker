@@ -6,10 +6,12 @@ export class TerminalHistory {
     history: BashCommand[];
     archive: BashCommand[];
     queries: Queries;
+    index: number;
     constructor() {
         this.history = [];
         this.archive = [];
         this.queries = new Queries(new NVIDIA_ModelComms());
+        this.index = 0;
     }
     async addCommand(value: string, confidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean) {
         const important = this.queries.guess_if_important(value);
@@ -18,8 +20,9 @@ export class TerminalHistory {
         await Promise.all([important, files]).then((values) => {
             const important = values[0];
             const files = values[1];
-            this.history.push(new BashCommand(value, 0, files[0], files[1], important));
+            this.history.push(new BashCommand(value, 0, files[0], files[1], important, this.index));
         });
+        this.index++;
     }
     getHistory() {
         return this.history;
@@ -35,6 +38,15 @@ export class TerminalHistory {
             this.archive.push(command);
         }
     }
+    deleteCommand(command: BashCommand) {
+        const index = this.history.indexOf(command);
+        if (index > -1) {
+            this.history.splice(index, 1);
+        }
+    }
+    deleteAllCommands() {
+        this.history = [];
+    }
     restoreCommand(command: BashCommand) {
         const index = this.archive.indexOf(command);
         if (index > -1) {
@@ -45,6 +57,9 @@ export class TerminalHistory {
     archiveAllCommands() {
         this.archive = this.archive.concat(this.history);
         this.history = [];
+    }
+    setCommandImportance(command: BashCommand, importance: boolean) {
+        command.important = importance;
     }
 
     async getRule(command: BashCommand): Promise<string>{
@@ -63,13 +78,13 @@ export class BashCommand{
     public output: string;
     public inputs: string[];
     public important: boolean;
-    constructor(command: string, exitStatus: number, input: string, output: string, important: boolean) {
+    public index: number;
+    constructor(command: string, exitStatus: number, input: string, output: string, important: boolean, index: number){ 
         this.command = command;
         this.exitStatus = exitStatus;
         this.inputs = [input];
         this.output = output;
         this.important = important;
-        
-
+        this.index = index;
     }   
 }

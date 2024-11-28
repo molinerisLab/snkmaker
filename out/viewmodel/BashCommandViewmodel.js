@@ -39,6 +39,18 @@ class BashCommandViewModel {
         this.observableCommands.next(this.terminalHistory.getHistory());
         this.observableArchive.next(this.terminalHistory.getArchive());
     }
+    deleteCommand(command) {
+        this.terminalHistory.deleteCommand(command);
+        this.observableCommands.next(this.terminalHistory.getHistory());
+    }
+    deleteAllCommmands() {
+        this.terminalHistory.deleteAllCommands();
+        this.observableCommands.next(this.terminalHistory.getHistory());
+    }
+    setCommandImportance(command, importance) {
+        this.terminalHistory.setCommandImportance(command, importance);
+        this.observableCommands.next(this.terminalHistory.getHistory());
+    }
     printRule(command) {
         this.terminalHistory.getRule(command).then((rule) => {
             if (rule) {

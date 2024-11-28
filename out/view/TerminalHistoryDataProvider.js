@@ -77,13 +77,16 @@ exports.TerminalHistoryDataProvider = TerminalHistoryDataProvider;
 class DisplayCommand extends vscode.TreeItem {
     isChild;
     bashCommand;
-    important = true;
-    constructor(bashCommand, childTitle, childText) {
+    index;
+    constructor(bashCommand, childTitle, childText, index) {
         if (!bashCommand) {
             const label = (childTitle || '') + ": " + childText;
             super(label, vscode.TreeItemCollapsibleState.None);
             this.tooltip = childText || '';
             this.isChild = true;
+            this.contextValue = 'CHILD_OBJ';
+            this.index = index || 0;
+            this.setResourceUri();
             return;
         }
         const label = bashCommand.command;
@@ -91,14 +94,27 @@ class DisplayCommand extends vscode.TreeItem {
         this.tooltip = bashCommand.command;
         this.isChild = false;
         this.bashCommand = bashCommand;
-        this.important = bashCommand.important;
+        this.contextValue = this.bashCommand.important ? 'ROOT_OBJ_I' : 'ROOT_OBJ_NI';
+        this.index = bashCommand.index;
+        this.setResourceUri();
+    }
+    setResourceUri() {
+        if (!this.bashCommand) {
+            this.resourceUri = vscode.Uri.parse('bash_commands_details://' + this.index);
+        }
+        else if (this.bashCommand.important) {
+            this.resourceUri = vscode.Uri.parse('bash_commands://' + this.index);
+        }
+        else {
+            this.resourceUri = vscode.Uri.parse('bash_commands_unimportant://' + this.index);
+        }
     }
     getChildren() {
         return [
-            new DisplayCommand(undefined, 'Full command', this.bashCommand?.command || ''),
-            new DisplayCommand(undefined, 'Output', this.bashCommand?.output || ''),
-            new DisplayCommand(undefined, 'Inputs', this.bashCommand?.inputs.join(', ') || ''),
-            new DisplayCommand(undefined, 'Important', this.important ? 'Yes' : 'No')
+            new DisplayCommand(undefined, 'Full command', this.bashCommand?.command || '', this.index),
+            new DisplayCommand(undefined, 'Output', this.bashCommand?.output || '', this.index),
+            new DisplayCommand(undefined, 'Inputs', this.bashCommand?.inputs.join(', ') || '', this.index),
+            new DisplayCommand(undefined, 'Important', this.bashCommand?.important ? 'Yes' : 'No', this.index)
         ];
     }
     iconPath = {

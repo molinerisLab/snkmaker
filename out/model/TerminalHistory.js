@@ -7,10 +7,12 @@ class TerminalHistory {
     history;
     archive;
     queries;
+    index;
     constructor() {
         this.history = [];
         this.archive = [];
         this.queries = new Queries_1.Queries(new ModelComms_1.NVIDIA_ModelComms());
+        this.index = 0;
     }
     async addCommand(value, confidence, isTrusted) {
         const important = this.queries.guess_if_important(value);
@@ -19,8 +21,9 @@ class TerminalHistory {
         await Promise.all([important, files]).then((values) => {
             const important = values[0];
             const files = values[1];
-            this.history.push(new BashCommand(value, 0, files[0], files[1], important));
+            this.history.push(new BashCommand(value, 0, files[0], files[1], important, this.index));
         });
+        this.index++;
     }
     getHistory() {
         return this.history;
@@ -35,6 +38,15 @@ class TerminalHistory {
             this.archive.push(command);
         }
     }
+    deleteCommand(command) {
+        const index = this.history.indexOf(command);
+        if (index > -1) {
+            this.history.splice(index, 1);
+        }
+    }
+    deleteAllCommands() {
+        this.history = [];
+    }
     restoreCommand(command) {
         const index = this.archive.indexOf(command);
         if (index > -1) {
@@ -45,6 +57,9 @@ class TerminalHistory {
     archiveAllCommands() {
         this.archive = this.archive.concat(this.history);
         this.history = [];
+    }
+    setCommandImportance(command, importance) {
+        command.important = importance;
     }
     async getRule(command) {
         return this.queries.get_snakemake_rule(command.command, command.inputs, command.output);
@@ -61,12 +76,14 @@ class BashCommand {
     output;
     inputs;
     important;
-    constructor(command, exitStatus, input, output, important) {
+    index;
+    constructor(command, exitStatus, input, output, important, index) {
         this.command = command;
         this.exitStatus = exitStatus;
         this.inputs = [input];
         this.output = output;
         this.important = important;
+        this.index = index;
     }
 }
 exports.BashCommand = BashCommand;

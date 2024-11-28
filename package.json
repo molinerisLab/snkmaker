@@ -18,22 +18,47 @@
           "command": "print-all-rules",
           "when": "view == bash-commands",
           "group": "navigation"
+        },
+        {
+          "command": "delete-all-commands",
+          "when": "view == bash-commands",
+          "group": "navigation"
+        },
+        {
+          "command": "archive-all-commands",
+          "when": "view == bash-commands",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
         {
           "command": "print-rule",
-          "when": "view == bash-commands",
+          "when": "view == bash-commands && (viewItem == ROOT_OBJ_I || viewItem == ROOT_OBJ_NI)",
           "group": "inline"
         },
         {
           "command": "archive-command",
-          "when": "view == bash-commands",
+          "when": "view == bash-commands && (viewItem == ROOT_OBJ_I || viewItem == ROOT_OBJ_NI)",
           "group": "inline"
         },
         {
           "command": "restore-command",
-          "when": "view == bash-commands-archive",
+          "when": "view == bash-commands-archive && (viewItem == ROOT_OBJ_I || viewItem == ROOT_OBJ_NI)",
+          "group": "inline"
+        },
+        {
+          "command": "delete-command",
+          "when": "(view == bash-commands || view == bash-commands-archive) && (viewItem == ROOT_OBJ_I || viewItem == ROOT_OBJ_NI)",
+          "group": "inline"
+        },
+        {
+          "command": "set-command-important",
+          "when": "view == bash-commands && viewItem == ROOT_OBJ_NI",
+          "group": "inline"
+        },
+        {
+          "command": "set-command-unimportant",
+          "when": "view == bash-commands && viewItem == ROOT_OBJ_I",
           "group": "inline"
         }
       ]
@@ -72,19 +97,48 @@
     "commands": [
       {
         "command": "print-rule",
-        "title": "Print rule"
+        "title": "Print rule",
+        "icon": "$(testing-run-icon)"
       },
       {
         "command": "print-all-rules",
-        "title": "Print all important rules"
+        "title": "Print all important rules",
+        "icon": "$(testing-run-all-icon)"
       },
       {
         "command": "archive-command",
-        "title": "Archive"
+        "title": "Archive",
+        "icon": "$(notebook-move-down)"
+      },
+      {
+        "command": "archive-all-commands",
+        "title": "Archive",
+        "icon": "$(notebook-move-down)"
       },
       {
         "command": "restore-command",
-        "title": "Restore"
+        "title": "Restore",
+        "icon": "$(notebook-move-up)"
+      },
+      {
+        "command": "delete-command",
+        "title": "Delete command",
+        "icon": "$(notifications-clear)"
+      },
+      {
+        "command": "delete-all-commands",
+        "title": "Delete all commands",
+        "icon": "$(notifications-clear)"
+      },
+      {
+        "command": "set-command-important",
+        "title": "Set command important",
+        "icon": "$(debug-breakpoint-log-unverified)"
+      },
+      {
+        "command": "set-command-unimportant",
+        "title": "Set command unimportant",
+        "icon": "$(debug-breakpoint-log-disabled)"
       }
     ]
   },

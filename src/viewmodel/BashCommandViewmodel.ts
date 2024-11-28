@@ -42,7 +42,19 @@ export class BashCommandViewModel{
       });
       this.observableCommands.next(this.terminalHistory.getHistory());
       this.observableArchive.next(this.terminalHistory.getArchive());
-  }
+    }
+    deleteCommand(command: BashCommand){
+        this.terminalHistory.deleteCommand(command);
+        this.observableCommands.next(this.terminalHistory.getHistory());
+    }
+    deleteAllCommmands(){
+        this.terminalHistory.deleteAllCommands();
+        this.observableCommands.next(this.terminalHistory.getHistory());
+    }
+    setCommandImportance(command: BashCommand, importance: boolean){
+        this.terminalHistory.setCommandImportance(command, importance);
+        this.observableCommands.next(this.terminalHistory.getHistory());
+    }
 
     printRule(command: BashCommand){
       this.terminalHistory.getRule(command).then((rule) => {
@@ -60,6 +72,8 @@ export class BashCommandViewModel{
         this.archiveCommands([]);
       });
     }
+
+
 
 }
 
