@@ -31,7 +31,7 @@ Please write "YES" if it's worth making into a rule, "NO" if it's a one-time com
         response = response.toLowerCase();
         return !response.includes("no");
     }
-    async get_snakemaker_command_(command, inputs, output) {
+    async get_snakemake_rule(command, inputs, output) {
         if (inputs[0] === "-") {
             inputs = ["No input"];
         }
@@ -43,7 +43,13 @@ ${command}
 It is estimated that the input could be ${inputs.join(", ")} and the output could be ${output} - but it could be wrong.
 Please output only the rule. Do not output other things.`;
         const response = await this.modelComms.run_query(query);
-        console.log(response);
+        return response;
+    }
+    async get_all_rules(commands) {
+        const query = `I have the following set of bash commands. Can you convert them into snakemake rules?
+        ${commands}
+        Please output only the Snakemake rules. DO NOT, EVER, OUTPUT ANYTHING OTHER THAN THE RULES.`;
+        const response = await this.modelComms.run_query(query);
         return response;
     }
 }

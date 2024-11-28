@@ -12,6 +12,32 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "menus": {
+      "view/title": [
+        {
+          "command": "print-all-rules",
+          "when": "view == bash-commands",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "print-rule",
+          "when": "view == bash-commands",
+          "group": "inline"
+        },
+        {
+          "command": "archive-command",
+          "when": "view == bash-commands",
+          "group": "inline"
+        },
+        {
+          "command": "restore-command",
+          "when": "view == bash-commands-archive",
+          "group": "inline"
+        }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -28,8 +54,8 @@
           "name": "Bash commands"
         },
         {
-          "id": "temp-test",
-          "name": "Test extra view"
+          "id": "bash-commands-archive",
+          "name": "Archived bash commands"
         }
       ]
     },
@@ -37,12 +63,28 @@
       {
         "view": "bash-commands",
         "contents": "Your commands will dispay here"
+      },
+      {
+        "view": "bash-commands-archive",
+        "contents": "Your archived commands will dispay here"
       }
     ],
     "commands": [
       {
-        "command": "prova.helloWorld",
-        "title": "Hello World"
+        "command": "print-rule",
+        "title": "Print rule"
+      },
+      {
+        "command": "print-all-rules",
+        "title": "Print all important rules"
+      },
+      {
+        "command": "archive-command",
+        "title": "Archive"
+      },
+      {
+        "command": "restore-command",
+        "title": "Restore"
       }
     ]
   },

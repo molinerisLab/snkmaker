@@ -8,12 +8,19 @@ export class TerminalHistoryDataProvider implements vscode.TreeDataProvider<Disp
 	private _refreshCallback: vscode.EventEmitter<DisplayCommand | undefined | null | void> = new vscode.EventEmitter<DisplayCommand | undefined | null | void>();
 	readonly onDidChangeTreeData: vscode.Event<DisplayCommand | undefined | null | void> = this._refreshCallback.event;
 
-	constructor(viewModel: BashCommandViewModel) {
+	constructor(viewModel: BashCommandViewModel, isArchive: boolean = false) {
 		this.tree = [];
-		viewModel.bashCommandsSubscribe(commands => {
-			this.tree = this.buildTree(commands);
-			this._refreshCallback.fire();
-		});
+		if (isArchive) {
+			viewModel.bashCommandsArchiveSubscribe(commands => {
+				this.tree = this.buildTree(commands);
+				this._refreshCallback.fire();
+			});
+		} else {
+			viewModel.bashCommandsSubscribe(commands => {
+				this.tree = this.buildTree(commands);
+				this._refreshCallback.fire();
+			});
+		}
 	}
 
 	getTreeItem(element: DisplayCommand): vscode.TreeItem {

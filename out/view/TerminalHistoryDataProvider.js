@@ -40,12 +40,20 @@ class TerminalHistoryDataProvider {
     tree;
     _refreshCallback = new vscode.EventEmitter();
     onDidChangeTreeData = this._refreshCallback.event;
-    constructor(viewModel) {
+    constructor(viewModel, isArchive = false) {
         this.tree = [];
-        viewModel.bashCommandsSubscribe(commands => {
-            this.tree = this.buildTree(commands);
-            this._refreshCallback.fire();
-        });
+        if (isArchive) {
+            viewModel.bashCommandsArchiveSubscribe(commands => {
+                this.tree = this.buildTree(commands);
+                this._refreshCallback.fire();
+            });
+        }
+        else {
+            viewModel.bashCommandsSubscribe(commands => {
+                this.tree = this.buildTree(commands);
+                this._refreshCallback.fire();
+            });
+        }
     }
     getTreeItem(element) {
         return element;

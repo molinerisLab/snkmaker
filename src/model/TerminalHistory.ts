@@ -4,9 +4,11 @@ import { Queries } from "./Queries";
 
 export class TerminalHistory {
     history: BashCommand[];
+    archive: BashCommand[];
     queries: Queries;
     constructor() {
         this.history = [];
+        this.archive = [];
         this.queries = new Queries(new NVIDIA_ModelComms());
     }
     async addCommand(value: string, confidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean) {
@@ -21,6 +23,37 @@ export class TerminalHistory {
     }
     getHistory() {
         return this.history;
+    }
+    getArchive() {
+        return this.archive;
+    }
+
+    archiveCommand(command: BashCommand) {
+        const index = this.history.indexOf(command);
+        if (index > -1) {
+            this.history.splice(index, 1);
+            this.archive.push(command);
+        }
+    }
+    restoreCommand(command: BashCommand) {
+        const index = this.archive.indexOf(command);
+        if (index > -1) {
+            this.archive.splice(index, 1);
+            this.history.push(command);
+        }
+    }
+    archiveAllCommands() {
+        this.archive = this.archive.concat(this.history);
+        this.history = [];
+    }
+
+    async getRule(command: BashCommand): Promise<string>{
+        return this.queries.get_snakemake_rule(command.command, command.inputs, command.output);
+    }
+
+    async getAllRules(): Promise<string>{
+        const commands = this.history.filter(command=>command.important).map(command => command.command).join("\n\n");
+        return this.queries.get_all_rules("\n"+commands+"\n");
     }
 }
 

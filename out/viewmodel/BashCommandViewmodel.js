@@ -1,18 +1,58 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BashCommandViewModel = void 0;
+const WriteToFiles_1 = require("../model/WriteToFiles");
 class BashCommandViewModel {
     terminalHistory;
     observableCommands = new Observable();
+    observableArchive = new Observable();
+    writeToFiles;
     constructor(terminalHistory) {
         this.terminalHistory = terminalHistory;
+        this.writeToFiles = new WriteToFiles_1.WriteToFiles();
     }
     bashCommandsSubscribe(observer) {
         return this.observableCommands.subscribe(observer);
     }
+    bashCommandsArchiveSubscribe(observer) {
+        return this.observableArchive.subscribe(observer);
+    }
     addCommand(value, confidence, isTrusted) {
         this.terminalHistory.addCommand(value, confidence, isTrusted).then(() => {
             this.observableCommands.next(this.terminalHistory.getHistory());
+        });
+    }
+    archiveCommands(commands) {
+        if (commands.length === 0) {
+            this.terminalHistory.archiveAllCommands();
+        }
+        commands.forEach(command => {
+            this.terminalHistory.archiveCommand(command);
+        });
+        this.observableCommands.next(this.terminalHistory.getHistory());
+        this.observableArchive.next(this.terminalHistory.getArchive());
+    }
+    restoreCommands(commands) {
+        commands.forEach(command => {
+            this.terminalHistory.restoreCommand(command);
+        });
+        this.observableCommands.next(this.terminalHistory.getHistory());
+        this.observableArchive.next(this.terminalHistory.getArchive());
+    }
+    printRule(command) {
+        this.terminalHistory.getRule(command).then((rule) => {
+            if (rule) {
+                console.log(rule);
+                this.writeToFiles.writeToCurrentFile(rule);
+                this.archiveCommands([command]);
+            }
+        });
+    }
+    printAllRules() {
+        this.terminalHistory.getAllRules().then((rules) => {
+            console.log(rules);
+            this.writeToFiles.writeToCurrentFile(rules);
+            this.archiveCommands([]);
         });
     }
 }

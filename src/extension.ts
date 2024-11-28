@@ -18,9 +18,11 @@ export function activate(context: vscode.ExtensionContext) {
 	const model = new TerminalHistory();
 	//Create viewmodel for terminal history
 	const viewModel = new BashCommandViewModel(model);
-	//Create view 
-	const treeDataProvider = new TerminalHistoryDataProvider(viewModel);
-	vscode.window.registerTreeDataProvider('bash-commands',treeDataProvider);
+	//Create views
+	const bashHistoryDataProvider = new TerminalHistoryDataProvider(viewModel);
+	vscode.window.registerTreeDataProvider('bash-commands',bashHistoryDataProvider);
+	const bashArchiveDataProvider = new TerminalHistoryDataProvider(viewModel, true);
+	vscode.window.registerTreeDataProvider('bash-commands-archive',bashArchiveDataProvider);
 
 	//Register terminal commands, update view
 	vscode.window.onDidEndTerminalShellExecution(event => {
@@ -28,6 +30,39 @@ export function activate(context: vscode.ExtensionContext) {
 		console.log(`Command run: \n${commandLine.value}`);
 		viewModel.addCommand(commandLine.value, 0, true);
   	});
+
+	const print_rule = vscode.commands.registerCommand('print-rule', (event) => {
+		if (event && event.bashCommand){
+			viewModel.printRule(event.bashCommand);
+		} else {
+			//TODO: can open menu to select command
+			vscode.window.showInformationMessage('No command selected');
+		}
+	});
+	context.subscriptions.push(print_rule);
+	const print_all_rules = vscode.commands.registerCommand('print-all-rules', (event) => {
+		viewModel.printAllRules();
+	});
+	context.subscriptions.push(print_all_rules);
+	const archive_rules = vscode.commands.registerCommand('archive-command', (event) => {
+		if (event && event.bashCommand){
+			viewModel.archiveCommands([event.bashCommand]);
+		} else {
+			//TODO: can open menu to select command
+			vscode.window.showInformationMessage('No command selected');
+		}
+	});
+	context.subscriptions.push(archive_rules);
+	const restore_commands = vscode.commands.registerCommand('restore-command', (event) => {
+		if (event && event.bashCommand){
+			viewModel.restoreCommands([event.bashCommand]);
+		} else {
+			//TODO: can open menu to select command
+			vscode.window.showInformationMessage('No command selected');
+		}
+	});
+	context.subscriptions.push(restore_commands);
+
 
 	//Stupid examples:
 
