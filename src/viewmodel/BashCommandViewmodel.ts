@@ -1,6 +1,6 @@
 import { BashCommand, TerminalHistory } from "../model/TerminalHistory";
 import { WriteToFiles } from "../model/WriteToFiles";
-
+import * as vscode from 'vscode';
 
 export class BashCommandViewModel{
     terminalHistory: TerminalHistory;
@@ -24,6 +24,9 @@ export class BashCommandViewModel{
         this.terminalHistory.addCommand(value, confidence, isTrusted).then(() => {
             this.observableCommands.next(this.terminalHistory.getHistory());
         });
+    }
+    addCommandGoneWrong(value: string, confidence: number, isTrusted: boolean, returnCode: number | undefined){
+        //TODO: if we want to do something with commands that returned != 0
     }
 
     archiveCommands(commands: BashCommand[]){
@@ -55,21 +58,45 @@ export class BashCommandViewModel{
         this.terminalHistory.setCommandImportance(command, importance);
         this.observableCommands.next(this.terminalHistory.getHistory());
     }
+    modifyCommandDetail(command: BashCommand, modifier?: string){
+      if (!modifier){
+        return;
+      }
+      const value = modifier==="Inputs" ? command.inputs : command.output;
+      vscode.window.showInputBox({prompt: 'Enter new detail for command', value: value}).then((detail) => {
+        if (detail){
+          console.log(detail);
+          this.terminalHistory.modifyCommandDetail(command, modifier, detail);
+          this.observableCommands.next(this.terminalHistory.getHistory());
+        }
+      });
+
+    }
 
     printRule(command: BashCommand){
       this.terminalHistory.getRule(command).then((rule) => {
         if (rule){
             console.log(rule);
-            this.writeToFiles.writeToCurrentFile(rule);
-            this.archiveCommands([command]);
+            this.writeToFiles.writeToCurrentFile(rule).then((success) => {
+                if (success){
+                    this.archiveCommands([command]);
+                }
+            });
         }
       });
     }
     printAllRules(){
       this.terminalHistory.getAllRules().then((rules) => {
         console.log(rules);
-        this.writeToFiles.writeToCurrentFile(rules);
-        this.archiveCommands([]);
+        if (!rules){
+            vscode.window.showInformationMessage('No rules to print');
+            return;
+        }
+        this.writeToFiles.writeToCurrentFile(rules).then((success) => {
+          if (success){
+            this.archiveCommands([]);
+          }
+        });
       });
     }
 

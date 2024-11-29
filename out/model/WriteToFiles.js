@@ -36,18 +36,32 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.WriteToFiles = void 0;
 const vscode = __importStar(require("vscode"));
 class WriteToFiles {
-    writeToCurrentFile(value) {
+    writeToEditor(value, editor) {
+        if (!editor) {
+            vscode.window.showInformationMessage('Please open a file in the editor to print the rules');
+            return false;
+        }
+        const position = editor.selection.active;
+        editor.edit(editBuilder => {
+            editBuilder.insert(position, value);
+        });
+        return true;
+    }
+    async writeToCurrentFile(value) {
         //Write to the file currently in focus, if any
-        const editor = vscode.window.activeTextEditor;
-        if (editor) {
-            const position = editor.selection.active;
-            editor.edit(editBuilder => {
-                editBuilder.insert(position, value);
+        var editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            return vscode.commands.executeCommand('workbench.action.files.newUntitledFile').then(() => {
+                editor = vscode.window.activeTextEditor;
+                return this.writeToEditor(value, editor);
             });
         }
         else {
-            vscode.window.showInformationMessage('No file open');
+            return this.writeToEditor(value, editor);
         }
+    }
+    hasEditorOpen() {
+        return vscode.window.activeTextEditor !== undefined;
     }
 }
 exports.WriteToFiles = WriteToFiles;

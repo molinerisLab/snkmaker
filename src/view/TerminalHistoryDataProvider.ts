@@ -39,27 +39,34 @@ export class TerminalHistoryDataProvider implements vscode.TreeDataProvider<Disp
 	}
 
 	buildTree(commands: BashCommand[]) {
-		return commands.map(command => new DisplayCommand(command));
+		return commands.map(command => new DisplayCommand(command, false));
 	}
 }
 
 class DisplayCommand extends vscode.TreeItem {
 	isChild: boolean;
-	bashCommand?: BashCommand;
+	bashCommand: BashCommand;
 	index: number;
+	modifier?: string;
 
-	constructor(bashCommand: BashCommand);
-	constructor(bashCommand: undefined, childTitle: string, childText: string, index?: number);
-	constructor(bashCommand?: BashCommand, childTitle?: string, childText?: string, index?: number) {
-		if (!bashCommand) {
+	constructor(bashCommand: BashCommand, isChild: boolean);
+	constructor(bashCommand: BashCommand, isChild: boolean, childTitle: string, childText: string, index?: number, modifiable?: string);
+	constructor(bashCommand: BashCommand, isChild: boolean=false, childTitle?: string, childText?: string, index?: number, modifiable?: string) {
+		if (isChild===true) {
 			const label = (childTitle || '') + ": " + childText;
 			super(label, vscode.TreeItemCollapsibleState.None);
 			this.tooltip = childText || '';
 			this.isChild = true;
-			this.contextValue = 'CHILD_OBJ';
+			if (modifiable) {
+				this.contextValue = 'CHILD_OBJ_MOD';
+				this.modifier = modifiable;
+			} else {
+				this.contextValue = 'CHILD_OBJ';
+			}
 			this.index = index || 0;
 			this.setResourceUri();
 			this.iconPath = new vscode.ThemeIcon("find-collapseddebug-breakpoint-unverified");
+			this.bashCommand = bashCommand;
 			return;
 		}
 		const label = bashCommand.command;
@@ -85,10 +92,10 @@ class DisplayCommand extends vscode.TreeItem {
 
 	getChildren(): DisplayCommand[] {
 		return [
-			new DisplayCommand(undefined, 'Full command', this.bashCommand?.command || '', this.index),
-			new DisplayCommand(undefined, 'Output', this.bashCommand?.output || '', this.index),
-			new DisplayCommand(undefined, 'Inputs', this.bashCommand?.inputs.join(', ') || '', this.index),
-			new DisplayCommand(undefined, 'Important', this.bashCommand?.important ? 'Yes' : 'No', this.index)
+			//new DisplayCommand(undefined, 'Full command', this.bashCommand?.command || '', this.index, false),
+			new DisplayCommand(this.bashCommand,true, 'Output', this.bashCommand?.output || '', this.index, "Output"),
+			new DisplayCommand(this.bashCommand,true, 'Inputs', this.bashCommand?.inputs || '', this.index, "Inputs"),
+			new DisplayCommand(this.bashCommand,true, 'Important', this.bashCommand?.important ? 'Yes' : 'No', this.index, undefined)
 		];
 	}
 	

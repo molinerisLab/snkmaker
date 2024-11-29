@@ -1,6 +1,6 @@
 {
-  "name": "prova",
-  "displayName": "prova",
+  "name": "Snakemake-LLM",
+  "displayName": "Snakemake-LLM",
   "description": "",
   "version": "0.0.1",
   "engines": {
@@ -36,6 +36,10 @@
           },
           {
             "command": "set-command-unimportant",
+            "when": "false"
+          },
+          {
+            "command": "modify-command-detail",
             "when": "false"
           }
       ],
@@ -85,6 +89,11 @@
         {
           "command": "set-command-unimportant",
           "when": "view == bash-commands && viewItem == ROOT_OBJ_I",
+          "group": "inline@1"
+        },
+        {
+          "command": "modify-command-detail",
+          "when": "view == bash-commands && viewItem == CHILD_OBJ_MOD",
           "group": "inline@1"
         }
       ]
@@ -165,6 +174,11 @@
         "command": "set-command-unimportant",
         "title": "Set unimportant",
         "icon": "$(debug-breakpoint-log-disabled)"
+      },
+      {
+        "command": "modify-command-detail",
+        "title": "Change",
+        "icon": "$(keybindings-edit)"
       }
     ]
   },

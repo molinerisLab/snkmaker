@@ -15,6 +15,13 @@ class TerminalHistory {
         this.index = 0;
     }
     async addCommand(value, confidence, isTrusted) {
+        const index_existing = this.isCommandInHistory(value);
+        if (index_existing !== -1) {
+            const command = this.history[index_existing];
+            this.history.splice(index_existing, 1);
+            this.history.push(command);
+            return;
+        }
         const important = this.queries.guess_if_important(value);
         const files = this.queries.guess_input_output(value);
         //Wait for both promises to resolve
@@ -30,6 +37,15 @@ class TerminalHistory {
     }
     getArchive() {
         return this.archive;
+    }
+    //TODO: optimize using a hashmap
+    isCommandInHistory(command) {
+        for (var i = 0; i < this.history.length; i++) {
+            if (this.history[i].command === command) {
+                return i;
+            }
+        }
+        return -1;
     }
     archiveCommand(command) {
         const index = this.history.indexOf(command);
@@ -49,9 +65,17 @@ class TerminalHistory {
     }
     restoreCommand(command) {
         const index = this.archive.indexOf(command);
+        const index_existing = this.isCommandInHistory(command.command);
         if (index > -1) {
             this.archive.splice(index, 1);
-            this.history.push(command);
+            if (index_existing === -1) {
+                this.history.push(command);
+            }
+            else {
+                //Move the command to the end of the history
+                this.history.splice(index_existing, 1);
+                this.history.push(command);
+            }
         }
     }
     archiveAllCommands() {
@@ -65,8 +89,19 @@ class TerminalHistory {
         return this.queries.get_snakemake_rule(command.command, command.inputs, command.output);
     }
     async getAllRules() {
-        const commands = this.history.filter(command => command.important).map(command => command.command).join("\n\n");
-        return this.queries.get_all_rules("\n" + commands + "\n");
+        const important = this.history.filter(command => command.important);
+        if (important.length === 0) {
+            return null;
+        }
+        return this.queries.get_all_rules(important);
+    }
+    modifyCommandDetail(command, modifier, detail) {
+        if (modifier === "Inputs") {
+            command.inputs = detail;
+        }
+        else {
+            command.output = detail;
+        }
     }
 }
 exports.TerminalHistory = TerminalHistory;
@@ -80,7 +115,7 @@ class BashCommand {
     constructor(command, exitStatus, input, output, important, index) {
         this.command = command;
         this.exitStatus = exitStatus;
-        this.inputs = [input];
+        this.inputs = input;
         this.output = output;
         this.important = important;
         this.index = index;

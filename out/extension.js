@@ -61,8 +61,14 @@ function activate(context) {
     //Register terminal listener, update view
     vscode.window.onDidEndTerminalShellExecution(event => {
         const commandLine = event.execution.commandLine;
-        console.log(`Command run: \n${commandLine.value}`);
-        viewModel.addCommand(commandLine.value, 0, true);
+        const code = event.exitCode;
+        console.log(`Command run: \n${commandLine.value} - exit code: ${code}`);
+        if (code !== 0) {
+            viewModel.addCommandGoneWrong(commandLine.value, 0, true, code);
+        }
+        else {
+            viewModel.addCommand(commandLine.value, 0, true);
+        }
     });
     //Register vscode commands
     const print_rule = vscode.commands.registerCommand('print-rule', (event) => {
@@ -135,6 +141,15 @@ function activate(context) {
         }
     });
     context.subscriptions.push(set_command_unimportant);
+    const modify_command_detail = vscode.commands.registerCommand('modify-command-detail', (event) => {
+        if (event && event.bashCommand) {
+            viewModel.modifyCommandDetail(event.bashCommand, event.modifier);
+        }
+        else {
+            vscode.window.showInformationMessage('No command selected');
+        }
+    });
+    context.subscriptions.push(modify_command_detail);
     //Stupid examples:
     //1-Command from palette example
     // The command has been defined in the package.json file

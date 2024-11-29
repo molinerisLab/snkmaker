@@ -15,11 +15,8 @@ If you are sure there is no input or output, please write "-". If it cannot be d
         const response = await this.modelComms.run_query(query);
         //Parse response
         const split = response.split(";");
-        const input = split[0].split("=")[1];
-        const output = split[1].split("=")[1];
-        //Remove [ and ] from strings
-        input.replace("[", "").replace("]", "");
-        output.replace("[", "").replace("]", "");
+        const input = split[0].split("=")[1].replace("[", "").replace("]", "");
+        const output = split[1].split("=")[1].replace("[", "").replace("]", "");
         return [input, output];
     }
     async guess_if_important(command) {
@@ -34,21 +31,22 @@ Please write "YES" if it's worth making into a rule, "NO" if it's a one-time com
     }
     async get_snakemake_rule(command, inputs, output) {
         if (inputs[0] === "-") {
-            inputs = ["No input"];
+            inputs = "No input";
         }
         if (output === "-") {
             output = "No output";
         }
         const query = `Convert this bash command into a snakemake rule:
 ${command}
-It is estimated that the input could be ${inputs.join(", ")} and the output could be ${output} - but it could be wrong.
+It is estimated that the input could be (${inputs}) and the output could be (${output}) - but it could be wrong.
 Please output only the rule. Do not output other things.`;
         const response = await this.modelComms.run_query(query);
         return response;
     }
     async get_all_rules(commands) {
-        const query = `I have the following set of bash commands. Can you convert them into snakemake rules?
-        ${commands}
+        const formatted = commands.map(command => `\nEstimated inputs: (${command.inputs}) Estimated outputs: (${command.output})\nShell command: ${command.command}\n`);
+        const query = `I have the following set of bash commands. Can you convert them into snakemake rules? Note that Estimated inputs and outputs are just guesses and could be wrong.
+        ${formatted.join("\n")}
         Please output only the Snakemake rules. DO NOT, EVER, OUTPUT ANYTHING OTHER THAN THE RULES.`;
         const response = await this.modelComms.run_query(query);
         return response;

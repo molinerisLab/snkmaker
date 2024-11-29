@@ -14,6 +14,13 @@ export class TerminalHistory {
         this.index = 0;
     }
     async addCommand(value: string, confidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean) {
+        const index_existing = this.isCommandInHistory(value);
+        if (index_existing !== -1) {
+            const command = this.history[index_existing];
+            this.history.splice(index_existing, 1);
+            this.history.push(command);
+            return;
+        }
         const important = this.queries.guess_if_important(value);
         const files = this.queries.guess_input_output(value);
         //Wait for both promises to resolve
@@ -29,6 +36,15 @@ export class TerminalHistory {
     }
     getArchive() {
         return this.archive;
+    }
+    //TODO: optimize using a hashmap
+    private isCommandInHistory(command: string) {
+        for (var i = 0; i < this.history.length; i++) {
+            if (this.history[i].command === command) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     archiveCommand(command: BashCommand) {
@@ -49,9 +65,16 @@ export class TerminalHistory {
     }
     restoreCommand(command: BashCommand) {
         const index = this.archive.indexOf(command);
+        const index_existing = this.isCommandInHistory(command.command);
         if (index > -1) {
             this.archive.splice(index, 1);
-            this.history.push(command);
+            if (index_existing === -1) {
+                this.history.push(command);
+            } else {
+                //Move the command to the end of the history
+                this.history.splice(index_existing, 1);
+                this.history.push(command);
+            }
         }
     }
     archiveAllCommands() {
@@ -66,9 +89,19 @@ export class TerminalHistory {
         return this.queries.get_snakemake_rule(command.command, command.inputs, command.output);
     }
 
-    async getAllRules(): Promise<string>{
-        const commands = this.history.filter(command=>command.important).map(command => command.command).join("\n\n");
-        return this.queries.get_all_rules("\n"+commands+"\n");
+    async getAllRules(): Promise<string | null>{
+        const important = this.history.filter(command=>command.important);
+        if (important.length === 0){
+            return null;
+        }
+        return this.queries.get_all_rules(important);
+    }
+    modifyCommandDetail(command: BashCommand, modifier: string, detail: string){
+        if (modifier === "Inputs"){
+            command.inputs = detail;
+        } else {
+            command.output = detail;
+        }
     }
 }
 
@@ -76,13 +109,13 @@ export class BashCommand{
     public command: string;
     public exitStatus: number;
     public output: string;
-    public inputs: string[];
+    public inputs: string;
     public important: boolean;
     public index: number;
     constructor(command: string, exitStatus: number, input: string, output: string, important: boolean, index: number){ 
         this.command = command;
         this.exitStatus = exitStatus;
-        this.inputs = [input];
+        this.inputs = input;
         this.output = output;
         this.important = important;
         this.index = index;
