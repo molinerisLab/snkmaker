@@ -7,8 +7,9 @@ export class Queries{
     }
     async guess_input_output(command: string){
         const query = `I have the following bash command: ${command}.
-Can you guess the filenames of input and outputs? I'm interested only in the filenames of what is read and written - not the things in between (es pipe operator).
-If you are sure there is no input or output, please write "-". If unsure, for example because an unknown program is run, write "Unknown". stdin, stdout, stderr are not considered inputs or outputs, they are -.
+Can you guess the filenames of input and outputs? Only the filenames of what is read and written are important - not the things in between (es pipe operator), and stdin,stdout and stderr are not considered inputs or outputs.
+Consider that when unknown programs are executed, they might write to files and you don't know what they are.
+If you are sure there is no input or output, please write "-". If it cannot be determined, write "Unknown".
         Please write: INPUT=[...]; OUTPUT=[...]. DO NOT, EVER output other things, only INPUT=[...], OUTPUT=[...]`;
         const response = await this.modelComms.run_query(query);
         //Parse response
@@ -23,7 +24,7 @@ If you are sure there is no input or output, please write "-". If unsure, for ex
 
     async guess_if_important(command: string){
         const query = `I have the following bash command: ${command}.
-It might need to be translated into a snakemake rule, but it could be just a one-time command from the user.
+It might need to be translated into a snakemake rule, but it could be just a one-time command from the user. Generally, things that for sure do not write to files are not worth making into rules.
 Please write "YES" if it's worth making into a rule, "NO" if it's a one-time command. DO NOT, EVER output other things, only YES or NO.`;
         let response = await this.modelComms.run_query(query);
         console.log("Important: " +response);

@@ -13,6 +13,32 @@
   "main": "./out/extension.js",
   "contributes": {
     "menus": {
+      "commandPalette": [
+          {
+            "command": "print-rule",
+            "when": "false"
+          },
+          {
+            "command": "archive-command",
+            "when": "false"
+          },
+          {
+            "command": "restore-command",
+            "when": "false"
+          },
+          {
+            "command": "delete-command",
+            "when": "false"
+          },
+          {
+            "command": "set-command-important",
+            "when": "false"
+          },
+          {
+            "command": "set-command-unimportant",
+            "when": "false"
+          }
+      ],
       "view/title": [
         {
           "command": "print-all-rules",
@@ -34,12 +60,12 @@
         {
           "command": "print-rule",
           "when": "view == bash-commands && (viewItem == ROOT_OBJ_I || viewItem == ROOT_OBJ_NI)",
-          "group": "inline"
+          "group": "inline@4"
         },
         {
           "command": "archive-command",
           "when": "view == bash-commands && (viewItem == ROOT_OBJ_I || viewItem == ROOT_OBJ_NI)",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "restore-command",
@@ -49,17 +75,17 @@
         {
           "command": "delete-command",
           "when": "(view == bash-commands || view == bash-commands-archive) && (viewItem == ROOT_OBJ_I || viewItem == ROOT_OBJ_NI)",
-          "group": "inline"
+          "group": "inline@3"
         },
         {
           "command": "set-command-important",
           "when": "view == bash-commands && viewItem == ROOT_OBJ_NI",
-          "group": "inline"
+          "group": "inline@1"
         },
         {
           "command": "set-command-unimportant",
           "when": "view == bash-commands && viewItem == ROOT_OBJ_I",
-          "group": "inline"
+          "group": "inline@1"
         }
       ]
     },
@@ -112,7 +138,7 @@
       },
       {
         "command": "archive-all-commands",
-        "title": "Archive",
+        "title": "Archive all commands",
         "icon": "$(notebook-move-down)"
       },
       {
@@ -127,17 +153,17 @@
       },
       {
         "command": "delete-all-commands",
-        "title": "Delete all commands",
+        "title": "Delete all",
         "icon": "$(notifications-clear)"
       },
       {
         "command": "set-command-important",
-        "title": "Set command important",
+        "title": "Set important",
         "icon": "$(debug-breakpoint-log-unverified)"
       },
       {
         "command": "set-command-unimportant",
-        "title": "Set command unimportant",
+        "title": "Set unimportant",
         "icon": "$(debug-breakpoint-log-disabled)"
       }
     ]

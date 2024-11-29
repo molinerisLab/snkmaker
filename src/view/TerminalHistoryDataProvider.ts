@@ -59,6 +59,7 @@ class DisplayCommand extends vscode.TreeItem {
 			this.contextValue = 'CHILD_OBJ';
 			this.index = index || 0;
 			this.setResourceUri();
+			this.iconPath = new vscode.ThemeIcon("find-collapseddebug-breakpoint-unverified");
 			return;
 		}
 		const label = bashCommand.command;
@@ -68,6 +69,7 @@ class DisplayCommand extends vscode.TreeItem {
 		this.bashCommand = bashCommand;
 		this.contextValue = this.bashCommand.important ? 'ROOT_OBJ_I' : 'ROOT_OBJ_NI';
 		this.index = bashCommand.index;
+		this.iconPath = undefined;
 		this.setResourceUri();
 	}
 
@@ -90,9 +92,6 @@ class DisplayCommand extends vscode.TreeItem {
 		];
 	}
 	
-	iconPath = {
-		light: path.join(__filename, '..', '..', 'resources', 'light', 'DisplayCommand.svg'),
-		dark: path.join(__filename, '..', '..', 'resources', 'dark', 'DisplayCommand.svg')
-	  };
+	
 }
 

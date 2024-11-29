@@ -35,7 +35,6 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TerminalHistoryDataProvider = void 0;
 const vscode = __importStar(require("vscode"));
-const path = __importStar(require("path"));
 class TerminalHistoryDataProvider {
     tree;
     _refreshCallback = new vscode.EventEmitter();
@@ -87,6 +86,7 @@ class DisplayCommand extends vscode.TreeItem {
             this.contextValue = 'CHILD_OBJ';
             this.index = index || 0;
             this.setResourceUri();
+            this.iconPath = new vscode.ThemeIcon("find-collapseddebug-breakpoint-unverified");
             return;
         }
         const label = bashCommand.command;
@@ -96,6 +96,7 @@ class DisplayCommand extends vscode.TreeItem {
         this.bashCommand = bashCommand;
         this.contextValue = this.bashCommand.important ? 'ROOT_OBJ_I' : 'ROOT_OBJ_NI';
         this.index = bashCommand.index;
+        this.iconPath = undefined;
         this.setResourceUri();
     }
     setResourceUri() {
@@ -117,9 +118,5 @@ class DisplayCommand extends vscode.TreeItem {
             new DisplayCommand(undefined, 'Important', this.bashCommand?.important ? 'Yes' : 'No', this.index)
         ];
     }
-    iconPath = {
-        light: path.join(__filename, '..', '..', 'resources', 'light', 'DisplayCommand.svg'),
-        dark: path.join(__filename, '..', '..', 'resources', 'dark', 'DisplayCommand.svg')
-    };
 }
 //# sourceMappingURL=TerminalHistoryDataProvider.js.map
