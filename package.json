@@ -41,6 +41,10 @@
           {
             "command": "modify-command-detail",
             "when": "false"
+          },
+          {
+            "command": "use-model",
+            "when": "false"
           }
       ],
       "view/title": [
@@ -126,6 +130,10 @@
         {
           "id": "bash-commands-archive",
           "name": "Archived bash commands"
+        },
+        {
+          "id": "llm-models",
+          "name": "Models"
         }
       ]
     },
@@ -205,6 +213,10 @@
         "command": "stop-listening",
         "title": "Pause listening",
         "icon": "resources/pause.svg"
+      },
+      {
+        "command": "use-model",
+        "title": "Use this model"
       }
     ]
   },

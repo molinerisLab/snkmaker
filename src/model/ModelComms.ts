@@ -1,48 +1,118 @@
 import OpenAI from 'openai';
+import * as vscode from 'vscode';
+
+export class LLM{
+    models: ModelComms[];
+    current_model: number;
+    copilot_active = false;
+    constructor(){
+        this.current_model = 0;
+        this.models = [new OpenAI_Models('https://integrate.api.nvidia.com/v1', 
+            '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',
+            "meta/llama3-70b-instruct", 
+            "(default) NVD Llama3-70b-instruct"),
+            new OpenAI_Models('https://integrate.api.nvidia.com/v1', 
+                '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',
+                "meta/llama-3.1-405b-instruct", 
+                "(default) NVD Llama3-405b-instruct")
+        ];
+    }
+    run_query(query: string): Promise<string>{
+        return this.models[this.current_model].run_query(query);
+    }
+
+    useModel(index: number){
+        this.current_model = index;
+    }
+    isCopilotActive(){
+        return this.copilot_active;
+    }
+    activateCopilot(models: vscode.LanguageModelChat[]){
+        if (models.length === 0 || this.copilot_active===true){
+            return;
+        }
+        //If one model in models has id = 'gpt-4o' set as the first
+        const index_4o = models.findIndex(model => model.id === 'gpt-4o');
+        if (index_4o !== -1){
+            const model = models.splice(index_4o, 1);
+            models.unshift(model[0]);
+        }
+        const copilot_models: ModelComms[] = models.map(_model => 
+            new CopilotModel(_model)
+        );
+        this.models = copilot_models.concat(this.models);
+        this.copilot_active = true;
+        vscode.window.showInformationMessage('Listening started');
+    }
+
+}
+
+export interface ModelParameters{
+    key: string; value: string;
+}
 
 export interface ModelComms{
     run_query(query: string): Promise<string>;
+    get_name(): string;
+    get_params(): ModelParameters[];
+    set_param(key: string, value: string): void;
 }
 
-export class LLAMA_ModelComms{
-    async run_query(query: string): Promise<string>{
-        //Fetch
-        const url = "https://api.groq.com/openai/v1/chat/completions";
-        const apiKey = "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";
-        const response = await fetch(url, {
-            method: "POST",
-            headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-            model: "llama3-8b-8192",
-            messages: [
-                {
-                role: "user",
-                content: query,
-                },
-            ],
-            }),
-        });
-        if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        const data: any = await response.json();
-        console.log(data.choices[0].message.content);
-        return data.choices[0].message.content;
+class CopilotModel implements ModelComms{
+    userPrompt: string = "You are the AI inside a vscode extension that records user bash commands and help producing snakemake rules.";
+    model: vscode.LanguageModelChat;
+    constructor(model: vscode.LanguageModelChat){
+        this.model = model;
+    }
+    async run_query(query: string): Promise<string> {
+        const craftedPrompt = [
+            vscode.LanguageModelChatMessage.User(this.userPrompt),
+            vscode.LanguageModelChatMessage.User(query)
+        ];
+        const request = await this.model.sendRequest(craftedPrompt, {});
+        var response = "";
+        for await (const fragment of request.text) {
+            response += fragment;
+          }
+        return response;
+    }
+    get_name(): string{
+        return "Copilot - " + this.model.id;
+    }
+    get_params(): ModelParameters[]{
+        return [];
+    }
+    set_param(key: string, value: string){
+        return;
     }
 }
 
-export class NVIDIA_ModelComms{
+class OpenAI_Models implements ModelComms{
+    url: string; apiKey: string; model: string;
+    name: string;
+    constructor(url: string, apiKey: string, model: string, name: string){
+        this.url = url;
+        this.apiKey = apiKey;
+        this.model = model;
+        this.name = name;
+    }
+    get_name(): string{
+        return this.name;
+    }
+    get_params(): ModelParameters[]{
+        return [];
+    }
+    set_param(key: string, value: string){
+        return;
+    }
+
     async run_query(query: string): Promise<string>{
         const openai = new OpenAI({
-        apiKey: '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',
-        baseURL: 'https://integrate.api.nvidia.com/v1',
+            apiKey: this.apiKey,
+            baseURL: this.url,
         });
-
         const completion = await openai.chat.completions.create({
-            model: "meta/llama3-70b-instruct",
+            model: this.model,
             messages: [{"role":"user","content":query}],
             temperature: 0.5,
             top_p: 1,
@@ -53,7 +123,6 @@ export class NVIDIA_ModelComms{
         for await (const chunk of completion) {
             response += chunk.choices[0]?.delta?.content || '';
         }
-        console.log(response);
         return response;
     }
 }

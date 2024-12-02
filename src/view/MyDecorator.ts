@@ -11,6 +11,11 @@ export class TodoDecorationProvider implements FileDecorationProvider {
                 color: new ThemeColor('disabledForeground'),
                 // badge: "1"
             };
+        } else if (uri.scheme === 'selected_model'){
+            return {
+                color: new ThemeColor('terminal.ansiGreen'),
+                // badge: "2"
+            };
         }
 
         return undefined;

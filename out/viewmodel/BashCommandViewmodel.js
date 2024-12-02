@@ -34,16 +34,21 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BashCommandViewModel = void 0;
+const ModelComms_1 = require("../model/ModelComms");
+const TerminalHistory_1 = require("../model/TerminalHistory");
 const WriteToFiles_1 = require("../model/WriteToFiles");
 const vscode = __importStar(require("vscode"));
 class BashCommandViewModel {
+    llm;
     terminalHistory;
     observableCommands = new Observable();
     observableArchive = new Observable();
+    observableModel = new Observable();
     writeToFiles;
     isListening = false;
-    constructor(terminalHistory) {
-        this.terminalHistory = terminalHistory;
+    constructor() {
+        this.llm = new ModelComms_1.LLM();
+        this.terminalHistory = new TerminalHistory_1.TerminalHistory(this.llm);
         this.writeToFiles = new WriteToFiles_1.WriteToFiles();
     }
     startListening() {
@@ -57,6 +62,12 @@ class BashCommandViewModel {
     }
     bashCommandsArchiveSubscribe(observer) {
         return this.observableArchive.subscribe(observer);
+    }
+    getModels() {
+        return this.llm;
+    }
+    modelsSubscribe(observer) {
+        return this.observableModel.subscribe(observer);
     }
     addCommand(value, confidence, isTrusted) {
         if (!this.isListening) {
@@ -139,6 +150,17 @@ class BashCommandViewModel {
                 }
             });
         });
+    }
+    useModel(modelIndex) {
+        this.llm.useModel(modelIndex);
+        this.observableModel.next(this.llm);
+    }
+    isCopilotActive() {
+        return this.llm.isCopilotActive();
+    }
+    activateCopilot(models) {
+        this.llm.activateCopilot(models);
+        this.observableModel.next(this.llm);
     }
 }
 exports.BashCommandViewModel = BashCommandViewModel;

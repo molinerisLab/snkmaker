@@ -1,16 +1,20 @@
+import { LLM, ModelComms } from "../model/ModelComms";
 import { BashCommand, TerminalHistory } from "../model/TerminalHistory";
 import { WriteToFiles } from "../model/WriteToFiles";
 import * as vscode from 'vscode';
 
 export class BashCommandViewModel{
+    llm: LLM;
     terminalHistory: TerminalHistory;
     observableCommands = new Observable<BashCommand[]>();
     observableArchive = new Observable<BashCommand[]>();
+    observableModel = new Observable<LLM>();
     writeToFiles: WriteToFiles;
     isListening = false;
     
-    constructor(terminalHistory: TerminalHistory){
-        this.terminalHistory = terminalHistory;
+    constructor(){
+        this.llm = new LLM();
+        this.terminalHistory = new TerminalHistory(this.llm);
         this.writeToFiles = new WriteToFiles();
     }
 
@@ -27,6 +31,12 @@ export class BashCommandViewModel{
     }
     bashCommandsArchiveSubscribe(observer: Observer<BashCommand[]>){
       return this.observableArchive.subscribe(observer);
+    }
+    getModels(){
+        return this.llm;
+    }
+    modelsSubscribe(observer: Observer<LLM>){
+        return this.observableModel.subscribe(observer);
     }
 
     addCommand(value: string, confidence: number, isTrusted: boolean){
@@ -115,7 +125,18 @@ export class BashCommandViewModel{
       });
     }
 
+    useModel(modelIndex: number){
+        this.llm.useModel(modelIndex);
+        this.observableModel.next(this.llm);
+    }
 
+    isCopilotActive(){
+        return this.llm.isCopilotActive();
+    }
+    activateCopilot(models: vscode.LanguageModelChat[]){
+      this.llm.activateCopilot(models);
+      this.observableModel.next(this.llm);
+    }
 
 }
 

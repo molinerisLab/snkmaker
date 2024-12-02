@@ -1,9 +1,9 @@
-import { ModelComms } from "./ModelComms";
+import { LLM } from "./ModelComms";
 import { BashCommand } from "./TerminalHistory";
 
 export class Queries{
-    modelComms: ModelComms;
-    constructor(modelComms: ModelComms){
+    modelComms: LLM;
+    constructor(modelComms: LLM){
         this.modelComms = modelComms;
     }
     async guess_input_output(command: string){

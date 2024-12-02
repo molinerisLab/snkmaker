@@ -1,17 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BashCommand = exports.TerminalHistory = void 0;
-const ModelComms_1 = require("./ModelComms");
 const Queries_1 = require("./Queries");
 class TerminalHistory {
     history;
     archive;
+    llm;
     queries;
     index;
-    constructor() {
+    constructor(llm) {
         this.history = [];
         this.archive = [];
-        this.queries = new Queries_1.Queries(new ModelComms_1.NVIDIA_ModelComms());
+        this.llm = llm;
+        this.queries = new Queries_1.Queries(this.llm);
         this.index = 0;
     }
     async addCommand(value, confidence, isTrusted) {

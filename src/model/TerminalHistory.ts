@@ -1,16 +1,18 @@
 import { TerminalShellExecutionCommandLineConfidence } from "vscode";
-import { ModelComms, NVIDIA_ModelComms } from "./ModelComms";
+import { LLM } from "./ModelComms";
 import { Queries } from "./Queries";
 
 export class TerminalHistory {
     history: BashCommand[];
     archive: BashCommand[];
+    llm: LLM;
     queries: Queries;
     index: number;
-    constructor() {
+    constructor(llm: LLM) {
         this.history = [];
         this.archive = [];
-        this.queries = new Queries(new NVIDIA_ModelComms());
+        this.llm = llm;
+        this.queries = new Queries(this.llm);
         this.index = 0;
     }
     async addCommand(value: string, confidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean) {

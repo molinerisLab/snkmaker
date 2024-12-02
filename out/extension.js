@@ -39,18 +39,16 @@ exports.deactivate = deactivate;
 // Import the module and reference it with the alias vscode in your code below
 const vscode = __importStar(require("vscode"));
 const TerminalHistoryDataProvider_1 = require("./view/TerminalHistoryDataProvider");
-const TerminalHistory_1 = require("./model/TerminalHistory");
 const BashCommandViewmodel_1 = require("./viewmodel/BashCommandViewmodel");
 const MyDecorator_1 = require("./view/MyDecorator");
+const ModelsDataProvider_1 = require("./view/ModelsDataProvider");
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
     const bashCommandTitles = [' - NOT LISTENING', ' - LISTENING'];
     vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
-    //Create base model for terminal history
-    const model = new TerminalHistory_1.TerminalHistory();
     //Create viewmodel for terminal history
-    const viewModel = new BashCommandViewmodel_1.BashCommandViewModel(model);
+    const viewModel = new BashCommandViewmodel_1.BashCommandViewModel();
     //Create views
     const bashHistoryDataProvider = new TerminalHistoryDataProvider_1.TerminalHistoryDataProvider(viewModel);
     //vscode.window.registerTreeDataProvider('bash-commands',bashHistoryDataProvider);
@@ -58,6 +56,8 @@ function activate(context) {
     bashCommandView.title = 'Bash Commands' + bashCommandTitles[viewModel.isListening ? 1 : 0];
     const bashArchiveDataProvider = new TerminalHistoryDataProvider_1.TerminalHistoryDataProvider(viewModel, true);
     vscode.window.registerTreeDataProvider('bash-commands-archive', bashArchiveDataProvider);
+    const modelsDataProvider = new ModelsDataProvider_1.ModelsDataProvider(viewModel);
+    vscode.window.registerTreeDataProvider('llm-models', modelsDataProvider);
     vscode.window.registerFileDecorationProvider(new MyDecorator_1.TodoDecorationProvider());
     //Register terminal listener, update view
     vscode.window.onDidEndTerminalShellExecution(event => {
@@ -152,9 +152,18 @@ function activate(context) {
     });
     context.subscriptions.push(modify_command_detail);
     const start_listening = vscode.commands.registerCommand('start-listening', () => {
+        //Activate copilot, if not already active
+        if (!viewModel.isCopilotActive()) {
+            vscode.lm.selectChatModels({
+                vendor: 'copilot'
+            }).then(models => {
+                viewModel.activateCopilot(models);
+            });
+        }
         viewModel.startListening();
         vscode.commands.executeCommand('setContext', 'myExtension.isListening', true);
         bashCommandView.title = 'Bash Commands' + bashCommandTitles[viewModel.isListening ? 1 : 0];
+        vscode.window.showInformationMessage('Listening started');
     });
     context.subscriptions.push(start_listening);
     context.subscriptions.push(modify_command_detail);
@@ -164,6 +173,13 @@ function activate(context) {
         bashCommandView.title = 'Bash Commands' + bashCommandTitles[viewModel.isListening ? 1 : 0];
     });
     context.subscriptions.push(stop_listening);
+    const select_model = vscode.commands.registerCommand('use-model', async (model) => {
+        if (model && model.checkDoubleClick()) {
+            viewModel.useModel(model.index);
+            vscode.window.showInformationMessage('Model selected');
+        }
+    });
+    context.subscriptions.push(select_model);
     //vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
     //Stupid examples:
     //1-Command from palette example

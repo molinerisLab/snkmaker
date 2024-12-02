@@ -14,6 +14,12 @@ class TodoDecorationProvider {
                 // badge: "1"
             };
         }
+        else if (uri.scheme === 'selected_model') {
+            return {
+                color: new vscode_1.ThemeColor('terminal.ansiGreen'),
+                // badge: "2"
+            };
+        }
         return undefined;
     }
 }
