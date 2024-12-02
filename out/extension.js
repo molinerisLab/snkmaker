@@ -45,16 +45,17 @@ const MyDecorator_1 = require("./view/MyDecorator");
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
-    // Use the console to output diagnostic information (console.log) and errors (console.error)
-    // This line of code will only be executed once when your extension is activated
-    console.log('Extension "prova" is now active!');
+    const bashCommandTitles = [' - NOT LISTENING', ' - LISTENING'];
+    vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
     //Create base model for terminal history
     const model = new TerminalHistory_1.TerminalHistory();
     //Create viewmodel for terminal history
     const viewModel = new BashCommandViewmodel_1.BashCommandViewModel(model);
     //Create views
     const bashHistoryDataProvider = new TerminalHistoryDataProvider_1.TerminalHistoryDataProvider(viewModel);
-    vscode.window.registerTreeDataProvider('bash-commands', bashHistoryDataProvider);
+    //vscode.window.registerTreeDataProvider('bash-commands',bashHistoryDataProvider);
+    const bashCommandView = vscode.window.createTreeView('bash-commands', { treeDataProvider: bashHistoryDataProvider });
+    bashCommandView.title = 'Bash Commands' + bashCommandTitles[viewModel.isListening ? 1 : 0];
     const bashArchiveDataProvider = new TerminalHistoryDataProvider_1.TerminalHistoryDataProvider(viewModel, true);
     vscode.window.registerTreeDataProvider('bash-commands-archive', bashArchiveDataProvider);
     vscode.window.registerFileDecorationProvider(new MyDecorator_1.TodoDecorationProvider());
@@ -150,6 +151,20 @@ function activate(context) {
         }
     });
     context.subscriptions.push(modify_command_detail);
+    const start_listening = vscode.commands.registerCommand('start-listening', () => {
+        viewModel.startListening();
+        vscode.commands.executeCommand('setContext', 'myExtension.isListening', true);
+        bashCommandView.title = 'Bash Commands' + bashCommandTitles[viewModel.isListening ? 1 : 0];
+    });
+    context.subscriptions.push(start_listening);
+    context.subscriptions.push(modify_command_detail);
+    const stop_listening = vscode.commands.registerCommand('stop-listening', () => {
+        viewModel.stopListening();
+        vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
+        bashCommandView.title = 'Bash Commands' + bashCommandTitles[viewModel.isListening ? 1 : 0];
+    });
+    context.subscriptions.push(stop_listening);
+    //vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
     //Stupid examples:
     //1-Command from palette example
     // The command has been defined in the package.json file

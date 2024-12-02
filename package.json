@@ -1,5 +1,5 @@
 {
-  "name": "Snakemake-LLM",
+  "name": "snakemake-llm",
   "displayName": "Snakemake-LLM",
   "description": "",
   "version": "0.0.1",
@@ -47,17 +47,27 @@
         {
           "command": "print-all-rules",
           "when": "view == bash-commands",
-          "group": "navigation"
+          "group": "navigation@4"
         },
         {
           "command": "delete-all-commands",
           "when": "view == bash-commands",
-          "group": "navigation"
+          "group": "navigation@3"
         },
         {
           "command": "archive-all-commands",
           "when": "view == bash-commands",
-          "group": "navigation"
+          "group": "navigation@2"
+        },
+        {
+          "command": "stop-listening",
+          "when": "view == bash-commands && myExtension.isListening==true",
+          "group": "navigation@1"
+        },
+        {
+          "command": "start-listening",
+          "when": "view == bash-commands && myExtension.isListening==false",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
@@ -103,7 +113,7 @@
         {
           "id": "snakemake-ai",
           "title": "Snakemake AI",
-          "icon": "src/resources/icon.svg"
+          "icon": "resources/icon.svg"
         }
       ]
     },
@@ -122,7 +132,13 @@
     "viewsWelcome": [
       {
         "view": "bash-commands",
-        "contents": "Your commands will dispay here"
+        "contents": "Listening to command - Your commands will dispay here",
+        "when": "myExtension.isListening==true"
+      },
+      {
+        "view": "bash-commands",
+        "contents": "Start listening to commands to populate the history",
+        "when": "myExtension.isListening==false"
       },
       {
         "view": "bash-commands-archive",
@@ -179,6 +195,16 @@
         "command": "modify-command-detail",
         "title": "Change",
         "icon": "$(keybindings-edit)"
+      },
+      {
+        "command": "start-listening",
+        "title": "Start listening",
+        "icon": "resources/play.svg"
+      },
+      {
+        "command": "stop-listening",
+        "title": "Pause listening",
+        "icon": "resources/pause.svg"
       }
     ]
   },

@@ -41,9 +41,16 @@ class BashCommandViewModel {
     observableCommands = new Observable();
     observableArchive = new Observable();
     writeToFiles;
+    isListening = false;
     constructor(terminalHistory) {
         this.terminalHistory = terminalHistory;
         this.writeToFiles = new WriteToFiles_1.WriteToFiles();
+    }
+    startListening() {
+        this.isListening = true;
+    }
+    stopListening() {
+        this.isListening = false;
     }
     bashCommandsSubscribe(observer) {
         return this.observableCommands.subscribe(observer);
@@ -52,11 +59,17 @@ class BashCommandViewModel {
         return this.observableArchive.subscribe(observer);
     }
     addCommand(value, confidence, isTrusted) {
+        if (!this.isListening) {
+            return;
+        }
         this.terminalHistory.addCommand(value, confidence, isTrusted).then(() => {
             this.observableCommands.next(this.terminalHistory.getHistory());
         });
     }
     addCommandGoneWrong(value, confidence, isTrusted, returnCode) {
+        if (!this.isListening) {
+            return;
+        }
         //TODO: if we want to do something with commands that returned != 0
     }
     archiveCommands(commands) {
