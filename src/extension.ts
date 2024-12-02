@@ -17,15 +17,13 @@ export function activate(context: vscode.ExtensionContext) {
 	const viewModel = new BashCommandViewModel();
 	//Create views
 	const bashHistoryDataProvider = new TerminalHistoryDataProvider(viewModel);
-	//vscode.window.registerTreeDataProvider('bash-commands',bashHistoryDataProvider);
 	const bashCommandView = vscode.window.createTreeView('bash-commands', { treeDataProvider: bashHistoryDataProvider });
 	bashCommandView.title = 'Bash Commands' + bashCommandTitles[viewModel.isListening?1:0];
 	const bashArchiveDataProvider = new TerminalHistoryDataProvider(viewModel, true);
 	vscode.window.registerTreeDataProvider('bash-commands-archive',bashArchiveDataProvider);
 	const modelsDataProvider: ModelsDataProvider = new ModelsDataProvider(viewModel);
 	vscode.window.registerTreeDataProvider('llm-models', modelsDataProvider);
-	vscode.window.registerFileDecorationProvider(new TodoDecorationProvider());
-	
+	vscode.window.registerFileDecorationProvider(new TodoDecorationProvider(viewModel));
 	//Register terminal listener, update view
 	vscode.window.onDidEndTerminalShellExecution(event => {
 		const commandLine = event.execution.commandLine;
@@ -112,15 +110,6 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 	context.subscriptions.push(modify_command_detail);
 	const start_listening = vscode.commands.registerCommand('start-listening', () => {
-		//Activate copilot, if not already active
-		if (!viewModel.isCopilotActive()){
-			vscode.lm.selectChatModels({
-				vendor: 'copilot'
-			}).then(models => {
-				viewModel.activateCopilot(models);
-			});
-		}
-		
 		viewModel.startListening();
 		vscode.commands.executeCommand('setContext', 'myExtension.isListening', true);
 		bashCommandView.title = 'Bash Commands' + bashCommandTitles[viewModel.isListening?1:0];
@@ -132,17 +121,19 @@ export function activate(context: vscode.ExtensionContext) {
 		viewModel.stopListening();
 		vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
 		bashCommandView.title = 'Bash Commands' + bashCommandTitles[viewModel.isListening?1:0];
+		vscode.window.showInformationMessage('Listening paused');
 	});
 	context.subscriptions.push(stop_listening);
 	const select_model = vscode.commands.registerCommand('use-model', async (model) => {
 		if (model && model.checkDoubleClick()){
 			viewModel.useModel(model.index);
-			vscode.window.showInformationMessage('Model selected');
 		}
 	});
 	context.subscriptions.push(select_model);
-	
-
+	//Activate copilot, if not already active
+	if (!viewModel.isCopilotActive()){
+		viewModel.activateCopilot();
+	}
 
 	//vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
 

@@ -21,9 +21,13 @@ export class LLM{
         return this.models[this.current_model].run_query(query);
     }
 
-    useModel(index: number){
+    async useModel(index: number){
+		vscode.window.showInformationMessage('Activating model: ' + this.models[index].get_name() + "...");
+        const hi = await this.models[this.current_model].run_query("You are part of a vscode extension that helps users write snakemake rules from bash prompts - the user just selected you as the model of choice. Say Hi to the user! :) (please keep very short, you are in a small window - please do not ask questions to the user, he cannot respond)");
         this.current_model = index;
+        return hi;
     }
+        
     isCopilotActive(){
         return this.copilot_active;
     }
@@ -41,8 +45,8 @@ export class LLM{
             new CopilotModel(_model)
         );
         this.models = copilot_models.concat(this.models);
+        this.current_model += copilot_models.length;
         this.copilot_active = true;
-        vscode.window.showInformationMessage('Listening started');
     }
 
 }

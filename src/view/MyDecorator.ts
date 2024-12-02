@@ -1,11 +1,13 @@
 import { CancellationToken, FileDecoration, FileDecorationProvider, ProviderResult, ThemeColor, Uri } from "vscode";
+import { BashCommandViewModel } from "../viewmodel/BashCommandViewmodel";
 
 // define the decoration provider
 export class TodoDecorationProvider implements FileDecorationProvider {
+    private viewModel: BashCommandViewModel;
+    constructor(viewModel: BashCommandViewModel) {
+        this.viewModel = viewModel;
+    }
     provideFileDecoration(uri: Uri, token: CancellationToken): ProviderResult<FileDecoration> {
-        console.log('provideFileDecoration', uri.toString());
-        console.log(uri.scheme);
-        // https://code.visualstudio.com/api/references/theme-color#lists-and-trees
         if (uri.scheme === 'bash_commands_unimportant') {
             return {
                 color: new ThemeColor('disabledForeground'),

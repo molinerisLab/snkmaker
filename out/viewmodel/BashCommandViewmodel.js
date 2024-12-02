@@ -46,6 +46,7 @@ class BashCommandViewModel {
     observableModel = new Observable();
     writeToFiles;
     isListening = false;
+    isChangingModel = false;
     constructor() {
         this.llm = new ModelComms_1.LLM();
         this.terminalHistory = new TerminalHistory_1.TerminalHistory(this.llm);
@@ -151,15 +152,38 @@ class BashCommandViewModel {
             });
         });
     }
-    useModel(modelIndex) {
-        this.llm.useModel(modelIndex);
-        this.observableModel.next(this.llm);
+    async useModel(modelIndex) {
+        if (this.isChangingModel) {
+            return;
+        }
+        this.isChangingModel = true;
+        this.llm.useModel(modelIndex).then((hi) => {
+            this.isChangingModel = false;
+            this.observableModel.next(this.llm);
+            vscode.window.showInformationMessage('Model activated. The model says hi: "' + hi + '"');
+        }).catch((e) => {
+            this.isChangingModel = false;
+            vscode.window.showInformationMessage('Error activating model: ' + e.message);
+        });
     }
     isCopilotActive() {
         return this.llm.isCopilotActive();
     }
-    activateCopilot(models) {
+    async activateCopilot() {
+        var models = [];
+        for (var i = 0; i < 20; i++) {
+            models = await vscode.lm.selectChatModels({ vendor: 'copilot' });
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            if (models.length > 0) {
+                break;
+            }
+        }
+        if (models.length === 0) {
+            vscode.window.showInformationMessage('Copilot not available');
+            return;
+        }
         this.llm.activateCopilot(models);
+        await this.useModel(0);
         this.observableModel.next(this.llm);
     }
 }

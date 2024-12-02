@@ -133,7 +133,8 @@
         },
         {
           "id": "llm-models",
-          "name": "Models"
+          "name": "Models",
+          "visibility": "collapsed"
         }
       ]
     },
