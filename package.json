@@ -1,6 +1,6 @@
 {
-  "name": "snakemake-llm",
-  "displayName": "Snakemake-LLM",
+  "name": "snkmaker",
+  "displayName": "SNK-Maker",
   "description": "",
   "version": "0.0.1",
   "engines": {
