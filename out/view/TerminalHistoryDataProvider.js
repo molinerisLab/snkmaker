@@ -98,20 +98,27 @@ class DisplayCommand extends vscode.TreeItem {
             return;
         }
         const label = bashCommand.command;
-        super(label, vscode.TreeItemCollapsibleState.Collapsed);
-        this.tooltip = bashCommand.command;
+        if (bashCommand.temporary === true) {
+            super(label, vscode.TreeItemCollapsibleState.None);
+            this.tooltip = "(in process)" + bashCommand.command;
+            this.contextValue = 'ROOT_OBJ_TEMP';
+        }
+        else {
+            super(label, vscode.TreeItemCollapsibleState.Collapsed);
+            this.tooltip = bashCommand.command;
+            this.contextValue = bashCommand.important ? 'ROOT_OBJ_I' : 'ROOT_OBJ_NI';
+        }
+        this.iconPath = undefined;
         this.isChild = false;
         this.bashCommand = bashCommand;
-        this.contextValue = this.bashCommand.important ? 'ROOT_OBJ_I' : 'ROOT_OBJ_NI';
         this.index = bashCommand.index;
-        this.iconPath = undefined;
         this.setResourceUri();
     }
     setResourceUri() {
         if (!this.bashCommand) {
             this.resourceUri = vscode.Uri.parse('bash_commands_details://' + this.index);
         }
-        else if (this.bashCommand.important) {
+        else if (this.bashCommand.important && this.bashCommand.temporary === false) {
             this.resourceUri = vscode.Uri.parse('bash_commands://' + this.index);
         }
         else {

@@ -77,6 +77,7 @@ class BashCommandViewModel {
         this.terminalHistory.addCommand(value, confidence, isTrusted).then(() => {
             this.observableCommands.next(this.terminalHistory.getHistory());
         });
+        this.observableCommands.next(this.terminalHistory.getHistory());
     }
     addCommandGoneWrong(value, confidence, isTrusted, returnCode) {
         if (!this.isListening) {
@@ -137,6 +138,7 @@ class BashCommandViewModel {
                 });
             }
         });
+        this.observableCommands.next(this.terminalHistory.getHistory());
     }
     printAllRules() {
         this.terminalHistory.getAllRules().then((rules) => {
@@ -151,6 +153,7 @@ class BashCommandViewModel {
                 }
             });
         });
+        this.observableCommands.next(this.terminalHistory.getHistory());
     }
     async useModel(modelIndex) {
         if (this.isChangingModel) {

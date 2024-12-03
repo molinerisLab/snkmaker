@@ -22,8 +22,9 @@ export class LLM{
     }
 
     async useModel(index: number){
+        console.log("Activating model: " + this.models[index].get_name() + "...");
 		vscode.window.showInformationMessage('Activating model: ' + this.models[index].get_name() + "...");
-        const hi = await this.models[this.current_model].run_query("You are part of a vscode extension that helps users write snakemake rules from bash prompts - the user just selected you as the model of choice. Say Hi to the user! :) (please keep very short, you are in a small window - please do not ask questions to the user, he cannot respond)");
+        const hi = await this.models[index].run_query("You are part of a vscode extension that helps users write snakemake rules from bash prompts - the user just selected you as the model of choice. Say Hi to the user! :) (please keep very short, you are in a small window - please do not ask questions to the user, he cannot respond)");
         this.current_model = index;
         return hi;
     }
@@ -78,6 +79,9 @@ class CopilotModel implements ModelComms{
         for await (const fragment of request.text) {
             response += fragment;
           }
+        //Response might contain ```python because copilot is a special kid. Must remove them
+        response = response.replace(/```python/g, '');
+        response = response.replace(/```/g, '');
         return response;
     }
     get_name(): string{

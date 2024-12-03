@@ -47,6 +47,7 @@ export class BashCommandViewModel{
         this.terminalHistory.addCommand(value, confidence, isTrusted).then(() => {
             this.observableCommands.next(this.terminalHistory.getHistory());
         });
+        this.observableCommands.next(this.terminalHistory.getHistory());
     }
     addCommandGoneWrong(value: string, confidence: number, isTrusted: boolean, returnCode: number | undefined){
       if (!this.isListening){
@@ -110,6 +111,7 @@ export class BashCommandViewModel{
             });
         }
       });
+      this.observableCommands.next(this.terminalHistory.getHistory());
     }
     printAllRules(){
       this.terminalHistory.getAllRules().then((rules) => {
@@ -124,6 +126,7 @@ export class BashCommandViewModel{
           }
         });
       });
+      this.observableCommands.next(this.terminalHistory.getHistory());
     }
 
     async useModel(modelIndex: number){
