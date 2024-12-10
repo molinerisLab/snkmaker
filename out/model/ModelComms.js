@@ -40,16 +40,19 @@ exports.LLM = void 0;
 const openai_1 = __importDefault(require("openai"));
 const vscode = __importStar(require("vscode"));
 class LLM {
+    memento;
     models;
     current_model;
     copilot_active = false;
-    constructor() {
-        this.current_model = 0;
-        this.models = [new OpenAI_Models('https://integrate.api.nvidia.com/v1', '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', "meta/llama3-70b-instruct", "(default) NVD Llama3-70b-instruct"),
-            new OpenAI_Models('https://integrate.api.nvidia.com/v1', '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', "meta/llama-3.1-405b-instruct", "(default) NVD Llama3-405b-instruct")
-        ];
+    constructor(memento) {
+        this.memento = memento;
+        this.current_model = -1;
+        this.models = [];
     }
     run_query(query) {
+        if (this.current_model === -1) {
+            throw new Error("No model selected");
+        }
         return this.models[this.current_model].run_query(query);
     }
     async useModel(index) {
@@ -57,6 +60,7 @@ class LLM {
         vscode.window.showInformationMessage('Activating model: ' + this.models[index].get_name() + "...");
         const hi = await this.models[index].run_query("You are part of a vscode extension that helps users write snakemake rules from bash prompts - the user just selected you as the model of choice. Say Hi to the user! :) (please keep very short, you are in a small window - please do not ask questions to the user, he cannot respond)");
         this.current_model = index;
+        this.memento.update('copilot_model', this.models[index].get_id());
         return hi;
     }
     isCopilotActive() {
@@ -64,18 +68,23 @@ class LLM {
     }
     activateCopilot(models) {
         if (models.length === 0 || this.copilot_active === true) {
-            return;
+            return -1;
         }
-        //If one model in models has id = 'gpt-4o' set as the first
-        const index_4o = models.findIndex(model => model.id === 'gpt-4o');
-        if (index_4o !== -1) {
-            const model = models.splice(index_4o, 1);
-            models.unshift(model[0]);
+        //Check if user has saved a model as the first one - otherwise default to gpt-4o
+        var model_id = this.memento.get('copilot_model', 'gpt-4o');
+        var model_index = models.findIndex(model => model.id === model_id);
+        if (model_index === -1) {
+            model_index = 0;
+            model_id = models[0].id;
+            this.memento.update('copilot_model', model_id);
         }
         const copilot_models = models.map(_model => new CopilotModel(_model));
         this.models = copilot_models.concat(this.models);
-        this.current_model += copilot_models.length;
+        if (this.current_model !== -1) {
+            this.current_model += copilot_models.length;
+        }
         this.copilot_active = true;
+        return model_index;
     }
 }
 exports.LLM = LLM;
@@ -109,6 +118,9 @@ class CopilotModel {
     set_param(key, value) {
         return;
     }
+    get_id() {
+        return this.model.id;
+    }
 }
 class OpenAI_Models {
     url;
@@ -129,6 +141,9 @@ class OpenAI_Models {
     }
     set_param(key, value) {
         return;
+    }
+    get_id() {
+        return this.model;
     }
     async run_query(query) {
         const openai = new openai_1.default({

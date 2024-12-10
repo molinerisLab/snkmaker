@@ -29,8 +29,11 @@ Please write "YES" if it's worth making into a rule, "NO" if it's a one-time com
         response = response.toLowerCase();
         return !response.includes("no");
     }
-    async get_snakemake_rule(command, inputs, output) {
-        if (inputs[0] === "-") {
+    async get_snakemake_rule(bashCommand) {
+        var inputs = bashCommand.get_input();
+        var output = bashCommand.get_output();
+        const command = bashCommand.get_command();
+        if (inputs === "-") {
             inputs = "No input";
         }
         if (output === "-") {
@@ -44,7 +47,7 @@ Please output only the rule. Do not output other things.`;
         return response;
     }
     async get_all_rules(commands) {
-        const formatted = commands.map(command => `\nEstimated inputs: (${command.inputs}) Estimated outputs: (${command.output})\nShell command: ${command.command}\n`);
+        const formatted = commands.map(command => `\nEstimated inputs: (${command.get_input()}) Estimated outputs: (${command.get_output()})\nShell command: ${command.get_command()}\n`);
         const query = `I have the following set of bash commands. Can you convert them into snakemake rules? Note that Estimated inputs and outputs are just guesses and could be wrong.
         ${formatted.join("\n")}
         Please output only the Snakemake rules. DO NOT, EVER, OUTPUT ANYTHING OTHER THAN THE RULES.`;

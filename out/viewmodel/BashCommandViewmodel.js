@@ -39,6 +39,7 @@ const TerminalHistory_1 = require("../model/TerminalHistory");
 const WriteToFiles_1 = require("../model/WriteToFiles");
 const vscode = __importStar(require("vscode"));
 class BashCommandViewModel {
+    memento;
     llm;
     terminalHistory;
     observableCommands = new Observable();
@@ -47,8 +48,9 @@ class BashCommandViewModel {
     writeToFiles;
     isListening = false;
     isChangingModel = false;
-    constructor() {
-        this.llm = new ModelComms_1.LLM();
+    constructor(memento) {
+        this.memento = memento;
+        this.llm = new ModelComms_1.LLM(memento);
         this.terminalHistory = new TerminalHistory_1.TerminalHistory(this.llm);
         this.writeToFiles = new WriteToFiles_1.WriteToFiles();
     }
@@ -118,7 +120,7 @@ class BashCommandViewModel {
         if (!modifier) {
             return;
         }
-        const value = modifier === "Inputs" ? command.inputs : command.output;
+        const value = modifier === "Inputs" ? command.get_input() : command.get_output();
         vscode.window.showInputBox({ prompt: 'Enter new detail for command', value: value }).then((detail) => {
             if (detail) {
                 console.log(detail);
@@ -185,9 +187,15 @@ class BashCommandViewModel {
             vscode.window.showInformationMessage('Copilot not available');
             return;
         }
-        this.llm.activateCopilot(models);
-        await this.useModel(0);
+        const index = this.llm.activateCopilot(models);
+        if (index !== -1) {
+            await this.useModel(index);
+        }
         this.observableModel.next(this.llm);
+    }
+    moveCommands(sourceBashCommands, targetBashCommand) {
+        this.terminalHistory.moveCommands(sourceBashCommands, targetBashCommand);
+        this.observableCommands.next(this.terminalHistory.getHistory());
     }
 }
 exports.BashCommandViewModel = BashCommandViewModel;

@@ -1,20 +1,20 @@
 import { LLM, ModelComms } from "../model/ModelComms";
-import { BashCommand, TerminalHistory } from "../model/TerminalHistory";
+import { BashCommand, BashCommandContainer, TerminalHistory } from "../model/TerminalHistory";
 import { WriteToFiles } from "../model/WriteToFiles";
 import * as vscode from 'vscode';
 
 export class BashCommandViewModel{
     llm: LLM;
     terminalHistory: TerminalHistory;
-    observableCommands = new Observable<BashCommand[]>();
-    observableArchive = new Observable<BashCommand[]>();
+    observableCommands = new Observable<BashCommandContainer[]>();
+    observableArchive = new Observable<BashCommandContainer[]>();
     observableModel = new Observable<LLM>();
     writeToFiles: WriteToFiles;
     isListening = false;
     isChangingModel = false;
     
-    constructor(){
-        this.llm = new LLM();
+    constructor(private memento: vscode.Memento){
+        this.llm = new LLM(memento);
         this.terminalHistory = new TerminalHistory(this.llm);
         this.writeToFiles = new WriteToFiles();
     }
@@ -27,10 +27,10 @@ export class BashCommandViewModel{
       this.isListening = false;
     }
 
-    bashCommandsSubscribe(observer: Observer<BashCommand[]>){
+    bashCommandsSubscribe(observer: Observer<BashCommandContainer[]>){
         return this.observableCommands.subscribe(observer);
     }
-    bashCommandsArchiveSubscribe(observer: Observer<BashCommand[]>){
+    bashCommandsArchiveSubscribe(observer: Observer<BashCommandContainer[]>){
       return this.observableArchive.subscribe(observer);
     }
     getModels(){
@@ -56,7 +56,7 @@ export class BashCommandViewModel{
         //TODO: if we want to do something with commands that returned != 0
     }
 
-    archiveCommands(commands: BashCommand[]){
+    archiveCommands(commands: BashCommandContainer[]){
         if (commands.length === 0){
             this.terminalHistory.archiveAllCommands();
         }
@@ -66,14 +66,14 @@ export class BashCommandViewModel{
         this.observableCommands.next(this.terminalHistory.getHistory());
         this.observableArchive.next(this.terminalHistory.getArchive());
     }
-    restoreCommands(commands: BashCommand[]){
+    restoreCommands(commands: BashCommandContainer[]){
       commands.forEach(command => {
           this.terminalHistory.restoreCommand(command);
       });
       this.observableCommands.next(this.terminalHistory.getHistory());
       this.observableArchive.next(this.terminalHistory.getArchive());
     }
-    deleteCommand(command: BashCommand){
+    deleteCommand(command: BashCommandContainer){
         this.terminalHistory.deleteCommand(command);
         this.observableCommands.next(this.terminalHistory.getHistory());
     }
@@ -81,7 +81,7 @@ export class BashCommandViewModel{
         this.terminalHistory.deleteAllCommands();
         this.observableCommands.next(this.terminalHistory.getHistory());
     }
-    setCommandImportance(command: BashCommand, importance: boolean){
+    setCommandImportance(command: BashCommandContainer, importance: boolean){
         this.terminalHistory.setCommandImportance(command, importance);
         this.observableCommands.next(this.terminalHistory.getHistory());
     }
@@ -89,7 +89,7 @@ export class BashCommandViewModel{
       if (!modifier){
         return;
       }
-      const value = modifier==="Inputs" ? command.inputs : command.output;
+      const value = modifier==="Inputs" ? command.get_input() : command.get_output();
       vscode.window.showInputBox({prompt: 'Enter new detail for command', value: value}).then((detail) => {
         if (detail){
           console.log(detail);
@@ -100,7 +100,7 @@ export class BashCommandViewModel{
 
     }
 
-    printRule(command: BashCommand){
+    printRule(command: BashCommandContainer){
       this.terminalHistory.getRule(command).then((rule) => {
         if (rule){
             console.log(rule);
@@ -160,9 +160,16 @@ export class BashCommandViewModel{
         vscode.window.showInformationMessage('Copilot not available');
         return;
       }
-      this.llm.activateCopilot(models);
-      await this.useModel(0);
+      const index: number = this.llm.activateCopilot(models);
+      if (index !== -1){
+        await this.useModel(index);
+      }
       this.observableModel.next(this.llm);
+    }
+
+    moveCommands(sourceBashCommands: any, targetBashCommand: BashCommandContainer | null){
+      this.terminalHistory.moveCommands(sourceBashCommands, targetBashCommand);
+      this.observableCommands.next(this.terminalHistory.getHistory());
     }
 
 }

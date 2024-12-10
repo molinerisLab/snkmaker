@@ -45,13 +45,14 @@ const ModelsDataProvider_1 = require("./view/ModelsDataProvider");
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
+    const memento = context.workspaceState;
     const bashCommandTitles = [' - NOT LISTENING', ' - LISTENING'];
     vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
     //Create viewmodel for terminal history
-    const viewModel = new BashCommandViewmodel_1.BashCommandViewModel();
+    const viewModel = new BashCommandViewmodel_1.BashCommandViewModel(memento);
     //Create views
     const bashHistoryDataProvider = new TerminalHistoryDataProvider_1.TerminalHistoryDataProvider(viewModel);
-    const bashCommandView = vscode.window.createTreeView('bash-commands', { treeDataProvider: bashHistoryDataProvider });
+    const bashCommandView = vscode.window.createTreeView('bash-commands', { treeDataProvider: bashHistoryDataProvider, dragAndDropController: bashHistoryDataProvider });
     bashCommandView.title = 'Bash Commands' + bashCommandTitles[viewModel.isListening ? 1 : 0];
     const bashArchiveDataProvider = new TerminalHistoryDataProvider_1.TerminalHistoryDataProvider(viewModel, true);
     vscode.window.registerTreeDataProvider('bash-commands-archive', bashArchiveDataProvider);
@@ -72,8 +73,8 @@ function activate(context) {
     });
     //Register vscode commands
     const print_rule = vscode.commands.registerCommand('print-rule', (event) => {
-        if (event && event.bashCommand) {
-            viewModel.printRule(event.bashCommand);
+        if (event && event.get_root()) {
+            viewModel.printRule(event.get_root());
         }
         else {
             //TODO: can open menu to select command
@@ -86,8 +87,8 @@ function activate(context) {
     });
     context.subscriptions.push(print_all_rules);
     const archive_rules = vscode.commands.registerCommand('archive-command', (event) => {
-        if (event && event.bashCommand) {
-            viewModel.archiveCommands([event.bashCommand]);
+        if (event && event.get_root()) {
+            viewModel.archiveCommands([event.get_root()]);
         }
         else {
             //TODO: can open menu to select command
@@ -96,8 +97,8 @@ function activate(context) {
     });
     context.subscriptions.push(archive_rules);
     const restore_commands = vscode.commands.registerCommand('restore-command', (event) => {
-        if (event && event.bashCommand) {
-            viewModel.restoreCommands([event.bashCommand]);
+        if (event && event.get_root()) {
+            viewModel.restoreCommands([event.get_root()]);
         }
         else {
             //TODO: can open menu to select command
@@ -106,8 +107,8 @@ function activate(context) {
     });
     context.subscriptions.push(restore_commands);
     const delete_command = vscode.commands.registerCommand('delete-command', (event) => {
-        if (event && event.bashCommand) {
-            viewModel.deleteCommand(event.bashCommand);
+        if (event && event.get_root()) {
+            viewModel.deleteCommand(event.get_root());
         }
         else {
             //TODO: can open menu to select command
@@ -124,8 +125,8 @@ function activate(context) {
     });
     context.subscriptions.push(archive_all_commands);
     const set_command_important = vscode.commands.registerCommand('set-command-important', (event) => {
-        if (event && event.bashCommand) {
-            viewModel.setCommandImportance(event.bashCommand, true);
+        if (event && event.get_root()) {
+            viewModel.setCommandImportance(event.get_root(), true);
         }
         else {
             vscode.window.showInformationMessage('No command selected');
@@ -133,8 +134,8 @@ function activate(context) {
     });
     context.subscriptions.push(set_command_important);
     const set_command_unimportant = vscode.commands.registerCommand('set-command-unimportant', (event) => {
-        if (event && event.bashCommand) {
-            viewModel.setCommandImportance(event.bashCommand, false);
+        if (event && event.get_root()) {
+            viewModel.setCommandImportance(event.get_root(), false);
         }
         else {
             vscode.window.showInformationMessage('No command selected');
@@ -142,8 +143,8 @@ function activate(context) {
     });
     context.subscriptions.push(set_command_unimportant);
     const modify_command_detail = vscode.commands.registerCommand('modify-command-detail', (event) => {
-        if (event && event.bashCommand) {
-            viewModel.modifyCommandDetail(event.bashCommand, event.modifier);
+        if (event && event.parent && event.modifier) {
+            viewModel.modifyCommandDetail(event.parent, event.modifier);
         }
         else {
             vscode.window.showInformationMessage('No command selected');
@@ -157,7 +158,6 @@ function activate(context) {
         vscode.window.showInformationMessage('Listening started');
     });
     context.subscriptions.push(start_listening);
-    context.subscriptions.push(modify_command_detail);
     const stop_listening = vscode.commands.registerCommand('stop-listening', () => {
         viewModel.stopListening();
         vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);

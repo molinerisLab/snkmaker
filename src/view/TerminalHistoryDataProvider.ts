@@ -1,15 +1,18 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { BashCommand } from '../model/TerminalHistory';
+import { BashCommand, BashCommandContainer } from '../model/TerminalHistory';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
 
-export class TerminalHistoryDataProvider implements vscode.TreeDataProvider<DisplayCommand> {
-	private tree: DisplayCommand[];
+export class TerminalHistoryDataProvider implements vscode.TreeDataProvider<DisplayCommand>, vscode.TreeDragAndDropController<DisplayCommand> {
+	private tree: DisplayCommand[]=[];
 	private _refreshCallback: vscode.EventEmitter<DisplayCommand | undefined | null | void> = new vscode.EventEmitter<DisplayCommand | undefined | null | void>();
 	readonly onDidChangeTreeData: vscode.Event<DisplayCommand | undefined | null | void> = this._refreshCallback.event;
+	
+	//TODO what are those
+	dropMimeTypes = ['application/vnd.code.tree.bash-commands'];
+	dragMimeTypes = ['text/uri-list'];
 
-	constructor(viewModel: BashCommandViewModel, isArchive: boolean = false) {
-		this.tree = [];
+	constructor(private viewModel: BashCommandViewModel, isArchive: boolean = false) {
 		if (isArchive) {
 			viewModel.bashCommandsArchiveSubscribe(commands => {
 				this.tree = this.buildTree(commands);
@@ -29,82 +32,154 @@ export class TerminalHistoryDataProvider implements vscode.TreeDataProvider<Disp
 
 	getChildren(element?: DisplayCommand): Thenable<DisplayCommand[]> {
 		if (element) {
-			if (element.isChild) {
-				return Promise.resolve([]);
-			}
-			return Promise.resolve(element.getChildren());
+			return Promise.resolve(element.get_children());
 		} else {
 			return Promise.resolve(this.tree);
 		}
 	}
 
-	buildTree(commands: BashCommand[]) {
-		return commands.map(command => new DisplayCommand(command, false));
+	buildTree(commands: BashCommandContainer[]) {
+		return commands.map(command => new DisplayCommandRoot(command));
+	}
+
+	public async handleDrop(target: DisplayCommand | undefined, sources: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
+		console.log("Drop");
+		console.log(target); //this is where you drop! - undefined if root
+		const transferItem = sources.get('application/vnd.code.tree.bash-commands'); //This is what you drop
+		if (!transferItem) {return;}
+
+		//Get target BashCommandContainer
+		const targetBashCommandContainer = target?.get_root()||null;
+		//Get BashCommand from the dropped item
+		const sourceBashCommands: BashCommand[] = transferItem.value.filter(
+			(item:DisplayCommand) => item.get_root()!==null
+		).map((item: DisplayCommand) => [item.get_root(), item.get_child_index()]);
+		this.viewModel.moveCommands(sourceBashCommands, targetBashCommandContainer);
+	}
+
+	public async handleDrag(source: DisplayCommand[], treeDataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
+		treeDataTransfer.set('application/vnd.code.tree.bash-commands', new vscode.DataTransferItem(source));
 	}
 }
 
-class DisplayCommand extends vscode.TreeItem {
-	isChild: boolean;
-	bashCommand: BashCommand;
-	index: number;
-	modifier?: string;
-
-	constructor(bashCommand: BashCommand, isChild: boolean);
-	constructor(bashCommand: BashCommand, isChild: boolean, childTitle: string, childText: string, index?: number, modifiable?: string);
-	constructor(bashCommand: BashCommand, isChild: boolean=false, childTitle?: string, childText?: string, index?: number, modifiable?: string) {
-		if (isChild===true) {
-			const label = (childTitle || '') + ": " + childText;
+interface DisplayCommand extends vscode.TreeItem{
+	get_children(): DisplayCommand[];
+	get_root(): BashCommandContainer|null;
+	get_child_index(): number;
+}
+class DisplayCommandRoot extends vscode.TreeItem implements DisplayCommand{
+	private bashCommand: BashCommandContainer;
+	constructor(bashCommand: BashCommandContainer){
+		const label = bashCommand.get_command();
+		if (bashCommand.get_temporary()===true){
 			super(label, vscode.TreeItemCollapsibleState.None);
-			this.tooltip = childText || '';
-			this.isChild = true;
-			if (modifiable) {
-				this.contextValue = 'CHILD_OBJ_MOD';
-				this.modifier = modifiable;
-			} else {
-				this.contextValue = 'CHILD_OBJ';
-			}
-			this.index = index || 0;
-			this.setResourceUri();
-			this.iconPath = new vscode.ThemeIcon("find-collapseddebug-breakpoint-unverified");
-			this.bashCommand = bashCommand;
-			return;
-		}
-		const label = bashCommand.command;
-		if (bashCommand.temporary===true){
-			super(label, vscode.TreeItemCollapsibleState.None);
-			this.tooltip = "(in process)" + bashCommand.command;
+			this.tooltip = "(in process)" + bashCommand.get_command();
 			this.contextValue = 'ROOT_OBJ_TEMP';
 		} else {
 			super(label, vscode.TreeItemCollapsibleState.Collapsed);
-			this.tooltip = bashCommand.command;
-			this.contextValue = bashCommand.important ? 'ROOT_OBJ_I' : 'ROOT_OBJ_NI';
+			this.tooltip = bashCommand.get_command();
+			this.contextValue = bashCommand.get_important() ? 'ROOT_OBJ_I' : 'ROOT_OBJ_NI';
 		}
-		this.iconPath = undefined;
-		this.isChild = false;
 		this.bashCommand = bashCommand;
-		this.index = bashCommand.index;
-		this.setResourceUri();
-	}
-
-	setResourceUri() {
-		if (!this.bashCommand) {
-			this.resourceUri = vscode.Uri.parse('bash_commands_details://'+this.index);
-		} else if (this.bashCommand.important && this.bashCommand.temporary===false) {
-			this.resourceUri = vscode.Uri.parse('bash_commands://'+this.index);
+		this.iconPath = undefined;
+		if (this.bashCommand.get_important()===true && this.bashCommand.get_temporary()===false) {
+			this.resourceUri = vscode.Uri.parse('bash_commands://'+this.bashCommand.get_index());
 		} else {
-			this.resourceUri = vscode.Uri.parse('bash_commands_unimportant://'+this.index);
+			this.resourceUri = vscode.Uri.parse('bash_commands_unimportant://'+this.bashCommand.get_index());
 		}
 	}
 
-	getChildren(): DisplayCommand[] {
-		return [
-			//new DisplayCommand(undefined, 'Full command', this.bashCommand?.command || '', this.index, false),
-			new DisplayCommand(this.bashCommand,true, 'Output', this.bashCommand?.output || '', this.index, "Output"),
-			new DisplayCommand(this.bashCommand,true, 'Inputs', this.bashCommand?.inputs || '', this.index, "Inputs"),
-			new DisplayCommand(this.bashCommand,true, 'Important', this.bashCommand?.important ? 'Yes' : 'No', this.index, undefined)
-		];
+	get_children(): DisplayCommand[] {
+		//If command has children, return children commands.
+		//if not, return stuff like inputs, outputs...
+		if (this.bashCommand.get_num_children()>0){
+			return Array.from(Array(this.bashCommand.get_num_children()).keys()).map(
+				(index:number) => new DisplayCommandChildCommand(
+					this.bashCommand, index
+				)
+			);
+		} else {
+			return [
+				new DisplayCommandAdditionalInfo(this.bashCommand, 'Output', this.bashCommand.get_output(), this.bashCommand.get_index(), "Output"),
+				new DisplayCommandAdditionalInfo(this.bashCommand, 'Inputs', this.bashCommand.get_input(), this.bashCommand.get_index(), "Inputs"),
+				new DisplayCommandAdditionalInfo(this.bashCommand, 'Important', this.bashCommand.get_important() ? 'Yes' : 'No', this.bashCommand.get_index(), undefined)
+			];
+		}
 	}
-	
-	
+
+	get_root(): BashCommandContainer {
+		return this.bashCommand;
+	}
+	get_child_index(): number {
+		return -1;
+	}
 }
 
+class DisplayCommandChildCommand extends vscode.TreeItem implements DisplayCommand{
+	childBashCommand: BashCommand | null;
+	private parentBashCommand: BashCommandContainer;
+	private command_index: number;
+	constructor(parentBashCommand: BashCommandContainer, command_index: number){
+		const child = parentBashCommand.get_children(command_index);
+		const label = child?.get_command();
+		if (child?.get_temporary()===true){
+			super(label||"", vscode.TreeItemCollapsibleState.None);
+			this.tooltip = "(in process)" + child?.get_command();
+			this.contextValue = 'ROOT_OBJ_TEMP';
+		} else {
+			super(label||"", vscode.TreeItemCollapsibleState.Collapsed);
+			this.tooltip = child?.get_command();
+			this.contextValue = "SUB_C";
+		}
+		this.command_index = command_index;
+		this.parentBashCommand = parentBashCommand;
+		this.childBashCommand = child;
+		this.iconPath = undefined;
+		if (child?.get_important()===true && child?.get_temporary()===false) {
+			this.resourceUri = vscode.Uri.parse('bash_commands://'+child?.get_index());
+		} else {
+			this.resourceUri = vscode.Uri.parse('bash_commands_unimportant://'+child?.get_index());
+		}
+	}
+	get_children(): DisplayCommand[] {
+		return [
+			new DisplayCommandAdditionalInfo(this.childBashCommand,'Output', this.childBashCommand?.get_output() || '', this.childBashCommand?.get_index()||0, "Output"),
+			new DisplayCommandAdditionalInfo(this.childBashCommand,'Inputs', this.childBashCommand?.get_input() || '', this.childBashCommand?.get_index()||0, "Inputs"),
+			new DisplayCommandAdditionalInfo(this.childBashCommand,'Important', this.childBashCommand?.get_important() ? 'Yes' : 'No', this.childBashCommand?.get_index()||0, undefined)
+		];
+	}
+	get_root(): BashCommandContainer {
+		return this.parentBashCommand;
+	}
+	get_child_index(): number {
+		return this.command_index;
+	}
+}
+class DisplayCommandAdditionalInfo extends vscode.TreeItem implements DisplayCommand{
+	modifier?: string;
+	parent: BashCommand|null;
+	constructor(parent:BashCommand|null, childTitle: string, childText: string, index: number, modifiable?: string) {
+		const label = childTitle + ": " + childText;
+		super(label, vscode.TreeItemCollapsibleState.None);
+		this.tooltip = childText;
+		if (modifiable) {
+			this.contextValue = 'CHILD_OBJ_MOD';
+			this.modifier = modifiable;
+		} else {
+			this.contextValue = 'CHILD_OBJ';
+		}
+		this.parent = parent;
+		this.resourceUri = vscode.Uri.parse('bash_commands_details://'+childTitle+index);
+		this.iconPath = new vscode.ThemeIcon("find-collapseddebug-breakpoint-unverified");
+	}
+	get_children(): DisplayCommand[] {
+		return [];
+	}
+	get_root(): null {
+		return null;
+	}
+	get_child_index(): number {
+		return -1;
+	}
+	
+}
