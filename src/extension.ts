@@ -130,6 +130,26 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 	context.subscriptions.push(select_model);
+	const save_workspace = vscode.commands.registerCommand('save-workspace', () => {
+		vscode.window.showSaveDialog({title:'Where to export workspace'}).then(fileInfos => {
+			const path = fileInfos?.path;
+			viewModel.saveWorkspace(path);
+		});
+	});
+	context.subscriptions.push(save_workspace);
+	const load_workspace = vscode.commands.registerCommand('load-workspace', () => {
+		//Ask user for confirmation before proceeding
+		vscode.window.showQuickPick(['Yes', 'No'], {placeHolder: 'Loading a workspace will overwrite the current one. Proceed?'}).then((value) => {
+			if (value === 'Yes'){
+				vscode.window.showOpenDialog({canSelectMany:false,title:'Load workspace from'}).then(fileInfos => {
+					if (fileInfos && fileInfos.length > 0){
+						viewModel.loadWorkspace(fileInfos[0].path);
+					}
+				});
+			}
+		});
+	});
+	context.subscriptions.push(load_workspace);
 	//Activate copilot, if not already active
 	if (!viewModel.isCopilotActive()){
 		viewModel.activateCopilot();

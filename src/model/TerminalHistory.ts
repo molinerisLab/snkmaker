@@ -150,6 +150,34 @@ export class TerminalHistory {
             });
         }
     }
+
+    export(){
+        return JSON.stringify({
+            history: this.history,
+            archive: this.archive,
+            index: this.index
+        });
+    }
+    import(data: string){
+        const parsed = JSON.parse(data);
+        this.history = parsed.history.map((cmd: any) => {
+            const singleCommands = cmd.commands.map((sc: any) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary));
+            const container = new BashCommandContainer(singleCommands[0], cmd.index);
+            for (let i = 1; i < singleCommands.length; i++) {
+                container.add_child(singleCommands[i]);
+            }
+            return container;
+        });
+        this.archive = parsed.archive.map((cmd: any) => {
+            const singleCommands = cmd.commands.map((sc: any) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary));
+            const container = new BashCommandContainer(singleCommands[0], cmd.index);
+            for (let i = 1; i < singleCommands.length; i++) {
+                container.add_child(singleCommands[i]);
+            }
+            return container;
+        });
+        this.index = parsed.index;
+    }
 }
 
 export interface BashCommand{

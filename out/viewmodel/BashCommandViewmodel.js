@@ -197,6 +197,25 @@ class BashCommandViewModel {
         this.terminalHistory.moveCommands(sourceBashCommands, targetBashCommand);
         this.observableCommands.next(this.terminalHistory.getHistory());
     }
+    saveWorkspace(path) {
+        if (!path) {
+            return;
+        }
+        if (this.writeToFiles.writeToFile(path, this.terminalHistory.export())) {
+            vscode.window.showInformationMessage('Workspace saved');
+        }
+    }
+    loadWorkspace(path) {
+        try {
+            this.terminalHistory.import(this.writeToFiles.readFromFile(path));
+            this.observableCommands.next(this.terminalHistory.getHistory());
+            this.observableArchive.next(this.terminalHistory.getArchive());
+            vscode.window.showInformationMessage('Workspace loaded');
+        }
+        catch (e) {
+            vscode.window.showInformationMessage('Error loading workspace: ' + e);
+        }
+    }
 }
 exports.BashCommandViewModel = BashCommandViewModel;
 class Observable {

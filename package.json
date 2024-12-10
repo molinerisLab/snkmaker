@@ -2,7 +2,7 @@
   "name": "snkmaker",
   "displayName": "SNK-Maker",
   "description": "",
-  "version": "0.0.1",
+  "version": "0.0.15",
   "engines": {
     "vscode": "^1.95.0"
   },
@@ -162,7 +162,7 @@
       },
       {
         "command": "print-all-rules",
-        "title": "Print all important rules",
+        "title": "Snakemaker: Print all important rules",
         "icon": "$(testing-run-all-icon)"
       },
       {
@@ -172,7 +172,7 @@
       },
       {
         "command": "archive-all-commands",
-        "title": "Archive all commands",
+        "title": "Snakemaker: Archive all commands",
         "icon": "$(notebook-move-down)"
       },
       {
@@ -187,7 +187,7 @@
       },
       {
         "command": "delete-all-commands",
-        "title": "Delete all",
+        "title": "Snakemaker: Delete all",
         "icon": "$(notifications-clear)"
       },
       {
@@ -218,6 +218,14 @@
       {
         "command": "use-model",
         "title": "Use this model"
+      },
+      {
+        "command": "save-workspace",
+        "title": "Snakemaker: Save workspace"
+      },
+      {
+        "command": "load-workspace",
+        "title": "Snakemaker: Load workspace"
       }
     ]
   },

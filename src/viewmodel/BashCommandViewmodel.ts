@@ -172,6 +172,25 @@ export class BashCommandViewModel{
       this.observableCommands.next(this.terminalHistory.getHistory());
     }
 
+    saveWorkspace(path: string | undefined){
+      if (!path){
+        return;
+      }
+      if (this.writeToFiles.writeToFile(path, this.terminalHistory.export())){
+        vscode.window.showInformationMessage('Workspace saved');
+      }
+    }
+    loadWorkspace(path: string){
+      try{
+        this.terminalHistory.import(this.writeToFiles.readFromFile(path));
+        this.observableCommands.next(this.terminalHistory.getHistory());
+        this.observableArchive.next(this.terminalHistory.getArchive());
+        vscode.window.showInformationMessage('Workspace loaded');
+      } catch (e){
+        vscode.window.showInformationMessage('Error loading workspace: ' + e);
+      }
+    }
+
 }
 
 export type Observer<T> = (value: T) => void;

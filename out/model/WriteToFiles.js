@@ -36,6 +36,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.WriteToFiles = void 0;
 const vscode = __importStar(require("vscode"));
 class WriteToFiles {
+    writeToFile(path, value) {
+        const fs = require('fs');
+        fs.writeFile(path, value, (err) => {
+            if (err) {
+                vscode.window.showInformationMessage('Error writing to file');
+                return false;
+            }
+        });
+        return true;
+    }
+    readFromFile(path) {
+        const fs = require('fs');
+        return fs.readFileSync(path, 'utf8');
+    }
     writeToEditor(value, editor) {
         if (!editor) {
             vscode.window.showInformationMessage('Please open a file in the editor to print the rules');
