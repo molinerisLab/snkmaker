@@ -120,10 +120,22 @@ class BashCommandViewModel {
         if (!modifier) {
             return;
         }
-        const value = modifier === "Inputs" ? command.get_input() : command.get_output();
+        var value;
+        switch (modifier) {
+            case "RuleName":
+                value = command.get_rule_name();
+                break;
+            case "Output":
+                value = command.get_output();
+                break;
+            case "Inputs":
+                value = command.get_input();
+                break;
+            default:
+                return;
+        }
         vscode.window.showInputBox({ prompt: 'Enter new detail for command', value: value }).then((detail) => {
             if (detail) {
-                console.log(detail);
                 this.terminalHistory.modifyCommandDetail(command, modifier, detail);
                 this.observableCommands.next(this.terminalHistory.getHistory());
             }
@@ -194,7 +206,11 @@ class BashCommandViewModel {
         this.observableModel.next(this.llm);
     }
     moveCommands(sourceBashCommands, targetBashCommand) {
-        this.terminalHistory.moveCommands(sourceBashCommands, targetBashCommand);
+        this.terminalHistory.moveCommands(sourceBashCommands, targetBashCommand).then((count) => {
+            if (count === true) {
+                this.observableCommands.next(this.terminalHistory.getHistory());
+            }
+        });
         this.observableCommands.next(this.terminalHistory.getHistory());
     }
     saveWorkspace(path) {

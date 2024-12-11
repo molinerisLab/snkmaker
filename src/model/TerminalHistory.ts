@@ -29,13 +29,14 @@ export class TerminalHistory {
         this.index+=2;
         this.history.push(tempCommand);
         const important = this.queries.guess_if_important(value);
-        const files = this.queries.guess_input_output(value);
+        const guesses = this.queries.guess_rule_details(value);
         //Wait for both promises to resolve
-        await Promise.all([important, files]).then((values) => {
+        await Promise.all([important, guesses]).then((values) => {
             const important = values[0];
-            const files = values[1];
-            singleTempCommand.set_input(files[0]);
-            singleTempCommand.set_output(files[1]);
+            const guesses = values[1];
+            singleTempCommand.set_input(guesses[0]);
+            singleTempCommand.set_output(guesses[1]);
+            singleTempCommand.set_rule_name(guesses[2]);
             singleTempCommand.set_importance(important);
             tempCommand.set_temporary(false);
         });
@@ -126,19 +127,25 @@ export class TerminalHistory {
     modifyCommandDetail(command: BashCommand, modifier: string, detail: string){
         if (modifier === "Inputs"){
             command.set_input(detail);
-        } else {
+        } else if (modifier === "Output"){ 
             command.set_output(detail);
+        } else if (modifier === "RuleName"){
+            command.set_rule_name(detail);
         }
     }
 
-    moveCommands(sourceBashCommands: any, targetBashCommand: BashCommandContainer|null){
+    async moveCommands(sourceBashCommands: any, targetBashCommand: BashCommandContainer|null) {
+        var remake_names = [];
         const children: SingleBashCommand[] = sourceBashCommands.map((c: any) => c[0].pop_children(c[1]));
         sourceBashCommands.forEach((c: any) => {
-            if (c[0].is_dead()){
+            if (c[0].is_dead()) {
                 this.history.splice(this.history.indexOf(c[0]), 1);
+            } else {
+                remake_names.push(c[0]);
             }
         });
-        if (targetBashCommand){
+        if (targetBashCommand) {
+            remake_names.push(targetBashCommand);
             children.forEach((c) => {
                 targetBashCommand.add_child(c);
             });
@@ -149,6 +156,13 @@ export class TerminalHistory {
                 );
             });
         }
+        await Promise.all(remake_names.map(async (c: any) => {
+            c.set_temporary(true);
+            const new_name = await this.queries.re_guess_name(c);
+            c.set_rule_name(new_name);
+            c.set_temporary(false);
+        }));
+        return remake_names.length !== 0;
     }
 
     export(){
@@ -182,6 +196,7 @@ export class TerminalHistory {
 
 export interface BashCommand{
     get_command(): string;
+    get_rule_name(): string;
     get_input(): string;
     get_output(): string;
     get_important(): boolean;
@@ -193,13 +208,27 @@ export interface BashCommand{
     set_temporary(temporary: boolean): void;
     set_input(input: string): void;
     set_output(output: string): void;
+    set_rule_name(rule_name: string): void;
 }
 export class BashCommandContainer implements BashCommand{
     commands: SingleBashCommand[];
     index: number;
+    private rule_name = "";
     constructor(command: SingleBashCommand, index: number){
         this.commands = [command];
         this.index = index;
+    }
+    get_rule_name(): string {
+        if (this.commands.length === 1){
+            return this.commands[0].get_rule_name();
+        }
+        return this.rule_name;
+    }
+    set_rule_name(rule_name: string): void {
+        if (this.commands.length === 1){
+            this.commands[0].set_rule_name(rule_name);
+        }
+        this.rule_name = rule_name;
     }
     get_command(): string {
         return this.commands.map( (c) => c.get_command()).join(" && ");
@@ -284,8 +313,10 @@ class SingleBashCommand implements BashCommand{
     public important: boolean;
     public index: number;
     public temporary: boolean;
+    public rule_name: string;
     constructor(command: string, exitStatus: number, input: string, output: string, important: boolean, index: number, temporary: boolean = false, subCommands: BashCommand[] = []){ 
         this.command = command;
+        this.rule_name = command;
         this.exitStatus = exitStatus;
         this.inputs = input;
         this.output = output;
@@ -314,6 +345,9 @@ class SingleBashCommand implements BashCommand{
     get_children(index: number): BashCommand | null {
         return null;
     }
+    get_rule_name(): string {
+        return this.rule_name;
+    }
     get_index(): number {
         return this.index;
     }
@@ -328,5 +362,8 @@ class SingleBashCommand implements BashCommand{
     }
     set_output(output: string): void {
         this.output = output;
+    }
+    set_rule_name(rule_name: string): void {
+        this.rule_name = rule_name;
     }
 }

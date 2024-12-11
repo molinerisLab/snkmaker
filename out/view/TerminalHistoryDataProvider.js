@@ -116,14 +116,18 @@ class DisplayCommandRoot extends vscode.TreeItem {
     get_children() {
         //If command has children, return children commands.
         //if not, return stuff like inputs, outputs...
+        const gray = this.bashCommand.get_important() === true && this.bashCommand.get_temporary() === false;
         if (this.bashCommand.get_num_children() > 0) {
-            return Array.from(Array(this.bashCommand.get_num_children()).keys()).map((index) => new DisplayCommandChildCommand(this.bashCommand, index));
+            const r = Array.from(Array(this.bashCommand.get_num_children()).keys()).map((index) => new DisplayCommandChildCommand(this.bashCommand, index));
+            const r0 = new DisplayCommandAdditionalInfo(this.bashCommand, 'Rule name', this.bashCommand.get_rule_name(), this.bashCommand.get_index(), gray, "RuleName");
+            return [r0, ...r];
         }
         else {
             return [
-                new DisplayCommandAdditionalInfo(this.bashCommand, 'Output', this.bashCommand.get_output(), this.bashCommand.get_index(), "Output"),
-                new DisplayCommandAdditionalInfo(this.bashCommand, 'Inputs', this.bashCommand.get_input(), this.bashCommand.get_index(), "Inputs"),
-                new DisplayCommandAdditionalInfo(this.bashCommand, 'Important', this.bashCommand.get_important() ? 'Yes' : 'No', this.bashCommand.get_index(), undefined)
+                new DisplayCommandAdditionalInfo(this.bashCommand, 'Rule name', this.bashCommand.get_rule_name(), this.bashCommand.get_index(), gray, "RuleName"),
+                new DisplayCommandAdditionalInfo(this.bashCommand, 'Output', this.bashCommand.get_output(), this.bashCommand.get_index(), gray, "Output"),
+                new DisplayCommandAdditionalInfo(this.bashCommand, 'Inputs', this.bashCommand.get_input(), this.bashCommand.get_index(), gray, "Inputs"),
+                new DisplayCommandAdditionalInfo(this.bashCommand, 'Important', this.bashCommand.get_important() ? 'Yes' : 'No', this.bashCommand.get_index(), gray, undefined)
             ];
         }
     }
@@ -155,7 +159,7 @@ class DisplayCommandChildCommand extends vscode.TreeItem {
         this.parentBashCommand = parentBashCommand;
         this.childBashCommand = child;
         this.iconPath = undefined;
-        if (child?.get_important() === true && child?.get_temporary() === false) {
+        if (parentBashCommand.get_important() === true && parentBashCommand?.get_temporary() === false) {
             this.resourceUri = vscode.Uri.parse('bash_commands://' + child?.get_index());
         }
         else {
@@ -163,10 +167,11 @@ class DisplayCommandChildCommand extends vscode.TreeItem {
         }
     }
     get_children() {
+        const gray = this.parentBashCommand.get_important() === true && this.parentBashCommand.get_temporary() === false;
         return [
-            new DisplayCommandAdditionalInfo(this.childBashCommand, 'Output', this.childBashCommand?.get_output() || '', this.childBashCommand?.get_index() || 0, "Output"),
-            new DisplayCommandAdditionalInfo(this.childBashCommand, 'Inputs', this.childBashCommand?.get_input() || '', this.childBashCommand?.get_index() || 0, "Inputs"),
-            new DisplayCommandAdditionalInfo(this.childBashCommand, 'Important', this.childBashCommand?.get_important() ? 'Yes' : 'No', this.childBashCommand?.get_index() || 0, undefined)
+            new DisplayCommandAdditionalInfo(this.childBashCommand, 'Output', this.childBashCommand?.get_output() || '', this.childBashCommand?.get_index() || 0, gray, "Output"),
+            new DisplayCommandAdditionalInfo(this.childBashCommand, 'Inputs', this.childBashCommand?.get_input() || '', this.childBashCommand?.get_index() || 0, gray, "Inputs"),
+            new DisplayCommandAdditionalInfo(this.childBashCommand, 'Important', this.childBashCommand?.get_important() ? 'Yes' : 'No', this.childBashCommand?.get_index() || 0, gray, undefined)
         ];
     }
     get_root() {
@@ -179,7 +184,7 @@ class DisplayCommandChildCommand extends vscode.TreeItem {
 class DisplayCommandAdditionalInfo extends vscode.TreeItem {
     modifier;
     parent;
-    constructor(parent, childTitle, childText, index, modifiable) {
+    constructor(parent, childTitle, childText, index, gray, modifiable) {
         const label = childTitle + ": " + childText;
         super(label, vscode.TreeItemCollapsibleState.None);
         this.tooltip = childText;
@@ -191,7 +196,7 @@ class DisplayCommandAdditionalInfo extends vscode.TreeItem {
             this.contextValue = 'CHILD_OBJ';
         }
         this.parent = parent;
-        this.resourceUri = vscode.Uri.parse('bash_commands_details://' + childTitle + index);
+        this.resourceUri = !gray ? vscode.Uri.parse('bash_command_info_unimportant://' + childTitle + index) : vscode.Uri.parse('bash_commands_details://' + childTitle + index);
         this.iconPath = new vscode.ThemeIcon("find-collapseddebug-breakpoint-unverified");
     }
     get_children() {

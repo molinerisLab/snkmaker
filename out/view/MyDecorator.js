@@ -9,7 +9,7 @@ class TodoDecorationProvider {
         this.viewModel = viewModel;
     }
     provideFileDecoration(uri, token) {
-        if (uri.scheme === 'bash_commands_unimportant') {
+        if (uri.scheme === 'bash_commands_unimportant' || uri.scheme === 'bash_command_info_unimportant') {
             return {
                 color: new vscode_1.ThemeColor('disabledForeground'),
                 // badge: "1"

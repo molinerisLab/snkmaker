@@ -8,7 +8,7 @@ export class TodoDecorationProvider implements FileDecorationProvider {
         this.viewModel = viewModel;
     }
     provideFileDecoration(uri: Uri, token: CancellationToken): ProviderResult<FileDecoration> {
-        if (uri.scheme === 'bash_commands_unimportant') {
+        if (uri.scheme === 'bash_commands_unimportant' || uri.scheme === 'bash_command_info_unimportant') {
             return {
                 color: new ThemeColor('disabledForeground'),
                 // badge: "1"

@@ -28,13 +28,14 @@ class TerminalHistory {
         this.index += 2;
         this.history.push(tempCommand);
         const important = this.queries.guess_if_important(value);
-        const files = this.queries.guess_input_output(value);
+        const guesses = this.queries.guess_rule_details(value);
         //Wait for both promises to resolve
-        await Promise.all([important, files]).then((values) => {
+        await Promise.all([important, guesses]).then((values) => {
             const important = values[0];
-            const files = values[1];
-            singleTempCommand.set_input(files[0]);
-            singleTempCommand.set_output(files[1]);
+            const guesses = values[1];
+            singleTempCommand.set_input(guesses[0]);
+            singleTempCommand.set_output(guesses[1]);
+            singleTempCommand.set_rule_name(guesses[2]);
             singleTempCommand.set_importance(important);
             tempCommand.set_temporary(false);
         });
@@ -124,18 +125,26 @@ class TerminalHistory {
         if (modifier === "Inputs") {
             command.set_input(detail);
         }
-        else {
+        else if (modifier === "Output") {
             command.set_output(detail);
         }
+        else if (modifier === "RuleName") {
+            command.set_rule_name(detail);
+        }
     }
-    moveCommands(sourceBashCommands, targetBashCommand) {
+    async moveCommands(sourceBashCommands, targetBashCommand) {
+        var remake_names = [];
         const children = sourceBashCommands.map((c) => c[0].pop_children(c[1]));
         sourceBashCommands.forEach((c) => {
             if (c[0].is_dead()) {
                 this.history.splice(this.history.indexOf(c[0]), 1);
             }
+            else {
+                remake_names.push(c[0]);
+            }
         });
         if (targetBashCommand) {
+            remake_names.push(targetBashCommand);
             children.forEach((c) => {
                 targetBashCommand.add_child(c);
             });
@@ -145,6 +154,13 @@ class TerminalHistory {
                 this.history.push(new BashCommandContainer(c, this.index++));
             });
         }
+        await Promise.all(remake_names.map(async (c) => {
+            c.set_temporary(true);
+            const new_name = await this.queries.re_guess_name(c);
+            c.set_rule_name(new_name);
+            c.set_temporary(false);
+        }));
+        return remake_names.length !== 0;
     }
     export() {
         return JSON.stringify({
@@ -178,9 +194,22 @@ exports.TerminalHistory = TerminalHistory;
 class BashCommandContainer {
     commands;
     index;
+    rule_name = "";
     constructor(command, index) {
         this.commands = [command];
         this.index = index;
+    }
+    get_rule_name() {
+        if (this.commands.length === 1) {
+            return this.commands[0].get_rule_name();
+        }
+        return this.rule_name;
+    }
+    set_rule_name(rule_name) {
+        if (this.commands.length === 1) {
+            this.commands[0].set_rule_name(rule_name);
+        }
+        this.rule_name = rule_name;
     }
     get_command() {
         return this.commands.map((c) => c.get_command()).join(" && ");
@@ -265,8 +294,10 @@ class SingleBashCommand {
     important;
     index;
     temporary;
+    rule_name;
     constructor(command, exitStatus, input, output, important, index, temporary = false, subCommands = []) {
         this.command = command;
+        this.rule_name = command;
         this.exitStatus = exitStatus;
         this.inputs = input;
         this.output = output;
@@ -295,6 +326,9 @@ class SingleBashCommand {
     get_children(index) {
         return null;
     }
+    get_rule_name() {
+        return this.rule_name;
+    }
     get_index() {
         return this.index;
     }
@@ -309,6 +343,9 @@ class SingleBashCommand {
     }
     set_output(output) {
         this.output = output;
+    }
+    set_rule_name(rule_name) {
+        this.rule_name = rule_name;
     }
 }
 //# sourceMappingURL=TerminalHistory.js.map
