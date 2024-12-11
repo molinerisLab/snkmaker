@@ -2,12 +2,30 @@
 convert bash/r/python history or unstructured code in snakefiles
 
 
-## Build and install extension for local usage
+
+# Build and install extension for local usage
 * Set version: open "package.json", modify field "version"
 * Build: "npx @vscode/vsce -- package". Produces a *.vsix file.
 * Install: from VSCode, open the "Extension" sidebar, click on the three dots on the top-right corner of the sidebar, click Install from VSIX.
 
+
+# Chat directly with Snakemaker
+Snakemaker integrates with the Github Copilot chat, allowing the user to chat directly with the extension. The direct chat can be used for two sets of purposes:
+
+* Retrieve information about the usage of Snakemaker, troubleshooting, understand the principles of the extension.
+    * Examples: 
+        * *What can Snakemaker do for me?*
+        * *Why aren't my commands being recorded?*
+        * *How do I export my workspace?*
+        * *What language models can Snakemaker use?*
+* Run custom prompts on your command history.
+    * Examples: 
+        * *When did I create the file named columns.csv?*
+        * *Can you write a Snakemake rule for my last command that uses wildcards instead of a hardcoded output?*
+        * *Are there repetitions in my last commands?*
+
 # General Usage
+
 ### Snakemaker panel overview 
 <img src=".img/Snakemaker_Overview.png"/>
 

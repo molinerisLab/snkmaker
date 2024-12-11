@@ -7,6 +7,7 @@ import { TerminalHistory } from './model/TerminalHistory';
 import { BashCommandViewModel } from './viewmodel/BashCommandViewmodel';
 import { TodoDecorationProvider } from './view/MyDecorator';
 import { ModelsDataProvider } from './view/ModelsDataProvider';
+import { ChatExtension } from './model/ChatExtension';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -154,7 +155,14 @@ export function activate(context: vscode.ExtensionContext) {
 	if (!viewModel.isCopilotActive()){
 		viewModel.activateCopilot();
 	}
-
+	//Register copilot chat extension
+	const chatExtension: ChatExtension = new ChatExtension(viewModel);
+	const chat_handler: vscode.ChatRequestHandler = async (request: vscode.ChatRequest,context: vscode.ChatContext,
+		stream: vscode.ChatResponseStream,token: vscode.CancellationToken) => {
+			await chatExtension.process(request, context, stream, token);
+		};
+	const snakemaker = vscode.chat.createChatParticipant('chat-snakemaker', chat_handler);
+	snakemaker.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources/icon.svg');
 	//vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
 
 

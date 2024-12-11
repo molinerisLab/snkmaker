@@ -172,6 +172,9 @@ export class TerminalHistory {
             index: this.index
         });
     }
+    history_for_the_chat(){
+        return this.history.length===0 ? "History is Empty" : JSON.stringify(this.history);
+    }
     import(data: string){
         const parsed = JSON.parse(data);
         this.history = parsed.history.map((cmd: any) => {

@@ -227,7 +227,44 @@
         "command": "load-workspace",
         "title": "Snakemaker: Load workspace"
       }
-    ]
+    ],
+    "chatParticipants": [
+      {
+          "id": "chat-snakemaker",
+          "name": "snakemaker",
+          "fullName": "Snakemaker",
+          "description": "Hello I'm Snakemaker and I can assist you building great pipelines :)",
+          "isSticky": true,
+          "disambiguation": [
+            {
+                "category": "Bash command history and Snakemake pipeline building support",
+                "description": "The user run bash commands on its terminal for its data analysis purposes and needs help tracking them and automatically turning them into Snakemake rules",
+                "examples": [
+                    "How many commands to I have in history?",
+                    "Can you write one single snakemake rule with all the commands currently in history?",
+                    "Can you show me the most important commands in my history?",
+                    "Can you convert this command into a snakemake rule?",
+                    "Can you show me the commands that are not important?",
+                    "Can you convert for me this command in a generic snakemake rule that uses wildcards?"
+                ]
+            },
+            {
+                "category": "Support for the usage of the Snakemaker extension",
+                "description": "The user installed the Snakemaker extension but don't know how to use it, needs help with the commands and the views",
+                "examples": [
+                    "How does Snakemaker work?", "What does Snakemaker do?",
+                    "How can I archive a command?", "How can I restore a command?",
+                    "Where is my command history?", "How can I delete a command?",
+                    "How can I set a command as important?", "How can I set a command as unimportant?",
+                    "What is an important command?", "Why my commands aren't being recorded?",
+                    "How can I change the details of a command?", "How can I use a model?",
+                    "How can I save my workspace?", "How can I load my workspace?",
+                    "How can I start listening to commands?", "How can I stop listening to commands?"
+                ]
+            }
+            ]
+      }
+  ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

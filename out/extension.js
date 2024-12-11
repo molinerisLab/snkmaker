@@ -42,6 +42,7 @@ const TerminalHistoryDataProvider_1 = require("./view/TerminalHistoryDataProvide
 const BashCommandViewmodel_1 = require("./viewmodel/BashCommandViewmodel");
 const MyDecorator_1 = require("./view/MyDecorator");
 const ModelsDataProvider_1 = require("./view/ModelsDataProvider");
+const ChatExtension_1 = require("./model/ChatExtension");
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
@@ -195,6 +196,13 @@ function activate(context) {
     if (!viewModel.isCopilotActive()) {
         viewModel.activateCopilot();
     }
+    //Register copilot chat extension
+    const chatExtension = new ChatExtension_1.ChatExtension(viewModel);
+    const chat_handler = async (request, context, stream, token) => {
+        await chatExtension.process(request, context, stream, token);
+    };
+    const snakemaker = vscode.chat.createChatParticipant('chat-snakemaker', chat_handler);
+    snakemaker.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources/icon.svg');
     //vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
     //Stupid examples:
     //1-Command from palette example
