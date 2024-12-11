@@ -106,7 +106,7 @@ class DisplayCommandRoot extends vscode.TreeItem implements DisplayCommand{
 				new DisplayCommandAdditionalInfo(this.bashCommand, 'Rule name', this.bashCommand.get_rule_name(), this.bashCommand.get_index(), gray, "RuleName"),
 				new DisplayCommandAdditionalInfo(this.bashCommand, 'Output', this.bashCommand.get_output(), this.bashCommand.get_index(), gray,"Output"),
 				new DisplayCommandAdditionalInfo(this.bashCommand, 'Inputs', this.bashCommand.get_input(), this.bashCommand.get_index(), gray,"Inputs"),
-				new DisplayCommandAdditionalInfo(this.bashCommand, 'Important', this.bashCommand.get_important() ? 'Yes' : 'No', this.bashCommand.get_index(), gray,undefined)
+				//new DisplayCommandAdditionalInfo(this.bashCommand, 'Important', this.bashCommand.get_important() ? 'Yes' : 'No', this.bashCommand.get_index(), gray,undefined)
 			];
 		}
 	}
@@ -150,7 +150,7 @@ class DisplayCommandChildCommand extends vscode.TreeItem implements DisplayComma
 		return [
 			new DisplayCommandAdditionalInfo(this.childBashCommand,'Output', this.childBashCommand?.get_output() || '', this.childBashCommand?.get_index()||0, gray, "Output"),
 			new DisplayCommandAdditionalInfo(this.childBashCommand,'Inputs', this.childBashCommand?.get_input() || '', this.childBashCommand?.get_index()||0, gray, "Inputs"),
-			new DisplayCommandAdditionalInfo(this.childBashCommand,'Important', this.childBashCommand?.get_important() ? 'Yes' : 'No', this.childBashCommand?.get_index()||0, gray, undefined)
+			//new DisplayCommandAdditionalInfo(this.childBashCommand,'Important', this.childBashCommand?.get_important() ? 'Yes' : 'No', this.childBashCommand?.get_index()||0, gray, undefined)
 		];
 	}
 	get_root(): BashCommandContainer {

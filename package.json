@@ -116,7 +116,7 @@
       "activitybar": [
         {
           "id": "snakemake-ai",
-          "title": "Snakemake AI",
+          "title": "Snakemaker",
           "icon": "resources/icon.svg"
         }
       ]
