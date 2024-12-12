@@ -226,6 +226,10 @@
       {
         "command": "load-workspace",
         "title": "Snakemaker: Load workspace"
+      },
+      {
+        "command": "test-hiddenterminal",
+        "title": "Test hidden terminal"
       }
     ],
     "chatParticipants": [

@@ -43,12 +43,14 @@ const BashCommandViewmodel_1 = require("./viewmodel/BashCommandViewmodel");
 const MyDecorator_1 = require("./view/MyDecorator");
 const ModelsDataProvider_1 = require("./view/ModelsDataProvider");
 const ChatExtension_1 = require("./model/ChatExtension");
+const HiddenTerminal_1 = require("./utils/HiddenTerminal");
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
     const memento = context.workspaceState;
     const bashCommandTitles = [' - NOT LISTENING', ' - LISTENING'];
     vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
+    const hiddenTerminal = new HiddenTerminal_1.HiddenTerminal();
     //Create viewmodel for terminal history
     const viewModel = new BashCommandViewmodel_1.BashCommandViewModel(memento);
     //Create views
@@ -62,8 +64,14 @@ function activate(context) {
     vscode.window.registerFileDecorationProvider(new MyDecorator_1.TodoDecorationProvider(viewModel));
     //Register terminal listener, update view
     vscode.window.onDidEndTerminalShellExecution(event => {
+        if (event.terminal == hiddenTerminal.terminal) {
+            return; //Ignore commands run by the hidden terminal, or an infinite loop will occur
+        }
         const commandLine = event.execution.commandLine;
         const code = event.exitCode;
+        const shell = event.shellIntegration;
+        const cwd = shell.cwd;
+        console.log(cwd); //cwd.path
         console.log(`Command run: \n${commandLine.value} - exit code: ${code}`);
         if (code !== 0) {
             viewModel.addCommandGoneWrong(commandLine.value, 0, true, code);
@@ -71,6 +79,15 @@ function activate(context) {
         else {
             viewModel.addCommand(commandLine.value, 0, true);
         }
+    });
+    //TEMP
+    const test_hid_t = vscode.commands.registerCommand('test-hiddenterminal', () => {
+        const command = vscode.window.showInputBox({ prompt: 'Enter command to run in hidden terminal' });
+        command.then(value => {
+            if (value) {
+                hiddenTerminal.run_command(value);
+            }
+        });
     });
     //Register vscode commands
     const print_rule = vscode.commands.registerCommand('print-rule', (event) => {
@@ -203,35 +220,6 @@ function activate(context) {
     };
     const snakemaker = vscode.chat.createChatParticipant('chat-snakemaker', chat_handler);
     snakemaker.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources/icon.svg');
-    //vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
-    //Stupid examples:
-    //1-Command from palette example
-    // The command has been defined in the package.json file
-    // Now provide the implementation of the command with registerCommand
-    // The commandId parameter must match the command field in package.json
-    /*const disposable = vscode.commands.registerCommand('prova.helloWorld', () => {
-        vscode.window.showInformationMessage('Hello World from prova!');
-    });
-    context.subscriptions.push(disposable);
-    */
-    //2- Terminal change callback + execute command example
-    /*vscode.window.onDidChangeActiveTerminal(async e => {
-        console.log(`Active terminal changed, name=${e ? e.name : 'undefined'}`);
-        vscode.window.showInformationMessage('Terminal changed! ' + (e ? e.name : 'undefined'));
-        const command = e?.shellIntegration?.executeCommand('echo "Hello world"' );
-        const stream = command?.read();
-        if (stream){
-            for await (const data of stream) {
-                console.log(data);
-                vscode.window.showInformationMessage(data);
-            }
-        }
-    });*/
-    // 3- Callback when command is run, not after
-    /*vscode.window.onDidStartTerminalShellExecution(event => {
-        const commandLine = event.execution.commandLine;
-        console.log(`Command started\n${summarizeCommandLine(commandLine)}`);
-    });*/
 }
 // This method is called when your extension is deactivated
 function deactivate() { }
