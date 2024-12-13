@@ -71,9 +71,18 @@ class TerminalHistory {
         }
     }
     deleteCommand(command) {
-        const index = this.history.indexOf(command);
+        var index = this.history.indexOf(command);
         if (index > -1) {
             this.history.splice(index, 1);
+            return 0;
+        }
+        else {
+            index = this.archive.indexOf(command);
+            if (index > -1) {
+                this.archive.splice(index, 1);
+                return 1;
+            }
+            return -1;
         }
     }
     deleteAllCommands() {

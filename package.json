@@ -3,6 +3,7 @@
   "displayName": "SNK-Maker",
   "description": "",
   "version": "0.0.16",
+  "repository": "https://github.com/molinerisLab/snkmaker",
   "engines": {
     "vscode": "^1.95.0"
   },

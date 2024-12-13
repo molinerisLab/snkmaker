@@ -105,8 +105,15 @@ class BashCommandViewModel {
         this.observableArchive.next(this.terminalHistory.getArchive());
     }
     deleteCommand(command) {
-        this.terminalHistory.deleteCommand(command);
-        this.observableCommands.next(this.terminalHistory.getHistory());
+        const result = this.terminalHistory.deleteCommand(command);
+        switch (result) {
+            case 0:
+                this.observableCommands.next(this.terminalHistory.getHistory());
+                break;
+            case 1:
+                this.observableArchive.next(this.terminalHistory.getArchive());
+                break;
+        }
     }
     deleteAllCommmands() {
         this.terminalHistory.deleteAllCommands();

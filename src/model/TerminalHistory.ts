@@ -72,10 +72,18 @@ export class TerminalHistory {
             this.archive.push(command);
         }
     }
-    deleteCommand(command: BashCommandContainer) {
-        const index = this.history.indexOf(command);
+    deleteCommand(command: BashCommandContainer): number {
+        var index = this.history.indexOf(command);
         if (index > -1) {
             this.history.splice(index, 1);
+            return 0;
+        } else {
+            index = this.archive.indexOf(command);
+            if (index > -1) {
+                this.archive.splice(index, 1);
+                return 1;
+            }
+            return -1;
         }
     }
     deleteAllCommands() {
