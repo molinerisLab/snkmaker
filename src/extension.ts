@@ -41,27 +41,17 @@ export function activate(context: vscode.ExtensionContext) {
 		const code = event.exitCode;
 		const shell = event.shellIntegration;
 		const cwd = shell.cwd;
-		console.log(cwd); //cwd.path
+		//console.log(cwd); //cwd.path
 		console.log(`Command run: \n${commandLine.value} - exit code: ${code}`);
-		commandInference.infer(commandLine.value, cwd?.path || '').then((inference) => {
+		/*commandInference.infer(commandLine.value, cwd?.path || '').then((inference) => {
 			console.log(inference);
-		});
+		});*/
 		if (code !== 0){
 			viewModel.addCommandGoneWrong(commandLine.value, 0, true, code);
 		} else {
 			viewModel.addCommand(commandLine.value, 0, true);
 		}
   	});
-
-	//TEMP
-	const test_hid_t = vscode.commands.registerCommand('test-hiddenterminal', () => {
-		const command = vscode.window.showInputBox({prompt: 'Enter command to run in hidden terminal'});
-		command.then(value => {
-			if (value){
-				hiddenTerminal.run_command(value);
-			}
-		});
-	});
 
 	//Register vscode commands
 	const print_rule = vscode.commands.registerCommand('print-rule', (event) => {

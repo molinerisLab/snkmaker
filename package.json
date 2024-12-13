@@ -2,7 +2,7 @@
   "name": "snkmaker",
   "displayName": "SNK-Maker",
   "description": "",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "engines": {
     "vscode": "^1.95.0"
   },
@@ -226,10 +226,6 @@
       {
         "command": "load-workspace",
         "title": "Snakemaker: Load workspace"
-      },
-      {
-        "command": "test-hiddenterminal",
-        "title": "Test hidden terminal"
       }
     ],
     "chatParticipants": [
