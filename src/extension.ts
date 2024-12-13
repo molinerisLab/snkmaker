@@ -9,6 +9,7 @@ import { TodoDecorationProvider } from './view/MyDecorator';
 import { ModelsDataProvider } from './view/ModelsDataProvider';
 import { ChatExtension } from './model/ChatExtension';
 import { HiddenTerminal } from './utils/HiddenTerminal';
+import { CommandInference } from './utils/CommandInference';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -17,6 +18,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const bashCommandTitles = [' - NOT LISTENING', ' - LISTENING'];
 	vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
 	const hiddenTerminal = new HiddenTerminal();
+	const commandInference = new CommandInference(hiddenTerminal);
 
 	//Create viewmodel for terminal history
 	const viewModel = new BashCommandViewModel(memento);
@@ -41,6 +43,9 @@ export function activate(context: vscode.ExtensionContext) {
 		const cwd = shell.cwd;
 		console.log(cwd); //cwd.path
 		console.log(`Command run: \n${commandLine.value} - exit code: ${code}`);
+		commandInference.infer(commandLine.value, cwd?.path || '').then((inference) => {
+			console.log(inference);
+		});
 		if (code !== 0){
 			viewModel.addCommandGoneWrong(commandLine.value, 0, true, code);
 		} else {

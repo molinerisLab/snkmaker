@@ -44,6 +44,7 @@ const MyDecorator_1 = require("./view/MyDecorator");
 const ModelsDataProvider_1 = require("./view/ModelsDataProvider");
 const ChatExtension_1 = require("./model/ChatExtension");
 const HiddenTerminal_1 = require("./utils/HiddenTerminal");
+const CommandInference_1 = require("./utils/CommandInference");
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
@@ -51,6 +52,7 @@ function activate(context) {
     const bashCommandTitles = [' - NOT LISTENING', ' - LISTENING'];
     vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
     const hiddenTerminal = new HiddenTerminal_1.HiddenTerminal();
+    const commandInference = new CommandInference_1.CommandInference(hiddenTerminal);
     //Create viewmodel for terminal history
     const viewModel = new BashCommandViewmodel_1.BashCommandViewModel(memento);
     //Create views
@@ -73,6 +75,9 @@ function activate(context) {
         const cwd = shell.cwd;
         console.log(cwd); //cwd.path
         console.log(`Command run: \n${commandLine.value} - exit code: ${code}`);
+        commandInference.infer(commandLine.value, cwd?.path || '').then((inference) => {
+            console.log(inference);
+        });
         if (code !== 0) {
             viewModel.addCommandGoneWrong(commandLine.value, 0, true, code);
         }

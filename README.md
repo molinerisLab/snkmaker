@@ -10,33 +10,6 @@ convert bash/r/python history or unstructured code in snakefiles
 
 # General Usage
 
-## Chat directly with Snakemaker
-Snakemaker integrates with the Github Copilot chat, allowing the user to chat directly with the extension. The direct chat can be used for two sets of purposes:
-
-* Retrieve information about the usage of Snakemaker, troubleshooting, understand the principles of the extension.
-    * Examples: 
-        * *What can Snakemaker do for me?*
-        * *Why aren't my commands being recorded?*
-        * *How do I export my workspace?*
-        * *What language models can Snakemaker use?*
-* Run custom prompts on your command history.
-    * Examples: 
-        * *When did I create the file named columns.csv?*
-        * *Can you write a Snakemake rule for my last command that uses wildcards instead of a hardcoded output?*
-        * *Are there repetitions in my last commands?*
-
-In order to chat with Snakemaker:
-* Open the Copilot chat
-* Tag Snakemaker: "@snakemaker"
-
-## Snakemaker panel overview 
-<img src=".img/Snakemaker_Overview.png"/>
-
-## Record bash commands
-Snakemaker isn't always recording bash commands. Recording can be started and paused by hand.
-
-<img src=".img/start_stop_listening.png"/>
-
 ## Commands importance
 When recording bash commands, Snakemaker tries to distinguish between important commands, which can contribute to the Snakefile, and unimportant, one-timer commands, which are not.
 
@@ -61,6 +34,38 @@ These details can be edited manually for better rules production.
 By default, Snakemaker proposes one candidate rule for each important bash command recorded. If the user whishes for multiple commands to be considered for a single snakemake rule, he can use drag-and-drop to merge commands into composite commands.
 
 <img src=".img/Composite.png"/>
+
+## Chat directly with Snakemaker
+Snakemaker integrates with the Github Copilot chat, allowing the user to chat directly with the extension. The direct chat can be used for two sets of purposes:
+
+* Retrieve information about the usage of Snakemaker, troubleshooting, understand the principles of the extension.
+    * Examples: 
+        * *What can Snakemaker do for me?*
+        * *Why aren't my commands being recorded?*
+        * *How do I export my workspace?*
+        * *What language models can Snakemaker use?*
+* Run custom prompts on your command history.
+    * Examples: 
+        * *When did I create the file named columns.csv?*
+        * *Can you write a Snakemake rule for my last command that uses wildcards instead of a hardcoded output?*
+        * *Are there repetitions in my last commands?*
+
+In order to chat with Snakemaker:
+* Open the Copilot chat
+* Tag Snakemaker: "@snakemaker"
+
+<div style="display: flex;">
+  <img src=".img/chat_1.png" style="max-width:40%; margin-right: 10px;"/>
+  <img src=".img/chat_2.png"  style="max-width:40%;"/>
+</div>
+
+## Snakemaker panel overview 
+<img src=".img/Snakemaker_Overview.png"/>
+
+## Record bash commands
+Snakemaker isn't always recording bash commands. Recording can be started and paused by hand.
+
+<img src=".img/start_stop_listening.png"/>
 
 ## Import-export workspace
 
