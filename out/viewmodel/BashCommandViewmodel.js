@@ -204,9 +204,9 @@ class BashCommandViewModel {
     }
     async activateCopilot() {
         var models = [];
-        for (var i = 0; i < 20; i++) {
+        for (var i = 0; i < 40; i++) {
             models = await vscode.lm.selectChatModels({ vendor: 'copilot' });
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 500));
             if (models.length > 0) {
                 break;
             }
@@ -266,6 +266,17 @@ class BashCommandViewModel {
     updateCanUndoCanRedo() {
         vscode.commands.executeCommand('setContext', 'myExtension.canUndo', this.terminalHistory.canUndo());
         vscode.commands.executeCommand('setContext', 'myExtension.canRedo', this.terminalHistory.canRedo());
+    }
+    setHistory(history) {
+        const backup = this.terminalHistory.export();
+        try {
+            this.terminalHistory.setHistoryFromChat(history);
+            this.observableCommands.next(this.terminalHistory.getHistory());
+        }
+        catch (e) {
+            this.terminalHistory.loadJson(backup);
+            vscode.window.showInformationMessage('Error setting history: ' + e);
+        }
     }
 }
 exports.BashCommandViewModel = BashCommandViewModel;

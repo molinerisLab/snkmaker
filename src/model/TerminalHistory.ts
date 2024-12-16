@@ -244,7 +244,7 @@ export class TerminalHistory {
     loadJson(data: string){
         const parsed = JSON.parse(data);
         this.history = parsed.history.map((cmd: any) => {
-            const singleCommands = cmd.commands.map((sc: any) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary));
+            const singleCommands = cmd.commands.map((sc: any) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary, sc.rule_name));
             const container = new BashCommandContainer(singleCommands[0], cmd.index);
             for (let i = 1; i < singleCommands.length; i++) {
                 container.add_child(singleCommands[i]);
@@ -252,7 +252,7 @@ export class TerminalHistory {
             return container;
         });
         this.archive = parsed.archive.map((cmd: any) => {
-            const singleCommands = cmd.commands.map((sc: any) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary));
+            const singleCommands = cmd.commands.map((sc: any) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary, sc.rule_name));
             const container = new BashCommandContainer(singleCommands[0], cmd.index);
             for (let i = 1; i < singleCommands.length; i++) {
                 container.add_child(singleCommands[i]);
@@ -291,6 +291,16 @@ export class TerminalHistory {
     }
     canRedo(){
         return this.undoRedoStack.redo_count > 0;
+    }
+    setHistoryFromChat(history: any){
+        this.history = history.map((cmd: any) => {
+            const singleCommands = cmd.commands.map((sc: any) => new SingleBashCommand(sc.command, sc.exitStatus||0, sc.inputs, sc.output, sc.important||true, ++this.index, false, sc.rule_name));
+            const container = new BashCommandContainer(singleCommands[0], ++this.index);
+            for (let i = 1; i < singleCommands.length; i++) {
+                container.add_child(singleCommands[i]);
+            }
+            return container;
+        });
     }
 }
 
@@ -414,9 +424,13 @@ class SingleBashCommand implements BashCommand{
     public index: number;
     public temporary: boolean;
     public rule_name: string;
-    constructor(command: string, exitStatus: number, input: string, output: string, important: boolean, index: number, temporary: boolean = false, subCommands: BashCommand[] = []){ 
+    constructor(command: string, exitStatus: number, input: string, output: string, important: boolean, index: number, temporary: boolean = false, rule_name?: string){ 
         this.command = command;
-        this.rule_name = command;
+        if (rule_name){
+            this.rule_name = rule_name;
+        } else {
+            this.rule_name = command;
+        }
         this.exitStatus = exitStatus;
         this.inputs = input;
         this.output = output;

@@ -88,6 +88,14 @@ function activate(context) {
         }
     });
     //Register vscode commands
+    const set_history = vscode.commands.registerCommand('history-set', (event) => {
+        console.log(event);
+        if (event && event.history) {
+            console.log(event.history);
+            viewModel.setHistory(event.history);
+        }
+    });
+    context.subscriptions.push(set_history);
     const print_rule = vscode.commands.registerCommand('print-rule', (event) => {
         if (event && event.get_root()) {
             viewModel.printRule(event.get_root());

@@ -234,7 +234,7 @@ class TerminalHistory {
     loadJson(data) {
         const parsed = JSON.parse(data);
         this.history = parsed.history.map((cmd) => {
-            const singleCommands = cmd.commands.map((sc) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary));
+            const singleCommands = cmd.commands.map((sc) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary, sc.rule_name));
             const container = new BashCommandContainer(singleCommands[0], cmd.index);
             for (let i = 1; i < singleCommands.length; i++) {
                 container.add_child(singleCommands[i]);
@@ -242,7 +242,7 @@ class TerminalHistory {
             return container;
         });
         this.archive = parsed.archive.map((cmd) => {
-            const singleCommands = cmd.commands.map((sc) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary));
+            const singleCommands = cmd.commands.map((sc) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary, sc.rule_name));
             const container = new BashCommandContainer(singleCommands[0], cmd.index);
             for (let i = 1; i < singleCommands.length; i++) {
                 container.add_child(singleCommands[i]);
@@ -278,6 +278,16 @@ class TerminalHistory {
     }
     canRedo() {
         return this.undoRedoStack.redo_count > 0;
+    }
+    setHistoryFromChat(history) {
+        this.history = history.map((cmd) => {
+            const singleCommands = cmd.commands.map((sc) => new SingleBashCommand(sc.command, sc.exitStatus || 0, sc.inputs, sc.output, sc.important || true, ++this.index, false, sc.rule_name));
+            const container = new BashCommandContainer(singleCommands[0], ++this.index);
+            for (let i = 1; i < singleCommands.length; i++) {
+                container.add_child(singleCommands[i]);
+            }
+            return container;
+        });
     }
 }
 exports.TerminalHistory = TerminalHistory;
@@ -385,9 +395,14 @@ class SingleBashCommand {
     index;
     temporary;
     rule_name;
-    constructor(command, exitStatus, input, output, important, index, temporary = false, subCommands = []) {
+    constructor(command, exitStatus, input, output, important, index, temporary = false, rule_name) {
         this.command = command;
-        this.rule_name = command;
+        if (rule_name) {
+            this.rule_name = rule_name;
+        }
+        else {
+            this.rule_name = command;
+        }
         this.exitStatus = exitStatus;
         this.inputs = input;
         this.output = output;

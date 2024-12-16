@@ -17,6 +17,9 @@ As the AI assistant of this extension, you have these responsabilities:
     [Stop listening to bash commands](command:stop-listening)   #Stop listening to bash commands
     [Save workspace](command:save-workspace)   #Save the workspace of the extension
     [Load workspace](command:load-workspace)   #Load the workspace of the extension
+    [Undo last change](command:history-undo)   #Undo last change made to history
+    [Set new history](command:history-set?{"history"=NEW_HISTORY_JSON})   #Set a modified history
+The command history-set?NEW_HISTORY_JSON sets a new history. Use it if the user asks to perform changes. You have to: 1- Tell the user which changes you are performing - do not show the entire JSON with the new history but explain which things you're modifying. 2-Valorize NEW_HISTORY_JSON as the modified version of the history you are provided as HISTORY OF RECORDED BASH COMMANDS
 If the user asks you to do something not doable with these commands, tell him you can't do it yourself and explain how he can do it himself.
 `;
     static BASE_PROMPT_EXTENSION_USAGE = `INFORMATION ABOUT THE EXTENSION AND ITS USAGE:
@@ -46,6 +49,58 @@ HERE IS THE HISTORY:`;
     constructor(private viewModel: BashCommandViewModel) {
         this.history = viewModel.terminalHistory;
     }
+
+    async processT(request: vscode.ChatRequest,context: vscode.ChatContext,
+        stream: vscode.ChatResponseStream,token: vscode.CancellationToken){
+        
+        const T = [
+            "[Start listening to bash commands](command:start-listening) \n",
+            `\n [Set new history](command:history-set?%7B%22history%22%3A%5B%7B%22commands%22%3A%5B%7B%22command%22%3A%22ls%20-lh%22%2C%22exitStatus%22%3A0%2C%22output%22%3A%22-%22%2C%22inputs%22%3A%22-%22%2C%22important%22%3Atrue%2C%22index%22%3A4%2C%22temporary%22%3Afalse%2C%22rule_name%22%3A%22list_files%22%7D%5D%2C%22index%22%3A5%2C%22rule_name%22%3A%22%22%7D%5D%7D)`,
+            //`\n [Set new history](command:history-set?{"history":[{"commands":[{"command":"dir","exitStatus":0,"output":"-","inputs":"-","important":true,"index":13,"temporary":false,"rule_name":"CIAO"}],"index":14,"rule_name":""},{"commands":[{"command":"ls -lh","exitStatus":0,"output":"-","inputs":"-","important":false,"index":16,"temporary":false,"rule_name":"list_files"},{"command":"cd DO_STUFF/","exitStatus":0,"output":"-","inputs":"-","important":false,"index":18,"temporary":false,"rule_name":"change_directory"},{"command":"clear","exitStatus":0,"output":"-","inputs":"-","important":true,"index":15,"temporary":false,"rule_name":"clear_screen"}],"index":17,"rule_name":"list_and_change_directory"}]})`
+        ];
+        for (const fragment of T){
+            let markdownCommandString: vscode.MarkdownString = new vscode.MarkdownString(fragment);
+                markdownCommandString.isTrusted = { enabledCommands: [
+                    'load-workspace',
+                    'save-workspace',
+                    'start-listening',
+                    'stop-listening',
+                    'history-set',
+                ] };
+                stream.markdown(markdownCommandString);
+        }
+    }
+
+    findUnmatchedCommand(F: string):number {
+        const command = "(command:history-set?";
+        for (let i = 1; i <= command.length; i++) {
+          if (F.endsWith(command.slice(0, i))) {
+            return F.length - i;
+          }
+        }
+        const regex = /\(command:history-set\?/g;
+        let match;
+        while ((match = regex.exec(F)) !== null) {
+          const startIndex = match.index + match[0].length;
+          let depth = 1;
+          for (let i = startIndex; i < F.length; i++) {
+            if (F[i] === '(') {depth++;}
+            else if (F[i] === ')') {depth--;}
+            if (depth === 0) {break;}
+          }
+          if (depth !== 0) {
+            return match.index;
+          }
+        }
+        return -1;
+      }
+
+    processCommandURI(F: string){
+        console.log(F);
+        const r = encodeURIComponent(F);
+        console.log(r);
+        return r;
+    }
     
     async process(request: vscode.ChatRequest,context: vscode.ChatContext,
     stream: vscode.ChatResponseStream,token: vscode.CancellationToken){
@@ -73,13 +128,56 @@ HERE IS THE HISTORY:`;
 
         messages.push(vscode.LanguageModelChatMessage.User(request.prompt));
         const chatResponse = await request.model.sendRequest(messages, {}, token);
+        var accumulator = "";
+        var accumulating = false;
+        
         for await (const fragment of chatResponse.text) {
-            let markdownCommandString: vscode.MarkdownString = new vscode.MarkdownString(fragment);
+            var f;
+            if (!accumulating){
+                //1-Replace entire commands
+                f = fragment.replace(/\(command:history-set\?\s*(.*?)\)/g, (match, p1) => {
+                  return `(command:history-set?${this.processCommandURI(p1)});`;
+                }); 
+                //Check if there is a substring of the command
+                const unmatched = this.findUnmatchedCommand(f);
+                if (unmatched !== -1) {
+                  accumulator = f.slice(unmatched);
+                  f = f.slice(0, unmatched);
+                  accumulating = true;
+                }
+            } else {
+                accumulator += fragment;
+                if (/\(command:history-set\?\s*(.*?)\)/g.test(accumulator)) {
+                    f = accumulator.replace(/\(command:history-set\?\s*(.*?)\)/g, (match, p1) => {
+                        return `(command:history-set?${this.processCommandURI(p1)});`;
+                    }); 
+                    //Check if there is a substring of the command
+                    const unmatched = this.findUnmatchedCommand(f);
+                    if (unmatched !== -1) {
+                        accumulator = f.slice(unmatched);
+                        f = f.slice(0, unmatched);
+                        accumulating = true;
+                    } else {
+                        accumulating = false;
+                        accumulator = "";
+                    }
+                } else if (this.findUnmatchedCommand(accumulator) === -1) {
+                    f = accumulator;
+                    accumulating = false;
+                    accumulator = "";
+                } else {
+                    continue;
+                }
+            }
+
+            let markdownCommandString: vscode.MarkdownString = new vscode.MarkdownString(f);
             markdownCommandString.isTrusted = { enabledCommands: [
                 'load-workspace',
                 'save-workspace',
                 'start-listening',
-                'stop-listening'
+                'stop-listening',
+                'history-set',
+                'history-undo'
             ] };
             stream.markdown(markdownCommandString);
         }
