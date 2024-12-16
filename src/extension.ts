@@ -17,6 +17,8 @@ export function activate(context: vscode.ExtensionContext) {
 	const memento = context.workspaceState;
 	const bashCommandTitles = [' - NOT LISTENING', ' - LISTENING'];
 	vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
+	vscode.commands.executeCommand('setContext', 'myExtension.canUndo', false);
+	vscode.commands.executeCommand('setContext', 'myExtension.canRedo', false);
 	const hiddenTerminal = new HiddenTerminal();
 	const commandInference = new CommandInference(hiddenTerminal);
 
@@ -34,6 +36,7 @@ export function activate(context: vscode.ExtensionContext) {
 	
 	//Register terminal listener, update view
 	vscode.window.onDidEndTerminalShellExecution(event => {
+		// eslint-disable-next-line eqeqeq
 		if (event.terminal == hiddenTerminal.terminal){
 			return; //Ignore commands run by the hidden terminal, or an infinite loop will occur
 		}
@@ -41,7 +44,6 @@ export function activate(context: vscode.ExtensionContext) {
 		const code = event.exitCode;
 		const shell = event.shellIntegration;
 		const cwd = shell.cwd;
-		//console.log(cwd); //cwd.path
 		console.log(`Command run: \n${commandLine.value} - exit code: ${code}`);
 		/*commandInference.infer(commandLine.value, cwd?.path || '').then((inference) => {
 			console.log(inference);
@@ -166,6 +168,14 @@ export function activate(context: vscode.ExtensionContext) {
 		});
 	});
 	context.subscriptions.push(load_workspace);
+	const undo = vscode.commands.registerCommand('history-undo', () => {
+		viewModel.undo();
+	});
+	context.subscriptions.push(undo);
+	const redo = vscode.commands.registerCommand('history-redo', () => {
+		viewModel.redo();
+	});
+	context.subscriptions.push(redo);
 	//Activate copilot, if not already active
 	if (!viewModel.isCopilotActive()){
 		viewModel.activateCopilot();

@@ -8,13 +8,22 @@ class CommandInference {
     }
     async infer(command, path) {
         //Check if command executable: [[ -x src ]], read return code,  - if 1, executable
-        const recently_created = await this.terminal.run_command(`cd ${path} && find . -type f -cmin -0.1667 -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2-`);
+        const files_in_dir = await this.terminal.run_command(`cd ${path} && ls -lt --time-style=+%s`);
+        const files_sorted = files_in_dir?.split("\n").map((x) => x.split("\t"))
+            .filter((x) => parseInt(x[5]) > (Date.now() / 1000 - 10))
+            .sort((a, b) => parseInt(b[5]) - parseInt(a[5]));
+        var recently_created;
+        if (files_sorted && files_sorted?.length > 0) {
+            recently_created = files_sorted[0][6];
+        }
+        else {
+            recently_created = "";
+        }
         const files = command.split(" ").filter((x) => !x.startsWith("-") && x.length > 2);
-        const executables = await files.filter(async (x) => {
+        const executables = files.filter(async (x) => {
             return await this.terminal.run_command(`test -x ${x} && echo "Y" || echo "N"`) === "Y";
         });
-        console.log(executables);
-        const help = await executables.map(async (x) => {
+        const help = executables.map(async (x) => {
             const r = await this.terminal.run_command(`${x} -h | head -n 3`);
             return x + ":: " + r?.split("\n").filter((y) => y.length > 0 && !y.startsWith("Usage") && !y.startsWith("Options")).join("\n");
         });

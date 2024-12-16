@@ -2,18 +2,57 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BashCommandContainer = exports.TerminalHistory = void 0;
 const Queries_1 = require("./Queries");
+const STACK_SIZE = 4;
+class UndoRedoStack {
+    stack = [];
+    index = -1;
+    undo_count = -1;
+    redo_count = 0;
+    constructor() {
+        for (let i = 0; i < STACK_SIZE; i++) {
+            this.stack.push(null);
+        }
+    }
+    push(state) {
+        this.index = (this.index + 1) % STACK_SIZE;
+        this.stack[this.index] = state;
+        this.undo_count++;
+        this.redo_count = 0;
+    }
+    undo() {
+        if (this.undo_count === 0) {
+            return null;
+        }
+        this.index = (this.index - 1 + STACK_SIZE) % STACK_SIZE;
+        this.undo_count--;
+        this.redo_count++;
+        return this.stack[this.index];
+    }
+    redo() {
+        if (this.redo_count === 0) {
+            return null;
+        }
+        this.index = (this.index + 1) % STACK_SIZE;
+        this.undo_count++;
+        this.redo_count--;
+        return this.stack[this.index];
+    }
+}
 class TerminalHistory {
     history;
     archive;
     llm;
     queries;
     index;
+    undoRedoStack;
     constructor(llm) {
         this.history = [];
         this.archive = [];
         this.llm = llm;
         this.queries = new Queries_1.Queries(this.llm);
         this.index = 0;
+        this.undoRedoStack = new UndoRedoStack();
+        this.saveState();
     }
     async addCommand(value, confidence, isTrusted) {
         const index_existing = this.isCommandInHistory(value);
@@ -38,6 +77,7 @@ class TerminalHistory {
             singleTempCommand.set_rule_name(guesses[2]);
             singleTempCommand.set_importance(important);
             tempCommand.set_temporary(false);
+            this.saveState();
         });
     }
     getHistory() {
@@ -69,6 +109,7 @@ class TerminalHistory {
             this.history.splice(index, 1);
             this.archive.push(command);
         }
+        this.saveState();
     }
     deleteCommand(command) {
         var index = this.history.indexOf(command);
@@ -84,9 +125,11 @@ class TerminalHistory {
             }
             return -1;
         }
+        this.saveState();
     }
     deleteAllCommands() {
         this.history = [];
+        this.saveState();
     }
     restoreCommand(command) {
         const index = this.archive.indexOf(command);
@@ -102,13 +145,16 @@ class TerminalHistory {
                 this.history.push(command);
             }
         }
+        this.saveState();
     }
     archiveAllCommands() {
         this.archive = this.archive.concat(this.history);
         this.history = [];
+        this.saveState();
     }
     setCommandImportance(command, importance) {
         command.set_importance(importance);
+        this.saveState();
     }
     async getRule(command) {
         if (command.get_temporary() === true) {
@@ -133,12 +179,15 @@ class TerminalHistory {
     modifyCommandDetail(command, modifier, detail) {
         if (modifier === "Inputs") {
             command.set_input(detail);
+            this.saveState();
         }
         else if (modifier === "Output") {
             command.set_output(detail);
+            this.saveState();
         }
         else if (modifier === "RuleName") {
             command.set_rule_name(detail);
+            this.saveState();
         }
     }
     async moveCommands(sourceBashCommands, targetBashCommand) {
@@ -169,7 +218,11 @@ class TerminalHistory {
             c.set_rule_name(new_name);
             c.set_temporary(false);
         }));
+        this.saveState();
         return remake_names.length !== 0;
+    }
+    history_for_the_chat() {
+        return this.history.length === 0 ? "History is Empty" : JSON.stringify(this.history);
     }
     export() {
         return JSON.stringify({
@@ -178,10 +231,7 @@ class TerminalHistory {
             index: this.index
         });
     }
-    history_for_the_chat() {
-        return this.history.length === 0 ? "History is Empty" : JSON.stringify(this.history);
-    }
-    import(data) {
+    loadJson(data) {
         const parsed = JSON.parse(data);
         this.history = parsed.history.map((cmd) => {
             const singleCommands = cmd.commands.map((sc) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary));
@@ -200,6 +250,34 @@ class TerminalHistory {
             return container;
         });
         this.index = parsed.index;
+    }
+    import(data) {
+        this.loadJson(data);
+        this.undoRedoStack = new UndoRedoStack();
+        this.undoRedoStack.push(data);
+    }
+    saveState() {
+        this.undoRedoStack.push(this.export());
+    }
+    undo() {
+        const data = this.undoRedoStack.undo();
+        if (data) {
+            this.loadJson(data);
+        }
+    }
+    canUndo() {
+        return this.undoRedoStack.undo_count > 0;
+    }
+    redo() {
+        const data = this.undoRedoStack.redo();
+        if (data) {
+            this.loadJson(data);
+            return true;
+        }
+        return false;
+    }
+    canRedo() {
+        return this.undoRedoStack.redo_count > 0;
     }
 }
 exports.TerminalHistory = TerminalHistory;

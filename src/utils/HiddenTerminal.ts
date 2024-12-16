@@ -29,6 +29,7 @@ export class HiddenTerminal{
         //Remove the SNKMKR_BR prefix
         const split = output.split("SNKMKR_BR");
         const cleaned_up = split[split.length-1].substring(1);
+        console.log("Running command: "+command + "  Raw Output: " + output + "Cleaned up: " +cleaned_up);
         return cleaned_up;
     }
 }

@@ -46,6 +46,7 @@ export class BashCommandViewModel{
         }
         this.terminalHistory.addCommand(value, confidence, isTrusted).then(() => {
             this.observableCommands.next(this.terminalHistory.getHistory());
+            this.updateCanUndoCanRedo();
         });
         this.observableCommands.next(this.terminalHistory.getHistory());
     }
@@ -65,6 +66,7 @@ export class BashCommandViewModel{
         });
         this.observableCommands.next(this.terminalHistory.getHistory());
         this.observableArchive.next(this.terminalHistory.getArchive());
+        this.updateCanUndoCanRedo();
     }
     restoreCommands(commands: BashCommandContainer[]){
       commands.forEach(command => {
@@ -72,6 +74,7 @@ export class BashCommandViewModel{
       });
       this.observableCommands.next(this.terminalHistory.getHistory());
       this.observableArchive.next(this.terminalHistory.getArchive());
+      this.updateCanUndoCanRedo();
     }
     deleteCommand(command: BashCommandContainer){
         const result = this.terminalHistory.deleteCommand(command);
@@ -83,14 +86,17 @@ export class BashCommandViewModel{
                 this.observableArchive.next(this.terminalHistory.getArchive());
                 break;
         }
+        this.updateCanUndoCanRedo();
     }
     deleteAllCommmands(){
         this.terminalHistory.deleteAllCommands();
         this.observableCommands.next(this.terminalHistory.getHistory());
+        this.updateCanUndoCanRedo();
     }
     setCommandImportance(command: BashCommandContainer, importance: boolean){
         this.terminalHistory.setCommandImportance(command, importance);
         this.observableCommands.next(this.terminalHistory.getHistory());
+        this.updateCanUndoCanRedo();
     }
     modifyCommandDetail(command: BashCommand, modifier?: string){
       if (!modifier){
@@ -114,9 +120,9 @@ export class BashCommandViewModel{
         if (detail){
           this.terminalHistory.modifyCommandDetail(command, modifier, detail);
           this.observableCommands.next(this.terminalHistory.getHistory());
+          this.updateCanUndoCanRedo();
         }
       });
-
     }
 
     printRule(command: BashCommandContainer){
@@ -127,6 +133,7 @@ export class BashCommandViewModel{
                 if (success){
                     this.archiveCommands([command]);
                 }
+                this.updateCanUndoCanRedo();
             });
         }
       });
@@ -144,6 +151,7 @@ export class BashCommandViewModel{
             this.archiveCommands([]);
           }
         });
+        this.updateCanUndoCanRedo();
       });
       this.observableCommands.next(this.terminalHistory.getHistory());
     }
@@ -195,6 +203,7 @@ export class BashCommandViewModel{
         }
       );
       this.observableCommands.next(this.terminalHistory.getHistory());
+      this.updateCanUndoCanRedo();
     }
 
     saveWorkspace(path: string | undefined){
@@ -211,9 +220,29 @@ export class BashCommandViewModel{
         this.observableCommands.next(this.terminalHistory.getHistory());
         this.observableArchive.next(this.terminalHistory.getArchive());
         vscode.window.showInformationMessage('Workspace loaded');
+        this.updateCanUndoCanRedo();
       } catch (e){
         vscode.window.showInformationMessage('Error loading workspace: ' + e);
       }
+    }
+
+    undo(){
+      this.terminalHistory.undo();
+      this.observableCommands.next(this.terminalHistory.getHistory());
+      this.observableArchive.next(this.terminalHistory.getArchive());
+      this.updateCanUndoCanRedo();
+    }
+    redo(){
+      if (this.terminalHistory.redo()){
+        this.observableCommands.next(this.terminalHistory.getHistory());
+        this.observableArchive.next(this.terminalHistory.getArchive());
+        this.updateCanUndoCanRedo();
+      }
+    }
+
+    updateCanUndoCanRedo(){
+      vscode.commands.executeCommand('setContext', 'myExtension.canUndo', this.terminalHistory.canUndo());
+      vscode.commands.executeCommand('setContext', 'myExtension.canRedo', this.terminalHistory.canRedo());
     }
 
 }

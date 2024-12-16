@@ -78,6 +78,7 @@ class BashCommandViewModel {
         }
         this.terminalHistory.addCommand(value, confidence, isTrusted).then(() => {
             this.observableCommands.next(this.terminalHistory.getHistory());
+            this.updateCanUndoCanRedo();
         });
         this.observableCommands.next(this.terminalHistory.getHistory());
     }
@@ -96,6 +97,7 @@ class BashCommandViewModel {
         });
         this.observableCommands.next(this.terminalHistory.getHistory());
         this.observableArchive.next(this.terminalHistory.getArchive());
+        this.updateCanUndoCanRedo();
     }
     restoreCommands(commands) {
         commands.forEach(command => {
@@ -103,6 +105,7 @@ class BashCommandViewModel {
         });
         this.observableCommands.next(this.terminalHistory.getHistory());
         this.observableArchive.next(this.terminalHistory.getArchive());
+        this.updateCanUndoCanRedo();
     }
     deleteCommand(command) {
         const result = this.terminalHistory.deleteCommand(command);
@@ -114,14 +117,17 @@ class BashCommandViewModel {
                 this.observableArchive.next(this.terminalHistory.getArchive());
                 break;
         }
+        this.updateCanUndoCanRedo();
     }
     deleteAllCommmands() {
         this.terminalHistory.deleteAllCommands();
         this.observableCommands.next(this.terminalHistory.getHistory());
+        this.updateCanUndoCanRedo();
     }
     setCommandImportance(command, importance) {
         this.terminalHistory.setCommandImportance(command, importance);
         this.observableCommands.next(this.terminalHistory.getHistory());
+        this.updateCanUndoCanRedo();
     }
     modifyCommandDetail(command, modifier) {
         if (!modifier) {
@@ -145,6 +151,7 @@ class BashCommandViewModel {
             if (detail) {
                 this.terminalHistory.modifyCommandDetail(command, modifier, detail);
                 this.observableCommands.next(this.terminalHistory.getHistory());
+                this.updateCanUndoCanRedo();
             }
         });
     }
@@ -156,6 +163,7 @@ class BashCommandViewModel {
                     if (success) {
                         this.archiveCommands([command]);
                     }
+                    this.updateCanUndoCanRedo();
                 });
             }
         });
@@ -173,6 +181,7 @@ class BashCommandViewModel {
                     this.archiveCommands([]);
                 }
             });
+            this.updateCanUndoCanRedo();
         });
         this.observableCommands.next(this.terminalHistory.getHistory());
     }
@@ -219,6 +228,7 @@ class BashCommandViewModel {
             }
         });
         this.observableCommands.next(this.terminalHistory.getHistory());
+        this.updateCanUndoCanRedo();
     }
     saveWorkspace(path) {
         if (!path) {
@@ -234,10 +244,28 @@ class BashCommandViewModel {
             this.observableCommands.next(this.terminalHistory.getHistory());
             this.observableArchive.next(this.terminalHistory.getArchive());
             vscode.window.showInformationMessage('Workspace loaded');
+            this.updateCanUndoCanRedo();
         }
         catch (e) {
             vscode.window.showInformationMessage('Error loading workspace: ' + e);
         }
+    }
+    undo() {
+        this.terminalHistory.undo();
+        this.observableCommands.next(this.terminalHistory.getHistory());
+        this.observableArchive.next(this.terminalHistory.getArchive());
+        this.updateCanUndoCanRedo();
+    }
+    redo() {
+        if (this.terminalHistory.redo()) {
+            this.observableCommands.next(this.terminalHistory.getHistory());
+            this.observableArchive.next(this.terminalHistory.getArchive());
+            this.updateCanUndoCanRedo();
+        }
+    }
+    updateCanUndoCanRedo() {
+        vscode.commands.executeCommand('setContext', 'myExtension.canUndo', this.terminalHistory.canUndo());
+        vscode.commands.executeCommand('setContext', 'myExtension.canRedo', this.terminalHistory.canRedo());
     }
 }
 exports.BashCommandViewModel = BashCommandViewModel;
