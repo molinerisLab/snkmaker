@@ -36,23 +36,29 @@ By default, Snakemaker proposes one candidate rule for each important bash comma
 <img src=".img/Composite.png"/>
 
 ## Chat directly with Snakemaker
-Snakemaker integrates with the Github Copilot chat, allowing the user to chat directly with the extension. The direct chat can be used for two sets of purposes:
-
-* Retrieve information about the usage of Snakemaker, troubleshooting, understand the principles of the extension.
-    * Examples: 
-        * *What can Snakemaker do for me?*
-        * *Why aren't my commands being recorded?*
-        * *How do I export my workspace?*
-        * *What language models can Snakemaker use?*
-* Run custom prompts on your command history.
-    * Examples: 
-        * *When did I create the file named columns.csv?*
-        * *Can you write a Snakemake rule for my last command that uses wildcards instead of a hardcoded output?*
-        * *Are there repetitions in my last commands?*
+Snakemaker integrates with the Github Copilot chat, allowing the user to chat directly with the extension.
 
 In order to chat with Snakemaker:
 * Open the Copilot chat
 * Tag Snakemaker: "@snakemaker"
+
+The direct chat can be used for a variety of purposes:
+
+* Retrieve information about the usage of Snakemaker, troubleshooting, understand the principles of the extension.
+  * *What can Snakemaker do for me?*
+  * *Why aren't my commands being recorded?*
+  * *How do I export my workspace?*
+* Flexible rule generation.
+  * *Can you generate the rule for my last command using wildcards instead of fixed filenames?*
+  * *Set a ruleorder between my two commands that write to "output.txt".*
+* Queries related to your own history:
+  * *When did I create the file named "columns.csv"?*
+  * *Do I have multiple commands generating the same file?*
+* Automatically re-organize your history:
+  * *Can you set all the commands writing to "output" as important?*
+  * *Can you turn all the commands writing to "output" into a single composite command?*
+
+
 
 <div style="display: flex;">
   <img src=".img/chat_1.png" style="max-width:40%; margin-right: 10px;"/>
