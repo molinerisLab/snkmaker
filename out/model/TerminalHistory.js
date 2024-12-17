@@ -66,7 +66,17 @@ class TerminalHistory {
         const tempCommand = new BashCommandContainer(singleTempCommand, this.index + 1);
         this.index += 2;
         this.history.push(tempCommand);
-        const important = this.queries.guess_if_important(value);
+        //Get positive and negative examples
+        const positive_examples = this.history.filter(command => command.get_important() === true && command.get_temporary() === false).map(command => command.get_command());
+        const negative_examples = this.history.filter(command => command.get_important() === false && command.get_temporary() === false).map(command => command.get_command());
+        //Don't send more than 35 examples each
+        if (positive_examples.length > 35) {
+            positive_examples.splice(35);
+        }
+        if (negative_examples.length > 35) {
+            negative_examples.splice(35);
+        }
+        const important = this.queries.guess_if_important(value, positive_examples, negative_examples);
         const guesses = this.queries.guess_rule_details(value);
         //Wait for both promises to resolve
         await Promise.all([important, guesses]).then((values) => {

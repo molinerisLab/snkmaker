@@ -22,12 +22,24 @@ I would also like a short name of a theorical Snakemake rule for this command.
         return [input, output, name];
     }
 
-    async guess_if_important(command: string){
+    async guess_if_important(command: string, positive_examples: string[], negative_examples: string[]){
+        var examples_query = "";
+        if (positive_examples.length > 0){
+            examples_query += `Examples of commands that are worth making into rules: ${positive_examples.join("; ")}\n`;
+        }
+        if (negative_examples.length > 0){
+            examples_query += `Examples of commands that are NOT worth making into rules: ${negative_examples.join("; ")}\n`;
+        }
+        if (examples_query.length > 0){
+            examples_query = `Use these examples to better understand what the user wants to convert into rule:\n${examples_query}`;
+        }
         const query = `I have the following bash command: ${command}.
 It might need to be translated into a snakemake rule, but it could be just a one-time command from the user. Generally, things that for sure do not write to files are not worth making into rules.
+${examples_query}
 Please write "YES" if it's worth making into a rule, "NO" if it's a one-time command. DO NOT, EVER output other things, only YES or NO.`;
         let response = await this.modelComms.run_query(query);
-        console.log("Important: " +response);
+        console.log(query);
+        console.log(response);
         //make response lowercase
         response = response.toLowerCase();
         return !response.includes("no");
