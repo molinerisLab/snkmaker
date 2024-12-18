@@ -1,12 +1,14 @@
 # SnakeMaker
 convert bash/r/python history or unstructured code in snakefiles
 
+# Install
 
+ * Dowload the VSIX file
+ * From VSCode, open the "Extension" sidebar, click on the three dots on the top-right corner of the sidebar, click Install from VSIX, select the downloaded file.
 
 # Build and install extension for local usage
 * Set version: open "package.json", modify field "version"
 * Build: "npx @vscode/vsce -- package". Produces a *.vsix file.
-* Install: from VSCode, open the "Extension" sidebar, click on the three dots on the top-right corner of the sidebar, click Install from VSIX.
 
 # General Usage
 
