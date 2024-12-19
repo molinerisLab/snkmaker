@@ -5,6 +5,7 @@ import { BashCommand } from "../model/TerminalHistory";
 export class Logger{
     static instance_?: Logger = undefined;
     static URL: string = "https://www.3plex.unito.it/snakemaker";
+    static disabled_in_session: boolean = false;
 
     static initialize(version: string){
         if (Logger.instance_){
@@ -19,20 +20,30 @@ export class Logger{
                     console.log(response);
                     this.instance_ = response["confirmation_key"];
                 }
-            );
+            ).catch((error: any) => {});
         } catch(e: any){
-            console.log("Error initializing logger");
-            console.log(e);
             Logger.instance_ = undefined;
         }
         Logger.instance_ = instance_;
+        Logger.disabled_in_session = false;
     }
     static destroy(){
+        console.log("Destroy logger");
         Logger.instance_ = undefined;
     }
 
     static instance(): Logger|undefined{
         return Logger.instance_;
+    }
+
+    static logger_status(): string{
+        if (Logger.disabled_in_session){
+            return "Disabled_in_current_session";
+        } else if (Logger.instance_){
+            return "Enabled";
+        } else {
+            return "Disabled";
+        }
     }
 
     session_key: string = "";
@@ -55,6 +66,11 @@ export class Logger{
             if (!response.ok){return null;}
             return response.json();
         }).catch(error => {console.log(error); return null;});
+    }
+
+    async delete_all_logs(){
+        Logger.disabled_in_session = true;
+        return this.callAPI("/log/delete_all_logs", {});
     }
 
     addCommand(command: BashCommand){

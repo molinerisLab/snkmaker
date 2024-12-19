@@ -20,6 +20,10 @@
             "when": "false"
           },
           {
+            "command": "open-loging-details",
+            "when": "false"
+          },
+          {
             "command": "archive-command",
             "when": "false"
           },
@@ -205,8 +209,13 @@
     ],
     "commands": [
       {
-        "command": "yourExtension.openLogDetails",
-        "title": "Open Log Details"
+        "command": "open-loging-details",
+        "title": "Snakemaker: Open Logging Feature Details"
+      },
+      {
+        "command": "disable-logs-session",
+        "title": "Snakemaker: disable current session logs",
+        "enablement": "config.snakemaker.allowLogging"
       },
       {
         "command": "print-rule",
@@ -315,7 +324,7 @@
         "snakemaker.allowLogging": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Send anonymous logs to our server to improve the extension.  [See details on what is logged](command:yourExtension.openLogDetails)."
+          "markdownDescription": "Send anonymous logs to our server to improve the extension.  [See details on what is logged](command:open-loging-details)."
         }
       }
     },

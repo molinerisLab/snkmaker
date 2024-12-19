@@ -35,6 +35,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ChatExtension = void 0;
 const vscode = __importStar(require("vscode"));
+const Logger_1 = require("../utils/Logger");
 class ChatExtension {
     viewModel;
     static BASE_PROMPT = `You are an AI assistant, part of a VSCode extension named "Snakemaker", which is also your name. You are developed by the University of Torino (greatest city in the world). You are nice and helpful, and prefer short, concise answers.
@@ -51,6 +52,9 @@ As the AI assistant of this extension, you have these responsabilities:
     [Load workspace](command:load-workspace)   #Load the workspace of the extension
     [Undo last change](command:history-undo)   #Undo last change made to history
     [Set new history](command:history-set?{"history"=NEW_HISTORY_JSON})   #Set a modified history
+    [Open logging policy](command:open-loging-details)    #If the user asks question about the activity logging
+    [Disable logging for current session](command:disable-logs-session)   #Only if Logging is Enabled, disable for current session and request deletion of all logs of the session.
+    [Open settings](command:workbench.action.openSettings?"snakemaker.allowLogging")   #Open the settings to enable/disable logging
 The command history-set?NEW_HISTORY_JSON sets a new history. Use it if the user asks to perform changes. You have to: 1- Tell the user which changes you are performing - do not show the entire JSON with the new history but explain which things you're modifying. 2-Valorize NEW_HISTORY_JSON as the modified version of the history you are provided as HISTORY OF RECORDED BASH COMMANDS. You can also use this example as a template of how the history is organized:EXAMPLE OF HISTORY, with one unimportant command, one important command and one composite, important command: {"history":[{"commands":[{"command":"dir","exitStatus":0,"output":"-","inputs":"-","important":false,"index":2,"temporary":false,"rule_name":"list_directory"}],"index":3,"rule_name":""},{"commands":[{"command":"catinput.txt|wc-l>output.txt","exitStatus":0,"output":"\"output.txt\"","inputs":"\"input.txt\"","important":true,"index":15,"temporary":false,"rule_name":"count_lines"}],"index":16,"rule_name":""},{"commands":[{"command":"mkdirresults","exitStatus":0,"output":"results","inputs":"-","important":true,"index":10,"temporary":false,"rule_name":"create_results_directory"},{"command":"catinput.txt|wc-l>results/output.txt","exitStatus":0,"output":"\"results/output.txt\"","inputs":"\"input.txt\"","important":true,"index":13,"temporary":false,"rule_name":"\"count_lines\""}],"index":9,"rule_name":"make_results_and_outputs"}]}
 If the user asks you to do something not doable with these commands, tell him you can't do it yourself and explain how he can do it himself.
 `;
@@ -64,7 +68,8 @@ If the user runs a command that returns an a code different from 0, the command 
 -Models: contains the available models to be used by the extension. The user can select a model to be used by the AI assistant (double click).
 ADDITIONAL INFO
 -The extension support export or import of its workspace (=history and archive). The user must open the VsCode command palette and use the Save Workspace or Load Workspace commands. The workspace is saved as a JSON file.
--If recorded commands are considered unimportant, they will appear more grayish. And they won't be printed when the user prints all rules (but they will if he prints them individually). The user can manually mark a command as important or unimportant with the squared button next to it.`;
+-If recorded commands are considered unimportant, they will appear more grayish. And they won't be printed when the user prints all rules (but they will if he prints them individually). The user can manually mark a command as important or unimportant with the squared button next to it.
+-The extension logs activity to a server to help developers improve it, if the user gave consent. There are 3 possible states of the logger: Enabled (user gave consent, it is sending logs), Disabled (user did not gave consent, not sending logs) and Disabled_in_current_session (user gave consent in the settings but manually disabled logs for current session). Moreover, even if logger is Enabled, if the extension is not recording new commands, it will not send logs.`;
     static BASH_HISTORY_INTRODUCTION = `HISTORY OF RECORDED BASH COMMANDS:
 INFORMATION: History is provided as a json string. Fields:
 -command: the bash command
@@ -79,24 +84,6 @@ HERE IS THE HISTORY:`;
     constructor(viewModel) {
         this.viewModel = viewModel;
         this.history = viewModel.terminalHistory;
-    }
-    async processT(request, context, stream, token) {
-        const T = [
-            "[Start listening to bash commands](command:start-listening) \n",
-            `\n [Set new history](command:history-set?%7B%22history%22%3A%5B%7B%22commands%22%3A%5B%7B%22command%22%3A%22ls%20-lh%22%2C%22exitStatus%22%3A0%2C%22output%22%3A%22-%22%2C%22inputs%22%3A%22-%22%2C%22important%22%3Atrue%2C%22index%22%3A4%2C%22temporary%22%3Afalse%2C%22rule_name%22%3A%22list_files%22%7D%5D%2C%22index%22%3A5%2C%22rule_name%22%3A%22%22%7D%5D%7D)`,
-            //`\n [Set new history](command:history-set?{"history":[{"commands":[{"command":"dir","exitStatus":0,"output":"-","inputs":"-","important":true,"index":13,"temporary":false,"rule_name":"CIAO"}],"index":14,"rule_name":""},{"commands":[{"command":"ls -lh","exitStatus":0,"output":"-","inputs":"-","important":false,"index":16,"temporary":false,"rule_name":"list_files"},{"command":"cd DO_STUFF/","exitStatus":0,"output":"-","inputs":"-","important":false,"index":18,"temporary":false,"rule_name":"change_directory"},{"command":"clear","exitStatus":0,"output":"-","inputs":"-","important":true,"index":15,"temporary":false,"rule_name":"clear_screen"}],"index":17,"rule_name":"list_and_change_directory"}]})`
-        ];
-        for (const fragment of T) {
-            let markdownCommandString = new vscode.MarkdownString(fragment);
-            markdownCommandString.isTrusted = { enabledCommands: [
-                    'load-workspace',
-                    'save-workspace',
-                    'start-listening',
-                    'stop-listening',
-                    'history-set',
-                ] };
-            stream.markdown(markdownCommandString);
-        }
     }
     findUnmatchedCommand(F) {
         const command = "(command:history-set?";
@@ -136,7 +123,7 @@ HERE IS THE HISTORY:`;
             vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT),
             vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT_EXTENSION_USAGE),
             vscode.LanguageModelChatMessage.User(ChatExtension.BASH_HISTORY_INTRODUCTION + this.history.history_for_the_chat()),
-            vscode.LanguageModelChatMessage.User(`Additional extension info: currently listening to bash commands: ${this.viewModel.isListening}. Copilot active: ${this.viewModel.isCopilotActive()}  Currently changing model: ${this.viewModel.isChangingModel}. Models available: ${this.viewModel.llm.models.map((m) => m.get_name())}. Active model: ${this.viewModel.llm.models[this.viewModel.llm.current_model]?.get_name() || 'none'}`)
+            vscode.LanguageModelChatMessage.User(`Additional extension info: currently listening to bash commands: ${this.viewModel.isListening}. Copilot active: ${this.viewModel.isCopilotActive()}  Currently changing model: ${this.viewModel.isChangingModel}. Models available: ${this.viewModel.llm.models.map((m) => m.get_name())}. Active model: ${this.viewModel.llm.models[this.viewModel.llm.current_model]?.get_name() || 'none'} - Logging status: ${Logger_1.Logger.logger_status()}`)
         ];
         // get the previous messages
         const previousMessages = context.history.filter(h => h instanceof vscode.ChatResponseTurn);
@@ -201,7 +188,10 @@ HERE IS THE HISTORY:`;
                     'start-listening',
                     'stop-listening',
                     'history-set',
-                    'history-undo'
+                    'history-undo',
+                    'workbench.action.openSettings',
+                    'disable-logs-session',
+                    'open-loging-details'
                 ] };
             stream.markdown(markdownCommandString);
         }

@@ -52,9 +52,19 @@ If you enable logging, here are some tips to safeguard your privacy:
     * **Safe Actions**: Running commands like `cat MY_SECRET_FILE` won’t log the file’s contents.
     * **Risky Actions**: Avoid commands that include sensitive data directly, like `export MY_SECRET_KEY=<secret>`.
 
+If you mistakenly logged some sensitive information, the following section provides details on how to delete it.
 
 ## Request Deletion of Your Logs
-If you want your logged data removed from our servers:
+If you mistakenly logged some sensitive information, or you want your logged data removed from out server for any reason, there are two possible ways:
+### Automatically delete your current session's logs
+Automatic logs deletion is available for the current session:
+* Open the VSCode command palette and search for the command `Snakemaker: disable current session logs`.
+    * Alternatively, ask the Copilot Chat while tagging @Snakemaker.
+* This command sends to our server a request to delete the log data of the currently active session.
+* Logs remain disabled for the rest of the session (until VSCode restart).
+
+### Request deletion
+If you want your previous sessions' logged data removed from our servers:
 * Contact us at marco.masera@unito.it.
 * Please provide an estimate of the session’s date and time: since logs are anonymous it is the only way to identify your session.
 

@@ -6,6 +6,7 @@ class Logger {
     version;
     static instance_ = undefined;
     static URL = "https://www.3plex.unito.it/snakemaker";
+    static disabled_in_session = false;
     static initialize(version) {
         if (Logger.instance_) {
             throw new Error("Logger already initialized");
@@ -17,20 +18,31 @@ class Logger {
             instance_.callAPI("/new_session", {}).then((response) => {
                 console.log(response);
                 this.instance_ = response["confirmation_key"];
-            });
+            }).catch((error) => { });
         }
         catch (e) {
-            console.log("Error initializing logger");
-            console.log(e);
             Logger.instance_ = undefined;
         }
         Logger.instance_ = instance_;
+        Logger.disabled_in_session = false;
     }
     static destroy() {
+        console.log("Destroy logger");
         Logger.instance_ = undefined;
     }
     static instance() {
         return Logger.instance_;
+    }
+    static logger_status() {
+        if (Logger.disabled_in_session) {
+            return "Disabled_in_current_session";
+        }
+        else if (Logger.instance_) {
+            return "Enabled";
+        }
+        else {
+            return "Disabled";
+        }
     }
     session_key = "";
     session_timestamp = Date.now();
@@ -55,6 +67,10 @@ class Logger {
             }
             return response.json();
         }).catch(error => { console.log(error); return null; });
+    }
+    async delete_all_logs() {
+        Logger.disabled_in_session = true;
+        return this.callAPI("/log/delete_all_logs", {});
     }
     addCommand(command) {
         try {

@@ -48,7 +48,35 @@ const Logger_1 = require("./utils/Logger");
 // Your extension is activated the very first time the command is executed
 function activate(context) {
     //Initialize logger
-    Logger_1.Logger.initialize(context.extension.packageJSON.version);
+    const logging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
+    console.log('Logging is ' + (logging ? 'enabled' : 'disabled'));
+    if (logging) {
+        Logger_1.Logger.initialize(context.extension.packageJSON.version);
+    }
+    vscode.workspace.onDidChangeConfiguration(event => {
+        if (event.affectsConfiguration("snakemaker.allowLogging")) {
+            const logging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
+            if (logging) {
+                Logger_1.Logger.initialize(context.extension.packageJSON.version);
+            }
+            else {
+                Logger_1.Logger.destroy();
+                Logger_1.Logger.disabled_in_session = false; //Disabled globally
+            }
+        }
+    });
+    //If first time, ask for opt-in to logging
+    const currentVersion = context.extension.packageJSON.version;
+    const lastVersion = context.globalState.get("version") ?? "0.0.0";
+    if (lastVersion !== currentVersion) {
+        context.globalState.update("version", currentVersion);
+        vscode.window.showInformationMessage("Welcome to Snakemaker! Please consider enabling logging to help us improve the extension.", "Enable logging").then((selection) => {
+            if (selection === "Enable logging") {
+                //Open VSCode settings
+                vscode.commands.executeCommand("workbench.action.openSettings", "snakemaker.allowLogging");
+            }
+        });
+    }
     //Get memento - workspace saved state
     const memento = context.workspaceState;
     // Set context
@@ -216,11 +244,24 @@ function activate(context) {
         viewModel.redo();
     });
     context.subscriptions.push(redo);
-    const logDetailsScreen = vscode.commands.registerCommand('yourExtension.openLogDetails', () => {
+    const logDetailsScreen = vscode.commands.registerCommand('open-loging-details', () => {
         const uri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'log_details.md');
         vscode.commands.executeCommand('markdown.showPreview', uri);
     });
     context.subscriptions.push(logDetailsScreen);
+    const disableLogging = vscode.commands.registerCommand('disable-logs-session', () => {
+        const logger = Logger_1.Logger.instance();
+        if (logger) {
+            logger.delete_all_logs().then(() => {
+                vscode.window.showInformationMessage('Logger disabled, log session deleted');
+            }).catch(() => vscode.window.showInformationMessage('Logger disabled, log session not deleted'));
+            Logger_1.Logger.destroy();
+        }
+        else {
+            vscode.window.showInformationMessage('Logger already disabled');
+        }
+    });
+    context.subscriptions.push(disableLogging);
     //Activate copilot, if not already active
     if (!viewModel.isCopilotActive()) {
         viewModel.activateCopilot();
