@@ -43,8 +43,6 @@ export class TerminalHistoryDataProvider implements vscode.TreeDataProvider<Disp
 	}
 
 	public async handleDrop(target: DisplayCommand | undefined, sources: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
-		console.log("Drop");
-		console.log(target); //this is where you drop! - undefined if root
 		const transferItem = sources.get('application/vnd.code.tree.bash-commands'); //This is what you drop
 		if (!transferItem) {return;}
 

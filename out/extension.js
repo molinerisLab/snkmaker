@@ -43,18 +43,22 @@ const BashCommandViewmodel_1 = require("./viewmodel/BashCommandViewmodel");
 const MyDecorator_1 = require("./view/MyDecorator");
 const ModelsDataProvider_1 = require("./view/ModelsDataProvider");
 const ChatExtension_1 = require("./model/ChatExtension");
-const HiddenTerminal_1 = require("./utils/HiddenTerminal");
-const CommandInference_1 = require("./utils/CommandInference");
+const Logger_1 = require("./utils/Logger");
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
+    //Initialize logger
+    Logger_1.Logger.initialize(context.extension.packageJSON.version);
+    //Get memento - workspace saved state
     const memento = context.workspaceState;
+    // Set context
     const bashCommandTitles = [' - NOT LISTENING', ' - LISTENING'];
     vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
     vscode.commands.executeCommand('setContext', 'myExtension.canUndo', false);
     vscode.commands.executeCommand('setContext', 'myExtension.canRedo', false);
-    const hiddenTerminal = new HiddenTerminal_1.HiddenTerminal();
-    const commandInference = new CommandInference_1.CommandInference(hiddenTerminal);
+    /*
+    const hiddenTerminal = new HiddenTerminal();
+    const commandInference = new CommandInference(hiddenTerminal);*/
     //Create viewmodel for terminal history
     const viewModel = new BashCommandViewmodel_1.BashCommandViewModel(memento);
     //Create views
@@ -68,18 +72,10 @@ function activate(context) {
     vscode.window.registerFileDecorationProvider(new MyDecorator_1.TodoDecorationProvider(viewModel));
     //Register terminal listener, update view
     vscode.window.onDidEndTerminalShellExecution(event => {
-        // eslint-disable-next-line eqeqeq
-        if (event.terminal == hiddenTerminal.terminal) {
-            return; //Ignore commands run by the hidden terminal, or an infinite loop will occur
-        }
         const commandLine = event.execution.commandLine;
         const code = event.exitCode;
         const shell = event.shellIntegration;
         const cwd = shell.cwd;
-        console.log(`Command run: \n${commandLine.value} - exit code: ${code}`);
-        /*commandInference.infer(commandLine.value, cwd?.path || '').then((inference) => {
-            console.log(inference);
-        });*/
         if (code !== 0) {
             viewModel.addCommandGoneWrong(commandLine.value, 0, true, code);
         }
@@ -89,9 +85,7 @@ function activate(context) {
     });
     //Register vscode commands
     const set_history = vscode.commands.registerCommand('history-set', (event) => {
-        console.log(event);
         if (event && event.history) {
-            console.log(event.history);
             viewModel.setHistory(event.history);
         }
     });
@@ -135,7 +129,6 @@ function activate(context) {
             viewModel.deleteCommand(event.get_root());
         }
         else {
-            //TODO: can open menu to select command
             vscode.window.showInformationMessage('No command selected');
         }
     });
@@ -223,6 +216,11 @@ function activate(context) {
         viewModel.redo();
     });
     context.subscriptions.push(redo);
+    const logDetailsScreen = vscode.commands.registerCommand('yourExtension.openLogDetails', () => {
+        const uri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'log_details.md');
+        vscode.commands.executeCommand('markdown.showPreview', uri);
+    });
+    context.subscriptions.push(logDetailsScreen);
     //Activate copilot, if not already active
     if (!viewModel.isCopilotActive()) {
         viewModel.activateCopilot();

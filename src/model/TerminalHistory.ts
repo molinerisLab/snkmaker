@@ -2,6 +2,7 @@ import { TerminalShellExecutionCommandLineConfidence } from "vscode";
 import { LLM } from "./ModelComms";
 import { Queries } from "./Queries";
 import { assert } from "console";
+import { Logger } from "../utils/Logger";
 
 const STACK_SIZE = 4;
 
@@ -64,6 +65,7 @@ export class TerminalHistory {
         const index_existing = this.isCommandInHistory(value);
         if (index_existing !== -1) {
             const command = this.history[index_existing];
+            Logger.instance()?.addCommandExisting(command, value);
             this.history.splice(index_existing, 1);
             this.history.push(command);
             return;
@@ -72,6 +74,7 @@ export class TerminalHistory {
         const tempCommand = new BashCommandContainer(singleTempCommand, this.index+1);
         this.index+=2;
         this.history.push(tempCommand);
+        Logger.instance()?.addCommand(tempCommand);
         //Get positive and negative examples
         const positive_examples = this.history.filter(command => command.get_important() === true && command.get_temporary()===false).map(command => command.get_command());
         const negative_examples = this.history.filter(command => command.get_important() === false && command.get_temporary()===false).map(command => command.get_command());
@@ -94,6 +97,7 @@ export class TerminalHistory {
             singleTempCommand.set_importance(important);
             tempCommand.set_temporary(false);
             this.saveState();
+            Logger.instance()?.commandDetails(tempCommand);
         });
 
     }
@@ -171,6 +175,7 @@ export class TerminalHistory {
     setCommandImportance(command: BashCommand, importance: boolean) {
         command.set_importance(importance);
         this.saveState();
+        Logger.instance()?.setCommandImportance(command, importance);
     }
 
     async getRule(command: BashCommand): Promise<string>{
@@ -205,9 +210,11 @@ export class TerminalHistory {
             command.set_rule_name(detail);
             this.saveState();
         }
+        Logger.instance()?.commandDetails(command, true);
     }
 
     async moveCommands(sourceBashCommands: any, targetBashCommand: BashCommandContainer|null) {
+        Logger.instance()?.moveCommands(this.history, false);
         var remake_names = [];
         const children: SingleBashCommand[] = sourceBashCommands.map((c: any) => c[0].pop_children(c[1]));
         sourceBashCommands.forEach((c: any) => {
@@ -236,6 +243,7 @@ export class TerminalHistory {
             c.set_temporary(false);
         }));
         this.saveState();
+        Logger.instance()?.moveCommands(this.history, true);
         return remake_names.length !== 0;
     }
 
@@ -276,6 +284,7 @@ export class TerminalHistory {
         this.loadJson(data);
         this.undoRedoStack = new UndoRedoStack();
         this.undoRedoStack.push(data);
+        Logger.instance()?.imported(this.history);
     }
 
     saveState(){
@@ -311,11 +320,13 @@ export class TerminalHistory {
             }
             return container;
         });
+        Logger.instance()?.importedFromChat(this.history);
     }
 }
 
 export interface BashCommand{
     get_command(): string;
+    get_command_for_model(): string;
     get_rule_name(): string;
     get_input(): string;
     get_output(): string;
@@ -352,6 +363,9 @@ export class BashCommandContainer implements BashCommand{
     }
     get_command(): string {
         return this.commands.map( (c) => c.get_command()).join(" && ");
+    }
+    get_command_for_model(): string {
+        return this.commands.map( (c) => c.get_command()).join("\n");
     }
     get_input(): string {
         if (this.commands.length === 1){
@@ -449,6 +463,9 @@ class SingleBashCommand implements BashCommand{
         this.temporary = temporary;
     }
     get_command(): string {
+        return this.command;
+    }
+    get_command_for_model(): string {
         return this.command;
     }
     get_input(): string {

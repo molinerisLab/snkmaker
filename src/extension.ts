@@ -10,17 +10,24 @@ import { ModelsDataProvider } from './view/ModelsDataProvider';
 import { ChatExtension } from './model/ChatExtension';
 import { HiddenTerminal } from './utils/HiddenTerminal';
 import { CommandInference } from './utils/CommandInference';
+import { Logger } from './utils/Logger';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+	//Initialize logger
+	Logger.initialize(context.extension.packageJSON.version);
+	//Get memento - workspace saved state
 	const memento = context.workspaceState;
+	// Set context
 	const bashCommandTitles = [' - NOT LISTENING', ' - LISTENING'];
 	vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
 	vscode.commands.executeCommand('setContext', 'myExtension.canUndo', false);
 	vscode.commands.executeCommand('setContext', 'myExtension.canRedo', false);
+
+	/*
 	const hiddenTerminal = new HiddenTerminal();
-	const commandInference = new CommandInference(hiddenTerminal);
+	const commandInference = new CommandInference(hiddenTerminal);*/
 
 	//Create viewmodel for terminal history
 	const viewModel = new BashCommandViewModel(memento);
@@ -36,18 +43,10 @@ export function activate(context: vscode.ExtensionContext) {
 	
 	//Register terminal listener, update view
 	vscode.window.onDidEndTerminalShellExecution(event => {
-		// eslint-disable-next-line eqeqeq
-		if (event.terminal == hiddenTerminal.terminal){
-			return; //Ignore commands run by the hidden terminal, or an infinite loop will occur
-		}
 		const commandLine = event.execution.commandLine;
 		const code = event.exitCode;
 		const shell = event.shellIntegration;
 		const cwd = shell.cwd;
-		console.log(`Command run: \n${commandLine.value} - exit code: ${code}`);
-		/*commandInference.infer(commandLine.value, cwd?.path || '').then((inference) => {
-			console.log(inference);
-		});*/
 		if (code !== 0){
 			viewModel.addCommandGoneWrong(commandLine.value, 0, true, code);
 		} else {
@@ -57,9 +56,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	//Register vscode commands
 	const set_history = vscode.commands.registerCommand('history-set', (event) => {
-		console.log(event);
 		if (event && event.history){
-			console.log(event.history);
 			viewModel.setHistory(event.history);
 		}
 	});
@@ -99,7 +96,6 @@ export function activate(context: vscode.ExtensionContext) {
 		if (event && event.get_root()){
 			viewModel.deleteCommand(event.get_root());
 		} else {
-			//TODO: can open menu to select command
 			vscode.window.showInformationMessage('No command selected');
 		}
 	});
@@ -184,6 +180,12 @@ export function activate(context: vscode.ExtensionContext) {
 		viewModel.redo();
 	});
 	context.subscriptions.push(redo);
+	const logDetailsScreen = vscode.commands.registerCommand('yourExtension.openLogDetails', () => {
+		const uri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'log_details.md');
+		vscode.commands.executeCommand('markdown.showPreview', uri);
+	  });
+	
+	context.subscriptions.push(logDetailsScreen);
 	//Activate copilot, if not already active
 	if (!viewModel.isCopilotActive()){
 		viewModel.activateCopilot();

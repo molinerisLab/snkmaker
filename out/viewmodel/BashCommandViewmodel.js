@@ -158,7 +158,6 @@ class BashCommandViewModel {
     printRule(command) {
         this.terminalHistory.getRule(command).then((rule) => {
             if (rule) {
-                console.log(rule);
                 this.writeToFiles.writeToCurrentFile(rule).then((success) => {
                     if (success) {
                         this.archiveCommands([command]);
@@ -171,7 +170,6 @@ class BashCommandViewModel {
     }
     printAllRules() {
         this.terminalHistory.getAllRules().then((rules) => {
-            console.log(rules);
             if (!rules) {
                 vscode.window.showInformationMessage('No rules to print');
                 return;

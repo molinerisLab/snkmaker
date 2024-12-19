@@ -2,7 +2,7 @@
   "name": "snkmaker",
   "displayName": "SNK-Maker",
   "description": "",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "repository": "https://github.com/molinerisLab/snkmaker",
   "engines": {
     "vscode": "^1.95.0"
@@ -58,6 +58,22 @@
           {
             "command": "history-set",
             "when": "false"
+          },
+          {
+            "command": "history-redo-fake",
+            "when": "false"
+          },
+          {
+            "command": "history-undo-fake",
+            "when": "false"
+          },
+          {
+            "command": "history-redo",
+            "when": "false"
+          },
+          {
+            "command": "history-undo",
+            "when": "false"
           }
       ],
       "view/title": [
@@ -92,8 +108,18 @@
           "group": "navigation@2"
         },
         {
+          "command": "history-undo-fake",
+          "when": "view == bash-commands && !myExtension.canUndo",
+          "group": "navigation@2"
+        },
+        {
           "command": "history-redo",
           "when": "view == bash-commands && myExtension.canRedo",
+          "group": "navigation@3"
+        },
+        {
+          "command": "history-redo-fake",
+          "when": "view == bash-commands && !myExtension.canRedo",
           "group": "navigation@3"
         }
       ],
@@ -179,6 +205,10 @@
     ],
     "commands": [
       {
+        "command": "yourExtension.openLogDetails",
+        "title": "Open Log Details"
+      },
+      {
         "command": "print-rule",
         "title": "Print rule",
         "icon": "$(testing-run-icon)"
@@ -230,12 +260,12 @@
       },
       {
         "command": "start-listening",
-        "title": "Start listening",
+        "title": "Snakemaker: Start listening",
         "icon": "resources/play.svg"
       },
       {
         "command": "stop-listening",
-        "title": "Pause listening",
+        "title": "Snakemaker: Pause listening",
         "icon": "resources/pause.svg"
       },
       {
@@ -257,16 +287,38 @@
         "enablement": "myExtension.canUndo"
       },
       {
+        "command": "history-undo-fake",
+        "title": "Undo",
+        "icon": "resources/undo_disabled.svg",
+        "enablement": "false"
+      },
+      {
         "command": "history-redo",
         "title": "Redo",
         "icon": "resources/redo.svg",
         "enablement": "myExtension.canRedo"
       },
       {
+        "command": "history-redo-fake",
+        "title": "Redo",
+        "icon": "resources/redo_disabled.svg",
+        "enablement": "false"
+      },
+      {
         "command": "history-set",
         "title": "Set"
       }
     ],
+    "configuration": {
+      "title": "Snakemaker",
+      "properties": {
+        "snakemaker.allowLogging": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Send anonymous logs to our server to improve the extension.  [See details on what is logged](command:yourExtension.openLogDetails)."
+        }
+      }
+    },
     "chatParticipants": [
       {
           "id": "chat-snakemaker",

@@ -10,6 +10,12 @@ convert bash/r/python history or unstructured code in snakefiles
 
 # General Usage
 
+## Record bash commands
+Snakemaker isn't always recording bash commands. Recording can be started and paused by hand.
+
+<img src=".img/start_stop_listening.png"/>
+
+
 ## Commands importance
 When recording bash commands, Snakemaker tries to distinguish between important commands, which can contribute to the Snakefile, and unimportant, one-timer commands, which are not.
 
@@ -67,11 +73,6 @@ The direct chat can be used for a variety of purposes:
 
 ## Snakemaker panel overview 
 <img src=".img/Snakemaker_Overview.png"/>
-
-## Record bash commands
-Snakemaker isn't always recording bash commands. Recording can be started and paused by hand.
-
-<img src=".img/start_stop_listening.png"/>
 
 ## Import-export workspace
 

@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import * as vscode from 'vscode';
+import { Logger } from '../utils/Logger';
 
 export class LLM{
     models: ModelComms[];
@@ -9,15 +10,20 @@ export class LLM{
         this.current_model = -1;
         this.models = [];
     }
-    run_query(query: string): Promise<string>{
-        if (this.current_model === -1){
-            throw new Error("No model selected");
+    async run_query(query: string): Promise<string>{
+        while (this.current_model === -1){
+            //Sleep until a model is selected
+            await new Promise(r => setTimeout(r, 5000));
+            Logger.instance()?.log("User tried running query but no model selected - sleeping");
         }
-        return this.models[this.current_model].run_query(query);
+        
+        return this.models[this.current_model].run_query(query).then(response => {
+            Logger.instance()?.query(this.models[this.current_model].get_name(), query, response);
+            return response;
+        });
     }
 
     async useModel(index: number){
-        console.log("Activating model: " + this.models[index].get_name() + "...");
 		vscode.window.showInformationMessage('Activating model: ' + this.models[index].get_name() + "...");
         const hi = await this.models[index].run_query("You are part of a vscode extension that helps users write snakemake rules from bash prompts - the user just selected you as the model of choice. Say Hi to the user! :) (please keep very short, you are in a small window - please do not ask questions to the user, he cannot respond)");
         this.current_model = index;

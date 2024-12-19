@@ -128,9 +128,7 @@ HERE IS THE HISTORY:`;
         return -1;
     }
     processCommandURI(F) {
-        console.log(F);
         const r = encodeURIComponent(F);
-        console.log(r);
         return r;
     }
     async process(request, context, stream, token) {
@@ -138,7 +136,7 @@ HERE IS THE HISTORY:`;
             vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT),
             vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT_EXTENSION_USAGE),
             vscode.LanguageModelChatMessage.User(ChatExtension.BASH_HISTORY_INTRODUCTION + this.history.history_for_the_chat()),
-            vscode.LanguageModelChatMessage.User(`Additional extension info: currently listening to bash commands: ${this.viewModel.isListening}. Copilot active: ${this.viewModel.isCopilotActive()}  Currently changing model: ${this.viewModel.isChangingModel}. Models available: ${this.viewModel.llm.models.length}. Active model: ${this.viewModel.llm.models[this.viewModel.llm.current_model]?.get_name() || 'none'}`)
+            vscode.LanguageModelChatMessage.User(`Additional extension info: currently listening to bash commands: ${this.viewModel.isListening}. Copilot active: ${this.viewModel.isCopilotActive()}  Currently changing model: ${this.viewModel.isChangingModel}. Models available: ${this.viewModel.llm.models.map((m) => m.get_name())}. Active model: ${this.viewModel.llm.models[this.viewModel.llm.current_model]?.get_name() || 'none'}`)
         ];
         // get the previous messages
         const previousMessages = context.history.filter(h => h instanceof vscode.ChatResponseTurn);

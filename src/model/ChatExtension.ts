@@ -96,9 +96,7 @@ HERE IS THE HISTORY:`;
       }
 
     processCommandURI(F: string){
-        console.log(F);
         const r = encodeURIComponent(F);
-        console.log(r);
         return r;
     }
     
@@ -112,7 +110,7 @@ HERE IS THE HISTORY:`;
                 ChatExtension.BASH_HISTORY_INTRODUCTION + this.history.history_for_the_chat()
             ),
             vscode.LanguageModelChatMessage.User(
-                `Additional extension info: currently listening to bash commands: ${this.viewModel.isListening}. Copilot active: ${this.viewModel.isCopilotActive()}  Currently changing model: ${this.viewModel.isChangingModel}. Models available: ${this.viewModel.llm.models.length}. Active model: ${this.viewModel.llm.models[this.viewModel.llm.current_model]?.get_name()||'none'}`
+                `Additional extension info: currently listening to bash commands: ${this.viewModel.isListening}. Copilot active: ${this.viewModel.isCopilotActive()}  Currently changing model: ${this.viewModel.isChangingModel}. Models available: ${this.viewModel.llm.models.map((m) => m.get_name())}. Active model: ${this.viewModel.llm.models[this.viewModel.llm.current_model]?.get_name()||'none'}`
             )
         ];
         // get the previous messages
