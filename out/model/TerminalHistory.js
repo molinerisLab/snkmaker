@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BashCommandContainer = exports.TerminalHistory = void 0;
 const Queries_1 = require("./Queries");
-const Logger_1 = require("../utils/Logger");
+const SnkmakerLogger_1 = require("../utils/SnkmakerLogger");
 const STACK_SIZE = 4;
 class UndoRedoStack {
     stack = [];
@@ -59,7 +59,7 @@ class TerminalHistory {
         const index_existing = this.isCommandInHistory(value);
         if (index_existing !== -1) {
             const command = this.history[index_existing];
-            Logger_1.Logger.instance()?.addCommandExisting(command, value);
+            SnkmakerLogger_1.SnkmakerLogger.instance()?.addCommandExisting(command, value);
             this.history.splice(index_existing, 1);
             this.history.push(command);
             return;
@@ -68,7 +68,7 @@ class TerminalHistory {
         const tempCommand = new BashCommandContainer(singleTempCommand, this.index + 1);
         this.index += 2;
         this.history.push(tempCommand);
-        Logger_1.Logger.instance()?.addCommand(tempCommand);
+        SnkmakerLogger_1.SnkmakerLogger.instance()?.addCommand(tempCommand);
         //Get positive and negative examples
         const positive_examples = this.history.filter(command => command.get_important() === true && command.get_temporary() === false).map(command => command.get_command());
         const negative_examples = this.history.filter(command => command.get_important() === false && command.get_temporary() === false).map(command => command.get_command());
@@ -91,7 +91,7 @@ class TerminalHistory {
             singleTempCommand.set_importance(important);
             tempCommand.set_temporary(false);
             this.saveState();
-            Logger_1.Logger.instance()?.commandDetails(tempCommand);
+            SnkmakerLogger_1.SnkmakerLogger.instance()?.commandDetails(tempCommand);
         });
     }
     getHistory() {
@@ -169,7 +169,7 @@ class TerminalHistory {
     setCommandImportance(command, importance) {
         command.set_importance(importance);
         this.saveState();
-        Logger_1.Logger.instance()?.setCommandImportance(command, importance);
+        SnkmakerLogger_1.SnkmakerLogger.instance()?.setCommandImportance(command, importance);
     }
     async getRule(command) {
         if (command.get_temporary() === true) {
@@ -204,10 +204,10 @@ class TerminalHistory {
             command.set_rule_name(detail);
             this.saveState();
         }
-        Logger_1.Logger.instance()?.commandDetails(command, true);
+        SnkmakerLogger_1.SnkmakerLogger.instance()?.commandDetails(command, true);
     }
     async moveCommands(sourceBashCommands, targetBashCommand) {
-        Logger_1.Logger.instance()?.moveCommands(this.history, false);
+        SnkmakerLogger_1.SnkmakerLogger.instance()?.moveCommands(this.history, false);
         var remake_names = [];
         const children = sourceBashCommands.map((c) => c[0].pop_children(c[1]));
         sourceBashCommands.forEach((c) => {
@@ -236,7 +236,7 @@ class TerminalHistory {
             c.set_temporary(false);
         }));
         this.saveState();
-        Logger_1.Logger.instance()?.moveCommands(this.history, true);
+        SnkmakerLogger_1.SnkmakerLogger.instance()?.moveCommands(this.history, true);
         return remake_names.length !== 0;
     }
     history_for_the_chat() {
@@ -273,7 +273,7 @@ class TerminalHistory {
         this.loadJson(data);
         this.undoRedoStack = new UndoRedoStack();
         this.undoRedoStack.push(data);
-        Logger_1.Logger.instance()?.imported(this.history);
+        SnkmakerLogger_1.SnkmakerLogger.instance()?.imported(this.history);
     }
     saveState() {
         this.undoRedoStack.push(this.export());
@@ -307,7 +307,7 @@ class TerminalHistory {
             }
             return container;
         });
-        Logger_1.Logger.instance()?.importedFromChat(this.history);
+        SnkmakerLogger_1.SnkmakerLogger.instance()?.importedFromChat(this.history);
     }
 }
 exports.TerminalHistory = TerminalHistory;

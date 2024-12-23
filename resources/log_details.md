@@ -55,7 +55,7 @@ If you enable logging, here are some tips to safeguard your privacy:
 If you mistakenly logged some sensitive information, the following section provides details on how to delete it.
 
 ## Request Deletion of Your Logs
-If you mistakenly logged some sensitive information, or you want your logged data removed from out server for any reason, there are two possible ways:
+If you mistakenly logged some sensitive information, or you want your logged data removed from our server for any reason, there are two possible ways:
 ### Automatically delete your current session's logs
 Automatic logs deletion is available for the current session:
 * Open the VSCode command palette and search for the command `Snakemaker: disable current session logs`.

@@ -2,3 +2,4 @@
 .vscode/
 node_modules/
 snakemake-llm-*
+snkmaker*.vsix

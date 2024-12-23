@@ -183,12 +183,12 @@ class BashCommandViewModel {
         });
         this.observableCommands.next(this.terminalHistory.getHistory());
     }
-    async useModel(modelIndex) {
+    async useModel(modelIndex, skip_message = false) {
         if (this.isChangingModel) {
             return;
         }
         this.isChangingModel = true;
-        this.llm.useModel(modelIndex).then((hi) => {
+        this.llm.useModel(modelIndex, skip_message).then((hi) => {
             this.isChangingModel = false;
             this.observableModel.next(this.llm);
             vscode.window.showInformationMessage('Model activated. The model says hi: "' + hi + '"');
@@ -215,7 +215,7 @@ class BashCommandViewModel {
         }
         const index = this.llm.activateCopilot(models);
         if (index !== -1) {
-            await this.useModel(index);
+            await this.useModel(index, true);
         }
         this.observableModel.next(this.llm);
     }

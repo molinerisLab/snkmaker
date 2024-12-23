@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import * as vscode from 'vscode';
-import { Logger } from '../utils/Logger';
+import { SnkmakerLogger } from '../utils/SnkmakerLogger';
 
 export class LLM{
     models: ModelComms[];
@@ -14,17 +14,19 @@ export class LLM{
         while (this.current_model === -1){
             //Sleep until a model is selected
             await new Promise(r => setTimeout(r, 5000));
-            Logger.instance()?.log("User tried running query but no model selected - sleeping");
+            SnkmakerLogger.instance()?.log("User tried running query but no model selected - sleeping");
         }
         
         return this.models[this.current_model].run_query(query).then(response => {
-            Logger.instance()?.query(this.models[this.current_model].get_name(), query, response);
+            SnkmakerLogger.instance()?.query(this.models[this.current_model].get_name(), query, response);
             return response;
         });
     }
 
-    async useModel(index: number){
-		vscode.window.showInformationMessage('Activating model: ' + this.models[index].get_name() + "...");
+    async useModel(index: number, skip_message: boolean = false): Promise<string>{
+        if (!skip_message){
+		    vscode.window.showInformationMessage('Activating model: ' + this.models[index].get_name() + "...");
+        }
         const hi = await this.models[index].run_query("You are part of a vscode extension that helps users write snakemake rules from bash prompts - the user just selected you as the model of choice. Say Hi to the user! :) (please keep very short, you are in a small window - please do not ask questions to the user, he cannot respond)");
         this.current_model = index;
         this.memento.update('copilot_model', this.models[index].get_id());
@@ -38,6 +40,7 @@ export class LLM{
         if (models.length === 0 || this.copilot_active===true){
             return -1;
         }
+        models = models.filter(model => model.id.indexOf("gpt-3.5") === -1);
         //Check if user has saved a model as the first one - otherwise default to gpt-4o
         var model_id = this.memento.get<string>('copilot_model', 'gpt-4o');
         
@@ -74,7 +77,7 @@ export interface ModelComms{
 }
 
 class CopilotModel implements ModelComms{
-    userPrompt: string = "You are the AI inside a vscode extension that records user bash commands and help producing snakemake rules.";
+    userPrompt: string = "You are part of a vscode extension that records user bash commands and help producing snakemake rules.";
     model: vscode.LanguageModelChat;
     constructor(model: vscode.LanguageModelChat){
         this.model = model;

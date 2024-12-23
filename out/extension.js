@@ -43,7 +43,7 @@ const BashCommandViewmodel_1 = require("./viewmodel/BashCommandViewmodel");
 const MyDecorator_1 = require("./view/MyDecorator");
 const ModelsDataProvider_1 = require("./view/ModelsDataProvider");
 const ChatExtension_1 = require("./model/ChatExtension");
-const Logger_1 = require("./utils/Logger");
+const SnkmakerLogger_1 = require("./utils/SnkmakerLogger");
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
@@ -51,17 +51,17 @@ function activate(context) {
     const logging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
     console.log('Logging is ' + (logging ? 'enabled' : 'disabled'));
     if (logging) {
-        Logger_1.Logger.initialize(context.extension.packageJSON.version);
+        SnkmakerLogger_1.SnkmakerLogger.initialize(context.extension.packageJSON.version);
     }
     vscode.workspace.onDidChangeConfiguration(event => {
         if (event.affectsConfiguration("snakemaker.allowLogging")) {
             const logging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
             if (logging) {
-                Logger_1.Logger.initialize(context.extension.packageJSON.version);
+                SnkmakerLogger_1.SnkmakerLogger.initialize(context.extension.packageJSON.version);
             }
             else {
-                Logger_1.Logger.destroy();
-                Logger_1.Logger.disabled_in_session = false; //Disabled globally
+                SnkmakerLogger_1.SnkmakerLogger.destroy();
+                SnkmakerLogger_1.SnkmakerLogger.disabled_in_session = false; //Disabled globally
             }
         }
     });
@@ -250,12 +250,12 @@ function activate(context) {
     });
     context.subscriptions.push(logDetailsScreen);
     const disableLogging = vscode.commands.registerCommand('disable-logs-session', () => {
-        const logger = Logger_1.Logger.instance();
+        const logger = SnkmakerLogger_1.SnkmakerLogger.instance();
         if (logger) {
             logger.delete_all_logs().then(() => {
                 vscode.window.showInformationMessage('Logger disabled, log session deleted');
             }).catch(() => vscode.window.showInformationMessage('Logger disabled, log session not deleted'));
-            Logger_1.Logger.destroy();
+            SnkmakerLogger_1.SnkmakerLogger.destroy();
         }
         else {
             vscode.window.showInformationMessage('Logger already disabled');
