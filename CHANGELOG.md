@@ -10,10 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Support for arbitrary models through OpenAI API standard.
+- Support for GNU Make rules output.
 
-### Changed
-
-- NOTHING
 
 ## [0.1.1] - 2025-01-07
 Initial release
