@@ -44,11 +44,15 @@ export class BashCommandViewModel{
         if (!this.isListening){
             return;
         }
-        this.terminalHistory.addCommand(value, confidence, isTrusted).then(() => {
-            this.observableCommands.next(this.terminalHistory.getHistory());
-            this.updateCanUndoCanRedo();
-        });
-        this.observableCommands.next(this.terminalHistory.getHistory());
+        try{
+          this.terminalHistory.addCommand(value, confidence, isTrusted).then(() => {
+              this.observableCommands.next(this.terminalHistory.getHistory());
+              this.updateCanUndoCanRedo();
+          });
+          this.observableCommands.next(this.terminalHistory.getHistory());
+        } catch (e){
+          vscode.window.showInformationMessage('Error adding command: ' + e);
+        }
     }
     addCommandGoneWrong(value: string, confidence: number, isTrusted: boolean, returnCode: number | undefined){
       if (!this.isListening){
@@ -126,32 +130,40 @@ export class BashCommandViewModel{
     }
 
     printRule(command: BashCommandContainer){
-      this.terminalHistory.getRule(command).then((rule) => {
-        if (rule){
-            this.writeToFiles.writeToCurrentFile(rule).then((success) => {
-                if (success){
-                    this.archiveCommands([command]);
-                }
-                this.updateCanUndoCanRedo();
-            });
-        }
-      });
-      this.observableCommands.next(this.terminalHistory.getHistory());
-    }
-    printAllRules(){
-      this.terminalHistory.getAllRules().then((rules) => {
-        if (!rules){
-            vscode.window.showInformationMessage('No rules to print');
-            return;
-        }
-        this.writeToFiles.writeToCurrentFile(rules).then((success) => {
-          if (success){
-            this.archiveCommands([]);
+      try{
+        this.terminalHistory.getRule(command).then((rule) => {
+          if (rule){
+              this.writeToFiles.writeToCurrentFile(rule).then((success) => {
+                  if (success){
+                      this.archiveCommands([command]);
+                  }
+                  this.updateCanUndoCanRedo();
+              });
           }
         });
-        this.updateCanUndoCanRedo();
-      });
-      this.observableCommands.next(this.terminalHistory.getHistory());
+        this.observableCommands.next(this.terminalHistory.getHistory());
+      } catch (e){
+        vscode.window.showInformationMessage('Error printing rule: ' + e);
+      }
+    }
+    printAllRules(){
+      try{
+        this.terminalHistory.getAllRules().then((rules) => {
+          if (!rules){
+              vscode.window.showInformationMessage('No rules to print');
+              return;
+          }
+          this.writeToFiles.writeToCurrentFile(rules).then((success) => {
+            if (success){
+              this.archiveCommands([]);
+            }
+          });
+          this.updateCanUndoCanRedo();
+        });
+        this.observableCommands.next(this.terminalHistory.getHistory());
+      } catch (e){
+        vscode.window.showInformationMessage('Error printing rules: ' + e);
+      }
     }
 
     async useModel(modelIndex: number, skip_message: boolean = false){
@@ -183,11 +195,13 @@ export class BashCommandViewModel{
       }
       if (models.length===0){
         vscode.window.showInformationMessage('Copilot not available');
+        this.llm.is_copilot_waiting = false;
         return;
       }
       const index: number = this.llm.activateCopilot(models);
       if (index !== -1){
         await this.useModel(index, true);
+        this.llm.is_copilot_waiting = false;
       }
       this.observableModel.next(this.llm);
     }

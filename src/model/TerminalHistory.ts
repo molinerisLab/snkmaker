@@ -85,20 +85,25 @@ export class TerminalHistory {
         if (negative_examples.length > 35){
             negative_examples.splice(35);
         }
-        const important = this.queries.guess_if_important(value, positive_examples, negative_examples);
-        const guesses = this.queries.guess_rule_details(value);
-        //Wait for both promises to resolve
-        await Promise.all([important, guesses]).then((values) => {
-            const important = values[0];
-            const guesses = values[1];
-            singleTempCommand.set_input(guesses[0]);
-            singleTempCommand.set_output(guesses[1]);
-            singleTempCommand.set_rule_name(guesses[2]);
-            singleTempCommand.set_importance(important);
-            tempCommand.set_temporary(false);
-            this.saveState();
-            SnkmakerLogger.instance()?.commandDetails(tempCommand);
-        });
+        try{
+            const important = this.queries.guess_if_important(value, positive_examples, negative_examples);
+            const guesses = this.queries.guess_rule_details(value);
+            //Wait for both promises to resolve
+            await Promise.all([important, guesses]).then((values) => {
+                const important = values[0];
+                const guesses = values[1];
+                singleTempCommand.set_input(guesses[0]);
+                singleTempCommand.set_output(guesses[1]);
+                singleTempCommand.set_rule_name(guesses[2]);
+                singleTempCommand.set_importance(important);
+                tempCommand.set_temporary(false);
+                this.saveState();
+                SnkmakerLogger.instance()?.commandDetails(tempCommand);
+            });
+        } catch (e){
+            this.history.splice(this.history.indexOf(tempCommand), 1);
+            throw e;
+        }
 
     }
     getHistory() {
@@ -183,10 +188,14 @@ export class TerminalHistory {
             return "";
         }
         command.set_temporary(true);
-        //TODO
-        const r = await this.queries.get_snakemake_rule(command);
-        command.set_temporary(false);
-        return r;
+        try {
+            const r = await this.queries.get_snakemake_rule(command);
+            command.set_temporary(false);
+            return r;
+        } catch (e){
+            command.set_temporary(false);
+            throw e;
+        }
     }
 
     async getAllRules(): Promise<string | null>{
@@ -195,9 +204,14 @@ export class TerminalHistory {
             return null;
         }
         important.forEach(command => command.set_temporary(true));
-        const r = await this.queries.get_all_rules(important);
-        important.forEach(command => command.set_temporary(false));
-        return r;
+        try{
+            const r = await this.queries.get_all_rules(important);
+            return r;
+        } catch (e){
+            throw e;
+        } finally {
+            important.forEach(command => command.set_temporary(false));
+        }
     }
     modifyCommandDetail(command: BashCommand, modifier: string, detail: string){
         if (modifier === "Inputs"){
@@ -238,9 +252,12 @@ export class TerminalHistory {
         }
         await Promise.all(remake_names.map(async (c: any) => {
             c.set_temporary(true);
-            const new_name = await this.queries.re_guess_name(c);
-            c.set_rule_name(new_name);
-            c.set_temporary(false);
+            try{
+                const new_name = await this.queries.re_guess_name(c);
+                c.set_rule_name(new_name);
+            } finally {
+                c.set_temporary(false);
+            }
         }));
         this.saveState();
         SnkmakerLogger.instance()?.moveCommands(this.history, true);

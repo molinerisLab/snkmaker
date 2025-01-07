@@ -231,6 +231,14 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 	context.subscriptions.push(disableLogging);
+	const addNewModel = vscode.commands.registerCommand('add-model', () => {
+		console.log("Adding new model");
+	});
+	context.subscriptions.push(addNewModel);
+	const deleteModel = vscode.commands.registerCommand('delete-model', () => {
+		console.log("Deleting model");
+	});
+	context.subscriptions.push(deleteModel);
 	//Activate copilot, if not already active
 	if (!viewModel.isCopilotActive()){
 		viewModel.activateCopilot();

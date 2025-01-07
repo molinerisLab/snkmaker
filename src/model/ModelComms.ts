@@ -6,15 +6,23 @@ export class LLM{
     models: ModelComms[];
     current_model: number;
     copilot_active = false;
+    is_copilot_waiting = true;
     constructor(private memento: vscode.Memento){
         this.current_model = -1;
-        this.models = [];
+        this.models = [new OpenAI_Models("","","test","test")];//TODO [];
     }
     async run_query(query: string): Promise<string>{
-        while (this.current_model === -1){
-            //Sleep until a model is selected
-            await new Promise(r => setTimeout(r, 5000));
-            SnkmakerLogger.instance()?.log("User tried running query but no model selected - sleeping");
+        if (this.is_copilot_waiting){
+            while (this.current_model === -1){
+                //Sleep until a model is selected
+                await new Promise(r => setTimeout(r, 5000));
+                SnkmakerLogger.instance()?.log("User tried running query but no model selected - sleeping");
+            }
+        }
+        console.log("Ciao")
+        if (true || this.current_model === -1){
+            SnkmakerLogger.instance()?.log("User tried running query but no model selected:\n"+query);
+            throw new Error("No model currently selected");
         }
         
         return this.models[this.current_model].run_query(query).then(response => {
@@ -74,6 +82,7 @@ export interface ModelComms{
     get_id(): string;
     get_params(): ModelParameters[];
     set_param(key: string, value: string): void;
+    is_user_added(): boolean;
 }
 
 class CopilotModel implements ModelComms{
@@ -96,6 +105,9 @@ class CopilotModel implements ModelComms{
         response = response.replace(/```python/g, '');
         response = response.replace(/```/g, '');
         return response;
+    }
+    is_user_added(): boolean {
+        return false;
     }
     get_name(): string{
         return "Copilot - " + this.model.id;
@@ -131,6 +143,9 @@ class OpenAI_Models implements ModelComms{
     }
     get_id(): string{
         return this.model;
+    }
+    is_user_added(): boolean {
+        return true;
     }
 
     async run_query(query: string): Promise<string>{

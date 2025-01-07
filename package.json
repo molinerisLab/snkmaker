@@ -18,6 +18,14 @@
     "menus": {
       "commandPalette": [
           {
+            "command": "delete-model",
+            "when": "false"
+          },
+          {
+            "command": "add-model",
+            "when": "false"
+          },
+          {
             "command": "print-rule",
             "when": "false"
           },
@@ -127,6 +135,11 @@
           "command": "history-redo-fake",
           "when": "view == bash-commands && !myExtension.canRedo",
           "group": "navigation@3"
+        },
+        {
+          "command": "add-model",
+          "when": "view == llm-models",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
@@ -164,6 +177,10 @@
           "command": "modify-command-detail",
           "when": "view == bash-commands && viewItem == CHILD_OBJ_MOD",
           "group": "inline@1"
+        },
+        {
+          "command": "delete-model",
+          "when": "view == llm-models && viewItem == USER_MODEL"
         }
       ]
     },
@@ -318,6 +335,14 @@
       {
         "command": "history-set",
         "title": "Set"
+      },
+      {
+        "command": "delete-model",
+        "title": "Delete model"
+      },
+      {
+        "command": "add-model",
+        "title": "Add model"
       }
     ],
     "configuration": {

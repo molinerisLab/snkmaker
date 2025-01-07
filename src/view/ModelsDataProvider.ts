@@ -48,6 +48,7 @@ class Model extends vscode.TreeItem {
         this.isSelected = isSelected;
         this.index = index;
         this.lastClicked = 0;
+        this.contextValue = model.is_user_added() ? 'USER_MODEL' : 'DEFAULT_MODEL';
         if (isChild===false){
             this.command = {
                 title: 'Use Model',
