@@ -5,25 +5,30 @@ exports.SnkmakerLogger = void 0;
 class SnkmakerLogger {
     version;
     static instance_ = undefined;
-    static URL = "https://www.3plex.unito.it/snakemaker";
+    static URLs = ["https://www.3plex.unito.it/snakemaker", "http://192.168.99.164/snakemaker"];
+    URL = "";
     static disabled_in_session = false;
-    static initialize(version) {
+    static async initialize(version) {
         if (SnkmakerLogger.instance_) {
             throw new Error("Logger already initialized");
         }
         console.log("Start logger");
-        const instance_ = new SnkmakerLogger(version);
-        instance_.session_key = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-        try {
-            instance_.callAPI("/new_session", {}).then((response) => {
+        var instance_;
+        for (const url of SnkmakerLogger.URLs) {
+            instance_ = new SnkmakerLogger(version);
+            instance_.session_key = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+            instance_.URL = url;
+            try {
+                const response = await instance_.callAPI("/new_session", {});
                 console.log(response);
                 instance_.session_confirmation_key = response["confirmation_key"] || "";
                 SnkmakerLogger.instance_ = instance_;
                 SnkmakerLogger.disabled_in_session = false;
-            }).catch((error) => { });
-        }
-        catch (e) {
-            SnkmakerLogger.instance_ = undefined;
+                break;
+            }
+            catch (e) {
+                SnkmakerLogger.instance_ = undefined;
+            }
         }
     }
     static destroy() {
@@ -55,7 +60,7 @@ class SnkmakerLogger {
         data["timestamp"] = this.session_timestamp;
         data["extension_version"] = this.version;
         data["session_confirmation_key"] = this.session_confirmation_key;
-        return fetch(SnkmakerLogger.URL + path, {
+        return fetch(this.URL + path, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

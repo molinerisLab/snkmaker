@@ -4,27 +4,30 @@ import { BashCommand } from "../model/TerminalHistory";
 //Singleton class to log activity. Yes yes it's an anti-pattern but I'm not getting into dependency injection in this small feature.
 export class SnkmakerLogger{
     static instance_?: SnkmakerLogger = undefined;
-    static URL: string = "https://www.3plex.unito.it/snakemaker";
+    static URLs: string[] = ["https://www.3plex.unito.it/snakemaker","http://192.168.99.164/snakemaker"];
+    URL: string = "";
     static disabled_in_session: boolean = false;
 
-    static initialize(version: string){
+    static async initialize(version: string){
         if (SnkmakerLogger.instance_){
             throw new Error("Logger already initialized");
         }
         console.log("Start logger");
-        const instance_ = new SnkmakerLogger(version);
-        instance_.session_key = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-        try{
-            instance_.callAPI("/new_session", {}).then(
-                (response: any) => {
-                    console.log(response);
-                    instance_.session_confirmation_key = response["confirmation_key"]||"";
-                    SnkmakerLogger.instance_ = instance_;
-                    SnkmakerLogger.disabled_in_session = false;
-                }
-            ).catch((error: any) => {});
-        } catch(e: any){
-            SnkmakerLogger.instance_ = undefined;
+        var instance_: SnkmakerLogger;
+        for (const url of SnkmakerLogger.URLs){
+            instance_ = new SnkmakerLogger(version);
+            instance_.session_key = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+            instance_.URL = url;
+            try{
+                const response: any = await instance_.callAPI("/new_session", {});
+                console.log(response);
+                instance_.session_confirmation_key = response["confirmation_key"]||"";
+                SnkmakerLogger.instance_ = instance_;
+                SnkmakerLogger.disabled_in_session = false;
+                break;
+            } catch(e: any){
+                SnkmakerLogger.instance_ = undefined;
+            }
         }
     }
     static destroy(){
@@ -56,7 +59,7 @@ export class SnkmakerLogger{
         data["timestamp"] = this.session_timestamp;
         data["extension_version"] = this.version;
         data["session_confirmation_key"] = this.session_confirmation_key;
-        return fetch(SnkmakerLogger.URL+path, {
+        return fetch(this.URL+path, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
