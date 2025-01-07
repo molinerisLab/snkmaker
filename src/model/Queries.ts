@@ -1,11 +1,17 @@
 import { LLM } from "./ModelComms";
 import { BashCommand } from "./TerminalHistory";
+import * as vscode from 'vscode';
 
 export class Queries{
     modelComms: LLM;
     constructor(modelComms: LLM){
         this.modelComms = modelComms;
     }
+
+    get_rule_format(): string{
+        return vscode.workspace.getConfiguration('snakemaker').get('rulesOutputFormat', "Snakemake");
+    }
+
     async guess_rule_details(command: string){
         const query = `I have the following bash command: ${command}.
 Can you guess the filenames of input and outputs? Only the filenames of what is read and written are important - not the things in between (es pipe operator), and stdin,stdout and stderr are not considered inputs or outputs.
@@ -34,7 +40,7 @@ I would also like a short name of a theorical Snakemake rule for this command.
             examples_query = `Use these examples to better understand what the user wants to convert into rule:\n${examples_query}`;
         }
         const query = `I have the following bash command: ${command}.
-It might need to be translated into a snakemake rule, but it could be just a one-time command from the user. Generally, things that for sure do not write to files are not worth making into rules.
+It might need to be translated into a snakemake or a Make rule, but it could be just a one-time command from the user. Generally, things that for sure do not write to files are not worth making into rules.
 ${examples_query}
 Please write "YES" if it's worth making into a rule, "NO" if it's a one-time command. DO NOT, EVER output other things, only YES or NO.`;
         let response = await this.modelComms.run_query(query);
@@ -44,28 +50,30 @@ Please write "YES" if it's worth making into a rule, "NO" if it's a one-time com
     }
 
     async get_snakemake_rule(bashCommand: BashCommand){
+        const rule_format = this.get_rule_format();
         var inputs = bashCommand.get_input();
         var output = bashCommand.get_output();
         const command = bashCommand.get_command_for_model();
         if (inputs === "-"){ inputs = "No input";}
         if (output === "-"){ output = "No output";}
-        const query = `Convert this bash command into a snakemake rule:
+        const query = `Convert this bash command into a ${rule_format} rule:
 ${command}
 It is estimated that the input could be (${inputs}) and the output could be (${output}) - but it could be wrong. A possible name for the rule could be ${bashCommand.get_rule_name()}.
 Please do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary.
-Please output only the rule. Do not output other things.`;
+Please output only the rule. What you output goes entirely in the ${rule_format} file, so Do not output other things. Example of good output: "<RULE>". Examples of bad output: "Here is the rule <RULE>" or "<RULE> is the rule".`;
         const response = await this.modelComms.run_query(query);
         return response;
     }
 
     async get_all_rules(commands: BashCommand[]){
+        const rule_format = this.get_rule_format();
         const formatted = commands.map(command => 
             `\nEstimated inputs: (${command.get_input()}) Estimated outputs: (${command.get_output()})\nShell command: ${command.get_command_for_model()}\nPossible rule name: ${command.get_rule_name()}}\n\n`
         );
-        const query = `I have the following set of bash commands. Can you convert them into snakemake rules? Note that Estimated inputs and outputs are just guesses and could be wrong.
+        const query = `I have the following set of bash commands. Can you convert them into ${rule_format} rules? Note that Estimated inputs and outputs are just guesses and could be wrong.
         ${formatted.join("\n")}
 Please do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary.
-Please output only the Snakemake rules. DO NOT, EVER, OUTPUT ANYTHING OTHER THAN THE RULES.`;
+Please output only the ${rule_format} rules. What you output goes entirely in the ${rule_format} file, so DO NOT, EVER, OUTPUT ANYTHING OTHER THAN THE RULES. Example of good output: "<RULES>". Examples of bad output: "Here are the rules <RULES>"`;
         const response = await this.modelComms.run_query(query);
         return response;
     }

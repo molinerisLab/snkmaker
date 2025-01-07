@@ -40,7 +40,7 @@ export class LLM{
         if (!skip_message){
 		    vscode.window.showInformationMessage('Activating model: ' + this.models[index].get_name() + "...");
         }
-        const hi = await this.models[index].run_query("You are part of a vscode extension that helps users write snakemake rules from bash prompts - the user just selected you as the model of choice. Say Hi to the user! :) (please keep very short, you are in a small window - please do not ask questions to the user, he cannot respond)");
+        const hi = await this.models[index].run_query("You are part of a vscode extension that helps users write snakemake (or Make) rules from bash prompts - the user just selected you as the model of choice. Say Hi to the user! :) (please keep very short, you are in a small window - please do not ask questions to the user, he cannot respond)");
         this.current_model = index;
         this.memento.update('current_model', id);
         return hi;
@@ -95,6 +95,7 @@ export class LLM{
         } else if (index < this.current_model){
             this.current_model -= 1;
         }
+        this.exportModels();
     }
 
 }
@@ -114,7 +115,7 @@ export interface ModelComms{
 }
 
 class CopilotModel implements ModelComms{
-    userPrompt: string = "You are part of a vscode extension that records user bash commands and help producing snakemake rules.";
+    userPrompt: string = "You are part of a vscode extension that records user bash commands and help producing snakemake (or Make) rules.";
     model: vscode.LanguageModelChat;
     constructor(model: vscode.LanguageModelChat){
         this.model = model;

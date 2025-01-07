@@ -354,6 +354,12 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "Send anonymous logs to our server to improve the extension.  [See details on what is logged](command:open-loging-details)."
+        },
+        "snakemaker.rulesOutputFormat": {
+          "type": "string",
+          "enum": ["Snakemake", "Make"],
+          "default": "Snakemake",
+          "markdownDescription": "Produce rules in Snakemake or in Make format"
         }
       }
     },

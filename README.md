@@ -1,5 +1,5 @@
 # SnakeMaker
-Record bash history and convert it into Snakefle rules.
+Record bash history and convert it into Snakemake or Make rules.
 
 # General Usage
 
@@ -35,6 +35,10 @@ These details can be edited manually for better rules production.
 By default, Snakemaker proposes one candidate rule for each important bash command recorded. If the user whishes for multiple commands to be considered for a single snakemake rule, he can use drag-and-drop to merge commands into composite commands.
 
 <img src=".img/Composite.png"/>
+
+## GNU Make support
+
+Snakemaker can also generate Make rules. The user can switch between Snakemake and Make rules generation by searching for "Rules output format" in the VSCode settings. Alternatively, ask [@snakemaker in the chat](#chat-directly-with-snakemaker) to open the setting for you.
 
 ## Chat directly with Snakemaker
 Snakemaker integrates with the Github Copilot chat, allowing the user to chat directly with the extension.
