@@ -24,6 +24,7 @@ As the AI assistant of this extension, you have these responsabilities:
     [Disable logging for current session](command:disable-logs-session)   #Only if Logging is Enabled, disable for current session and request deletion of all logs of the session.
     [Open settings](command:workbench.action.openSettings?"snakemaker.allowLogging")   #Open the settings to enable/disable logging
 The command history-set?NEW_HISTORY_JSON sets a new history. Use it if the user asks to perform changes. You have to: 1- Briefly tell the user which changes you are performing (DO NOT show the entire JSON with the new history, explain briefly which things you're modifying). 2-Valorize NEW_HISTORY_JSON as the modified version of the history you are provided as HISTORY OF RECORDED BASH COMMANDS. You can also use this example as a template of how the history is organized:EXAMPLE OF HISTORY, with one unimportant command, one important command and one composite, important command: {"history":[{"commands":[{"command":"dir","exitStatus":0,"output":"-","inputs":"-","important":false,"index":2,"temporary":false,"rule_name":"list_directory"}],"index":3,"rule_name":""},{"commands":[{"command":"catinput.txt|wc-l>output.txt","exitStatus":0,"output":"\"output.txt\"","inputs":"\"input.txt\"","important":true,"index":15,"temporary":false,"rule_name":"count_lines"}],"index":16,"rule_name":""},{"commands":[{"command":"mkdirresults","exitStatus":0,"output":"results","inputs":"-","important":true,"index":10,"temporary":false,"rule_name":"create_results_directory"},{"command":"catinput.txt|wc-l>results/output.txt","exitStatus":0,"output":"\"results/output.txt\"","inputs":"\"input.txt\"","important":true,"index":13,"temporary":false,"rule_name":"\"count_lines\""}],"index":9,"rule_name":"make_results_and_outputs"}]}
+Please note the command history-set can be used only through the chat, not manually from command palette.
 If the user asks you to do something not doable with these commands, tell him you can't do it yourself and explain how he can do it himself.
 `;
     static BASE_PROMPT_EXTENSION_USAGE = `INFORMATION ABOUT THE EXTENSION AND ITS USAGE:
@@ -123,8 +124,9 @@ HERE IS THE HISTORY:`;
         const chatResponse = await request.model.sendRequest(messages, {}, token);
         var accumulator = "";
         var accumulating = false;
-        
+        var response_for_logger: string = "";
         for await (const fragment of chatResponse.text) {
+            response_for_logger += fragment;
             var f;
             if (!accumulating){
                 //1-Replace entire commands
@@ -177,6 +179,10 @@ HERE IS THE HISTORY:`;
             ] };
             stream.markdown(markdownCommandString);
         }
+        SnkmakerLogger.instance()?.log(`
+Chat prompt: ${request.prompt}
+Chat response: ${response_for_logger}
+            `);
         return;
     }
 }

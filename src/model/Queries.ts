@@ -12,13 +12,13 @@ Can you guess the filenames of input and outputs? Only the filenames of what is 
 Consider that when unknown programs are executed, they might write to files and you don't know what they are.
 If you are sure there is no input or output, please write "-". If it cannot be determined, write "Unknown".
 I would also like a short name of a theorical Snakemake rule for this command.
-        Please write: INPUT=[...]; OUTPUT=[...]; NAME=[...]. DO NOT, EVER output other things, only INPUT=[...]; OUTPUT=[...]; NAME=[...]`;
+        Please write: INPUT=[...]; OUTPUT=[...]; NAME=[...]. DO NOT, EVER output other things, only INPUT=[...]; OUTPUT=[...]; NAME=[...]. Do not forget the = symbol.`;
         const response = await this.modelComms.run_query(query);
         //Parse response
         const split = response.split(";");
-        const input = split[0].split("=")[1].replace("[", "").replace("]", "");
-        const output = split[1].split("=")[1].replace("[", "").replace("]", "");
-        const name = split[2].split("=")[1].replace("[", "").replace("]", "");
+        const input = split[0]?.split("=")[1]?.replace("[", "")?.replace("]", "") ?? "Unknown";
+        const output = split[1]?.split("=")[1]?.replace("[", "")?.replace("]", "")?? "Unknown";
+        const name = split[2]?.split("=")[1]?.replace("[", "")?.replace("]", "")?? "Unknown";
         return [input, output, name];
     }
 
