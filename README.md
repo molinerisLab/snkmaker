@@ -1,13 +1,15 @@
 # SnakeMaker
-convert bash/r/python history or unstructured code in snakefiles
+Record bash history and convert it into Snakefle rules.
 
 # General Usage
 
-## Record bash commands
-Snakemaker isn't always recording bash commands. Recording can be started and paused by hand.
+## Snakemaker panel overview 
+<img src=".img/Snakemaker_Overview.png"/>
+
+## Record bash commands history
+The extension's listening and recording of bash commands can be turned on and off manually.
 
 <img src=".img/start_stop_listening.png"/>
-
 
 ## Commands importance
 When recording bash commands, Snakemaker tries to distinguish between important commands, which can contribute to the Snakefile, and unimportant, one-timer commands, which are not.
@@ -63,9 +65,6 @@ The direct chat can be used for a variety of purposes:
   <img src=".img/chat_1.png" style="max-width:40%; margin-right: 10px;"/>
   <img src=".img/chat_2.png"  style="max-width:40%;"/>
 </div>
-
-## Snakemaker panel overview 
-<img src=".img/Snakemaker_Overview.png"/>
 
 ## Import-export workspace
 
