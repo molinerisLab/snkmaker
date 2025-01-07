@@ -1,16 +1,13 @@
 # SnakeMaker
 convert bash/r/python history or unstructured code in snakefiles
 
-# Install
-
- * Dowload the VSIX file
- * From VSCode, open the "Extension" sidebar, click on the three dots on the top-right corner of the sidebar, click Install from VSIX, select the downloaded file.
-
-# Build and install extension for local usage
-* Set version: open "package.json", modify field "version"
-* Build: "npx @vscode/vsce -- package". Produces a *.vsix file.
-
 # General Usage
+
+## Record bash commands
+Snakemaker isn't always recording bash commands. Recording can be started and paused by hand.
+
+<img src=".img/start_stop_listening.png"/>
+
 
 ## Commands importance
 When recording bash commands, Snakemaker tries to distinguish between important commands, which can contribute to the Snakefile, and unimportant, one-timer commands, which are not.
@@ -70,11 +67,6 @@ The direct chat can be used for a variety of purposes:
 ## Snakemaker panel overview 
 <img src=".img/Snakemaker_Overview.png"/>
 
-## Record bash commands
-Snakemaker isn't always recording bash commands. Recording can be started and paused by hand.
-
-<img src=".img/start_stop_listening.png"/>
-
 ## Import-export workspace
 
 The workspace - intended as the collection of recorded and archived commands, together with their additional information, will be lost when VSCode is restarted.
@@ -91,3 +83,11 @@ A model selection panel is provided at the bottom of the Snakemaker panel.
 <img src=".img/Models.png"/>
 
 Double-click on a model to activate it.
+
+
+
+# Build and install extension for local usage
+* Clone the repository: "git clone https://github.com/molinerisLab/snkmaker.git"
+* Set version: open "package.json", modify field "version"
+* Build: "npx @vscode/vsce -- package". Produces a *.vsix file.
+* Install: from VSCode, open the "Extension" sidebar, click on the three dots on the top-right corner of the sidebar, click Install from VSIX.

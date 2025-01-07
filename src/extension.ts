@@ -10,17 +10,55 @@ import { ModelsDataProvider } from './view/ModelsDataProvider';
 import { ChatExtension } from './model/ChatExtension';
 import { HiddenTerminal } from './utils/HiddenTerminal';
 import { CommandInference } from './utils/CommandInference';
+import { SnkmakerLogger } from './utils/SnkmakerLogger';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+	//Initialize logger
+	const logging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
+	console.log('Logging is ' + (logging?'enabled':'disabled'));
+	if (logging){
+		SnkmakerLogger.initialize(context.extension.packageJSON.version);
+	}
+	vscode.workspace.onDidChangeConfiguration(event => {
+        if (event.affectsConfiguration("snakemaker.allowLogging")) {
+			const logging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
+			if (logging){
+				SnkmakerLogger.initialize(context.extension.packageJSON.version);
+			} else {
+				SnkmakerLogger.destroy();
+				SnkmakerLogger.disabled_in_session = false; //Disabled globally
+			}
+        }
+    });
+	//If first time, ask for opt-in to logging
+	const currentVersion = context.extension.packageJSON.version as string;
+	const lastVersion = context.globalState.get("version") as string ?? "0.0.0";
+	if (lastVersion !== currentVersion) {
+		context.globalState.update("version", currentVersion);
+		vscode.window.showInformationMessage(
+			"Welcome to Snakemaker! Please consider enabling logging to help us improve the extension.",
+			"Enable logging" 
+		).then((selection) => {
+			if (selection === "Enable logging") {
+				//Open VSCode settings
+				vscode.commands.executeCommand("workbench.action.openSettings", "snakemaker.allowLogging");
+			}
+		});
+	}
+
+	//Get memento - workspace saved state
 	const memento = context.workspaceState;
+	// Set context
 	const bashCommandTitles = [' - NOT LISTENING', ' - LISTENING'];
 	vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
 	vscode.commands.executeCommand('setContext', 'myExtension.canUndo', false);
 	vscode.commands.executeCommand('setContext', 'myExtension.canRedo', false);
+
+	/*
 	const hiddenTerminal = new HiddenTerminal();
-	const commandInference = new CommandInference(hiddenTerminal);
+	const commandInference = new CommandInference(hiddenTerminal);*/
 
 	//Create viewmodel for terminal history
 	const viewModel = new BashCommandViewModel(memento);
@@ -36,18 +74,10 @@ export function activate(context: vscode.ExtensionContext) {
 	
 	//Register terminal listener, update view
 	vscode.window.onDidEndTerminalShellExecution(event => {
-		// eslint-disable-next-line eqeqeq
-		if (event.terminal == hiddenTerminal.terminal){
-			return; //Ignore commands run by the hidden terminal, or an infinite loop will occur
-		}
 		const commandLine = event.execution.commandLine;
 		const code = event.exitCode;
 		const shell = event.shellIntegration;
 		const cwd = shell.cwd;
-		console.log(`Command run: \n${commandLine.value} - exit code: ${code}`);
-		/*commandInference.infer(commandLine.value, cwd?.path || '').then((inference) => {
-			console.log(inference);
-		});*/
 		if (code !== 0){
 			viewModel.addCommandGoneWrong(commandLine.value, 0, true, code);
 		} else {
@@ -57,9 +87,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	//Register vscode commands
 	const set_history = vscode.commands.registerCommand('history-set', (event) => {
-		console.log(event);
 		if (event && event.history){
-			console.log(event.history);
 			viewModel.setHistory(event.history);
 		}
 	});
@@ -99,7 +127,6 @@ export function activate(context: vscode.ExtensionContext) {
 		if (event && event.get_root()){
 			viewModel.deleteCommand(event.get_root());
 		} else {
-			//TODO: can open menu to select command
 			vscode.window.showInformationMessage('No command selected');
 		}
 	});
@@ -184,6 +211,26 @@ export function activate(context: vscode.ExtensionContext) {
 		viewModel.redo();
 	});
 	context.subscriptions.push(redo);
+	const logDetailsScreen = vscode.commands.registerCommand('open-loging-details', () => {
+		const uri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'log_details.md');
+		vscode.commands.executeCommand('markdown.showPreview', uri);
+	  });
+	context.subscriptions.push(logDetailsScreen);
+
+	const disableLogging = vscode.commands.registerCommand('disable-logs-session', () => {
+		const logger = SnkmakerLogger.instance();
+		if (logger){
+			logger.delete_all_logs().then(() => {
+				vscode.window.showInformationMessage('Logger disabled, log session deleted');
+			}).catch(
+				() => vscode.window.showInformationMessage('Logger disabled, log session not deleted')
+			);
+			SnkmakerLogger.destroy();
+		} else {
+			vscode.window.showInformationMessage('Logger already disabled');
+		}
+	});
+	context.subscriptions.push(disableLogging);
 	//Activate copilot, if not already active
 	if (!viewModel.isCopilotActive()){
 		viewModel.activateCopilot();

@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.LLM = void 0;
 const openai_1 = __importDefault(require("openai"));
 const vscode = __importStar(require("vscode"));
+const SnkmakerLogger_1 = require("../utils/SnkmakerLogger");
 class LLM {
     memento;
     models;
@@ -49,15 +50,21 @@ class LLM {
         this.current_model = -1;
         this.models = [];
     }
-    run_query(query) {
-        if (this.current_model === -1) {
-            throw new Error("No model selected");
+    async run_query(query) {
+        while (this.current_model === -1) {
+            //Sleep until a model is selected
+            await new Promise(r => setTimeout(r, 5000));
+            SnkmakerLogger_1.SnkmakerLogger.instance()?.log("User tried running query but no model selected - sleeping");
         }
-        return this.models[this.current_model].run_query(query);
+        return this.models[this.current_model].run_query(query).then(response => {
+            SnkmakerLogger_1.SnkmakerLogger.instance()?.query(this.models[this.current_model].get_name(), query, response);
+            return response;
+        });
     }
-    async useModel(index) {
-        console.log("Activating model: " + this.models[index].get_name() + "...");
-        vscode.window.showInformationMessage('Activating model: ' + this.models[index].get_name() + "...");
+    async useModel(index, skip_message = false) {
+        if (!skip_message) {
+            vscode.window.showInformationMessage('Activating model: ' + this.models[index].get_name() + "...");
+        }
         const hi = await this.models[index].run_query("You are part of a vscode extension that helps users write snakemake rules from bash prompts - the user just selected you as the model of choice. Say Hi to the user! :) (please keep very short, you are in a small window - please do not ask questions to the user, he cannot respond)");
         this.current_model = index;
         this.memento.update('copilot_model', this.models[index].get_id());
@@ -70,6 +77,7 @@ class LLM {
         if (models.length === 0 || this.copilot_active === true) {
             return -1;
         }
+        models = models.filter(model => model.id.indexOf("gpt-3.5") === -1);
         //Check if user has saved a model as the first one - otherwise default to gpt-4o
         var model_id = this.memento.get('copilot_model', 'gpt-4o');
         var model_index = models.findIndex(model => model.id === model_id);
@@ -89,7 +97,7 @@ class LLM {
 }
 exports.LLM = LLM;
 class CopilotModel {
-    userPrompt = "You are the AI inside a vscode extension that records user bash commands and help producing snakemake rules.";
+    userPrompt = "You are part of a vscode extension that records user bash commands and help producing snakemake rules.";
     model;
     constructor(model) {
         this.model = model;

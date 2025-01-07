@@ -73,8 +73,6 @@ class TerminalHistoryDataProvider {
         return commands.map(command => new DisplayCommandRoot(command));
     }
     async handleDrop(target, sources, _token) {
-        console.log("Drop");
-        console.log(target); //this is where you drop! - undefined if root
         const transferItem = sources.get('application/vnd.code.tree.bash-commands'); //This is what you drop
         if (!transferItem) {
             return;
