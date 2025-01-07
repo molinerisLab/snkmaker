@@ -1,13 +1,6 @@
 # SnakeMaker
 convert bash/r/python history or unstructured code in snakefiles
 
-
-
-# Build and install extension for local usage
-* Set version: open "package.json", modify field "version"
-* Build: "npx @vscode/vsce -- package". Produces a *.vsix file.
-* Install: from VSCode, open the "Extension" sidebar, click on the three dots on the top-right corner of the sidebar, click Install from VSIX.
-
 # General Usage
 
 ## Record bash commands
@@ -90,3 +83,11 @@ A model selection panel is provided at the bottom of the Snakemaker panel.
 <img src=".img/Models.png"/>
 
 Double-click on a model to activate it.
+
+
+
+# Build and install extension for local usage
+* Clone the repository: "git clone https://github.com/molinerisLab/snkmaker.git"
+* Set version: open "package.json", modify field "version"
+* Build: "npx @vscode/vsce -- package". Produces a *.vsix file.
+* Install: from VSCode, open the "Extension" sidebar, click on the three dots on the top-right corner of the sidebar, click Install from VSIX.
