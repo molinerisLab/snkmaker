@@ -85,25 +85,23 @@ export class TerminalHistory {
         if (negative_examples.length > 35){
             negative_examples.splice(35);
         }
-        try{
-            const important = this.queries.guess_if_important(value, positive_examples, negative_examples);
-            const guesses = this.queries.guess_rule_details(value);
-            //Wait for both promises to resolve
-            await Promise.all([important, guesses]).then((values) => {
-                const important = values[0];
-                const guesses = values[1];
-                singleTempCommand.set_input(guesses[0]);
-                singleTempCommand.set_output(guesses[1]);
-                singleTempCommand.set_rule_name(guesses[2]);
-                singleTempCommand.set_importance(important);
-                tempCommand.set_temporary(false);
-                this.saveState();
-                SnkmakerLogger.instance()?.commandDetails(tempCommand);
-            });
-        } catch (e){
+        const important = this.queries.guess_if_important(value, positive_examples, negative_examples);
+        const guesses = this.queries.guess_rule_details(value);
+        //Wait for both promises to resolve
+        await Promise.all([important, guesses]).then((values) => {
+            const important = values[0];
+            const guesses = values[1];
+            singleTempCommand.set_input(guesses[0]);
+            singleTempCommand.set_output(guesses[1]);
+            singleTempCommand.set_rule_name(guesses[2]);
+            singleTempCommand.set_importance(important);
+            tempCommand.set_temporary(false);
+            this.saveState();
+            SnkmakerLogger.instance()?.commandDetails(tempCommand);
+        }).catch((e) => {;
             this.history.splice(this.history.indexOf(tempCommand), 1);
             throw e;
-        }
+        });
 
     }
     getHistory() {

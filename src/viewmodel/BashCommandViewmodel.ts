@@ -15,6 +15,10 @@ export class BashCommandViewModel{
     
     constructor(private memento: vscode.Memento){
         this.llm = new LLM(memento);
+        const modelId = memento.get<string|undefined>('current_model', undefined);
+        if (modelId){
+            this.useModel(modelId, true, true);
+        }
         this.terminalHistory = new TerminalHistory(this.llm);
         this.writeToFiles = new WriteToFiles();
     }
@@ -44,16 +48,15 @@ export class BashCommandViewModel{
         if (!this.isListening){
             return;
         }
-        try{
           this.terminalHistory.addCommand(value, confidence, isTrusted).then(() => {
               this.observableCommands.next(this.terminalHistory.getHistory());
               this.updateCanUndoCanRedo();
+          }).catch((e) => {
+            vscode.window.showInformationMessage(e.toString());
+            this.observableCommands.next(this.terminalHistory.getHistory());
           });
           this.observableCommands.next(this.terminalHistory.getHistory());
-        } catch (e){
-          vscode.window.showInformationMessage('Error adding command: ' + e);
-        }
-    }
+      }
     addCommandGoneWrong(value: string, confidence: number, isTrusted: boolean, returnCode: number | undefined){
       if (!this.isListening){
         return;
@@ -130,54 +133,54 @@ export class BashCommandViewModel{
     }
 
     printRule(command: BashCommandContainer){
-      try{
-        this.terminalHistory.getRule(command).then((rule) => {
-          if (rule){
-              this.writeToFiles.writeToCurrentFile(rule).then((success) => {
-                  if (success){
-                      this.archiveCommands([command]);
-                  }
-                  this.updateCanUndoCanRedo();
-              });
-          }
-        });
+      this.terminalHistory.getRule(command).then((rule) => {
+        if (rule){
+            this.writeToFiles.writeToCurrentFile(rule).then((success) => {
+                if (success){
+                    this.archiveCommands([command]);
+                }
+                this.updateCanUndoCanRedo();
+            });
+        }
+      }).catch((e) => {
+        vscode.window.showInformationMessage(e.toString());
         this.observableCommands.next(this.terminalHistory.getHistory());
-      } catch (e){
-        vscode.window.showInformationMessage('Error printing rule: ' + e);
-      }
+      });
+      this.observableCommands.next(this.terminalHistory.getHistory());
     }
     printAllRules(){
-      try{
-        this.terminalHistory.getAllRules().then((rules) => {
-          if (!rules){
-              vscode.window.showInformationMessage('No rules to print');
-              return;
+      this.terminalHistory.getAllRules().then((rules) => {
+        if (!rules){
+            vscode.window.showInformationMessage('No rules to print');
+            return;
+        }
+        this.writeToFiles.writeToCurrentFile(rules).then((success) => {
+          if (success){
+            this.archiveCommands([]);
           }
-          this.writeToFiles.writeToCurrentFile(rules).then((success) => {
-            if (success){
-              this.archiveCommands([]);
-            }
-          });
-          this.updateCanUndoCanRedo();
         });
+        this.updateCanUndoCanRedo();
+      }).catch((e) => {
+        vscode.window.showInformationMessage(e.toString());
         this.observableCommands.next(this.terminalHistory.getHistory());
-      } catch (e){
-        vscode.window.showInformationMessage('Error printing rules: ' + e);
-      }
+      });
+      this.observableCommands.next(this.terminalHistory.getHistory());
     }
 
-    async useModel(modelIndex: number, skip_message: boolean = false){
+    async useModel(id: string, skip_message: boolean = false, skip_error_message: boolean = false){
         if (this.isChangingModel){
             return;
         }
         this.isChangingModel = true;
-        this.llm.useModel(modelIndex, skip_message).then((hi) => {
+        this.llm.useModel(id, skip_message).then((hi) => {
             this.isChangingModel = false;
             this.observableModel.next(this.llm);
 			      vscode.window.showInformationMessage('Model activated. The model says hi: "' + hi + '"');
         }).catch((e) => {
           this.isChangingModel = false;
-          vscode.window.showInformationMessage('Error activating model: ' + (<Error>e).message);
+          if (!skip_error_message){
+            vscode.window.showInformationMessage('Error activating model: ' + (<Error>e).message);
+          }
         });
     }
 
@@ -198,10 +201,11 @@ export class BashCommandViewModel{
         this.llm.is_copilot_waiting = false;
         return;
       }
-      const index: number = this.llm.activateCopilot(models);
-      if (index !== -1){
-        await this.useModel(index, true);
-        this.llm.is_copilot_waiting = false;
+      this.llm.activateCopilot(models);
+      this.llm.is_copilot_waiting = false;
+      if (this.llm.current_model === -1){
+        const modelId = this.memento.get<string>('current_model', 'gpt-4o');
+        this.useModel(modelId, true);
       }
       this.observableModel.next(this.llm);
     }
@@ -266,6 +270,42 @@ export class BashCommandViewModel{
         this.terminalHistory.loadJson(backup);
         vscode.window.showInformationMessage('Error setting history: ' + e);
       }
+    }
+
+    addModel(){
+      vscode.window.showQuickPick(['Continue', 'Cancel'], {placeHolder: 'Adding a new model with OpenAI API'}).then((value) => {
+          if (value !== 'Continue'){
+            return;
+          }
+          vscode.window.showInputBox({prompt: 'Enter the API URL'}).then((url) => {
+            if (!url){
+              return;
+            }
+            vscode.window.showInputBox({prompt: 'Enter the API key',ignoreFocusOut: true}).then((token) => {
+              if (!token){
+                return;
+              }
+              vscode.window.showInputBox({prompt: 'Enter the name of the model',ignoreFocusOut: true}).then((name) => {
+                if (!name){
+                  return;
+                }
+                vscode.window.showInputBox({prompt: 'Enter the maximum number of tokens',ignoreFocusOut: true}).then((max_tokens) => {
+                  if (!max_tokens){
+                    return;
+                  }
+                  this.llm.addModel(url, token, name, parseInt(max_tokens));
+                  this.observableModel.next(this.llm);
+                });
+              });
+            });
+          });
+        }
+      );
+    }
+
+    deleteModel(id: string){
+      this.llm.deleteModel(id);
+      this.observableModel.next(this.llm);
     }
 
 }

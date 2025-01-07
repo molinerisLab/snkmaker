@@ -1,15 +1,17 @@
 import OpenAI from 'openai';
 import * as vscode from 'vscode';
 import { SnkmakerLogger } from '../utils/SnkmakerLogger';
+import { randomInt } from 'crypto';
 
 export class LLM{
     models: ModelComms[];
     current_model: number;
+    current_model_id: string | undefined = undefined;
     copilot_active = false;
     is_copilot_waiting = true;
     constructor(private memento: vscode.Memento){
         this.current_model = -1;
-        this.models = [new OpenAI_Models("","","test","test")];//TODO [];
+        this.models = this.loadModels();
     }
     async run_query(query: string): Promise<string>{
         if (this.is_copilot_waiting){
@@ -19,10 +21,9 @@ export class LLM{
                 SnkmakerLogger.instance()?.log("User tried running query but no model selected - sleeping");
             }
         }
-        console.log("Ciao")
-        if (true || this.current_model === -1){
+        if (this.current_model === -1){
             SnkmakerLogger.instance()?.log("User tried running query but no model selected:\n"+query);
-            throw new Error("No model currently selected");
+            throw new Error("No model currently selected - please select a model to use Snakemaker");
         }
         
         return this.models[this.current_model].run_query(query).then(response => {
@@ -31,13 +32,17 @@ export class LLM{
         });
     }
 
-    async useModel(index: number, skip_message: boolean = false): Promise<string>{
+    async useModel(id: string, skip_message: boolean = false){
+        const index = this.models.findIndex(model => model.get_id() === id);
+        if (index === -1 || index === this.current_model){
+            throw new Error("Model not found");
+        }
         if (!skip_message){
 		    vscode.window.showInformationMessage('Activating model: ' + this.models[index].get_name() + "...");
         }
         const hi = await this.models[index].run_query("You are part of a vscode extension that helps users write snakemake rules from bash prompts - the user just selected you as the model of choice. Say Hi to the user! :) (please keep very short, you are in a small window - please do not ask questions to the user, he cannot respond)");
         this.current_model = index;
-        this.memento.update('copilot_model', this.models[index].get_id());
+        this.memento.update('current_model', id);
         return hi;
     }
         
@@ -49,25 +54,47 @@ export class LLM{
             return -1;
         }
         models = models.filter(model => model.id.indexOf("gpt-3.5") === -1);
-        //Check if user has saved a model as the first one - otherwise default to gpt-4o
-        var model_id = this.memento.get<string>('copilot_model', 'gpt-4o');
-        
-        var model_index = models.findIndex(model => model.id === model_id);
-        if (model_index === -1){
-            model_index = 0;
-            model_id = models[0].id;
-            this.memento.update('copilot_model', model_id);
-        }
-
         const copilot_models: ModelComms[] = models.map(_model => 
             new CopilotModel(_model)
         );
-        this.models = copilot_models.concat(this.models);
-        if (this.current_model !== -1){
-            this.current_model += copilot_models.length;
-        }
+        this.models = this.models.concat(copilot_models);
         this.copilot_active = true;
-        return model_index;
+    }
+
+    addModel(url: string, apiKey: string, model:string, max_tokens: number){
+        const new_model: ModelComms = new OpenAI_Models(url, apiKey, model, max_tokens);
+        this.models = [new_model].concat(this.models);
+        this.current_model += 1;
+        this.exportModels();
+    }
+
+    exportModels(){
+        const exported = this.models.filter(model => model.is_user_added()).map(model => {
+            return model.export();
+        });
+        this.memento.update('models', exported);
+    }
+    loadModels(): ModelComms[]{
+        return this.memento.get<string[]>('models', []).map(model => {
+            const parsed = JSON.parse(model);
+            if (!parsed){
+                return;
+            }
+            return new OpenAI_Models(parsed.url, parsed.apiKey, parsed.model, parsed.max_tokens);
+        }).filter(model => model !== undefined) as ModelComms[];
+    }
+
+    deleteModel(id: string){
+        const index = this.models.findIndex(model => model.get_id() === id);
+        if (index === -1){
+            return false;
+        }
+        this.models.splice(index, 1);
+        if (index === this.current_model){
+            this.current_model = -1;
+        } else if (index < this.current_model){
+            this.current_model -= 1;
+        }
     }
 
 }
@@ -83,6 +110,7 @@ export interface ModelComms{
     get_params(): ModelParameters[];
     set_param(key: string, value: string): void;
     is_user_added(): boolean;
+    export(): string;
 }
 
 class CopilotModel implements ModelComms{
@@ -121,16 +149,21 @@ class CopilotModel implements ModelComms{
     get_id(): string{
         return this.model.id;
     }
+    export(): string{
+        return "";
+    }
 }
 
 class OpenAI_Models implements ModelComms{
     url: string; apiKey: string; model: string;
     name: string;
-    constructor(url: string, apiKey: string, model: string, name: string){
+    max_tokens: number;
+    constructor(url: string, apiKey: string, model: string, max_tokens: number){
         this.url = url;
         this.apiKey = apiKey;
         this.model = model;
-        this.name = name;
+        this.name = model + "-t"+max_tokens;
+        this.max_tokens = max_tokens;
     }
     get_name(): string{
         return this.name;
@@ -142,10 +175,18 @@ class OpenAI_Models implements ModelComms{
         return;
     }
     get_id(): string{
-        return this.model;
+        return this.name;
     }
     is_user_added(): boolean {
         return true;
+    }
+    export(): string {
+        return JSON.stringify({
+            url: this.url,
+            apiKey: this.apiKey,
+            model: this.model,
+            max_tokens: this.max_tokens
+            });
     }
 
     async run_query(query: string): Promise<string>{
@@ -158,7 +199,7 @@ class OpenAI_Models implements ModelComms{
             messages: [{"role":"user","content":query}],
             temperature: 0.5,
             top_p: 1,
-            max_tokens: 1024,
+            max_tokens: this.max_tokens,
             stream: true,
         });
         var response: string = "";

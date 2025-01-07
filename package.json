@@ -2,7 +2,7 @@
   "name": "snkmaker",
   "displayName": "Snakemaker",
   "description": "",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "repository": "https://github.com/molinerisLab/snkmaker",
   "engines": {
     "vscode": "^1.95.0"
@@ -180,7 +180,8 @@
         },
         {
           "command": "delete-model",
-          "when": "view == llm-models && viewItem == USER_MODEL"
+          "when": "view == llm-models && viewItem == USER_MODEL",
+          "group": "inline@1"
         }
       ]
     },
@@ -338,7 +339,8 @@
       },
       {
         "command": "delete-model",
-        "title": "Delete model"
+        "title": "Delete model",
+        "icon": "$(notifications-clear)"
       },
       {
         "command": "add-model",

@@ -179,7 +179,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(stop_listening);
 	const select_model = vscode.commands.registerCommand('use-model', async (model) => {
 		if (model && model.checkDoubleClick()){
-			viewModel.useModel(model.index);
+			viewModel.useModel(model.model.get_id());
 		}
 	});
 	context.subscriptions.push(select_model);
@@ -232,11 +232,13 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 	context.subscriptions.push(disableLogging);
 	const addNewModel = vscode.commands.registerCommand('add-model', () => {
-		console.log("Adding new model");
+		viewModel.addModel();
 	});
 	context.subscriptions.push(addNewModel);
-	const deleteModel = vscode.commands.registerCommand('delete-model', () => {
-		console.log("Deleting model");
+	const deleteModel = vscode.commands.registerCommand('delete-model', (model) => {
+		if (model){
+			viewModel.deleteModel(model.model.get_id());
+		}
 	});
 	context.subscriptions.push(deleteModel);
 	//Activate copilot, if not already active
