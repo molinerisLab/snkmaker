@@ -3,6 +3,10 @@ Record bash history and convert it into Snakemake or Make rules.
 
 # General Usage
 
+This README is included in Copilot Chat's context, together with the extension's settings and state. Tag *@snakemaker* in the Copilot Chat to ask any question or to get help with the extension.
+
+<img src=".img/copilot_chat.png" style="max-width:380px"/>
+
 ## Snakemaker panel overview 
 <img src=".img/Snakemaker_Overview.png"/>
 
@@ -44,10 +48,21 @@ Snakemaker can also generate Make rules. The user can switch between Snakemake a
 ## Rule generation options
 
 For the Snakemake rules, some additional options are offered in the settings:
-* Log directive: whether to include the log directive in the rules. Log directive is recommended in the [Snakemake best practices](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html#log-files) and is On by default, but can be turned off manually.
+* Log directive: whether to include the log directive in the rules. Log directive is recommended in the [Snakemake best practices](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html#log-files) and is on by default, but can be turned off manually.
 * Prefer generic rules: by default, when exporting multiple rules in a batch, generic rules with wildcards are preferred. This can be turned off in the settings.
 
 Settings related to Snakemake rule generation are grouped under "Snakemake Best Practices" in the VSCode settings.
+
+## Automatic rule validation and correction
+
+Generated Snakemake rules are checked for errors, and fed back to the model with the error message for correction.
+This feature makes rule generation more reliable, but can slow down the process and consume more tokens of the LLM API. It can be disabled in the settings: "Snakemaker: Validate Snakemake Rules".
+
+In order for automatic correction to work, a path to *snakemake* must be provided in the settings, or snakemake must be on user's $PATH.
+* Open the VSCode settings with Ctrl + ,
+* Search for "Snakemaker: Snakemake Absolute Path"
+* Provide the absolute path to the snakemake executable
+* Leave empty to use the $PATH
 
 ## Chat directly with Snakemaker
 Snakemaker integrates with the Github Copilot chat, allowing the user to chat directly with the extension.
@@ -97,6 +112,14 @@ A model selection panel is provided at the bottom of the Snakemaker panel.
 
 Double-click on a model to activate it.
 
+### Add custom model
+
+Custom models can be added if they support OpenAi API standards. In order to add a custom model:
+* Click "Add Model" in the Model panel.
+* Provide the model's URL.
+* Provide the model's API key, or leave empty if the model is free to use (i.e. locally hosted models).
+* Provide the model's name, required by the OpenAi API.
+* Provide the maximum tokens the model can consume in a single request.
 
 
 # Build and install extension for local usage

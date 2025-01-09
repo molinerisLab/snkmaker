@@ -11,6 +11,7 @@ import { ChatExtension } from './model/ChatExtension';
 import { HiddenTerminal } from './utils/HiddenTerminal';
 import { CommandInference } from './utils/CommandInference';
 import { SnkmakerLogger } from './utils/SnkmakerLogger';
+import { TestRules } from './utils/TestRules';
 
 
 let viewModel: BashCommandViewModel;

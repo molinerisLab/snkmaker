@@ -110,4 +110,11 @@ Please output only the name. DO NOT, EVER output other things.`;
         return response;
     }
 
+    async correct_rules(rules: string, error: string){
+        const query = `I have the following rules:\n\n${rules}\n\nI tried to run them in Snakemake, but I got the following error:\n\n${error}\n\nCan you fix the rules so that they run correctly?
+Please output only the corrected rule. What you output goes entirely in the Snakefile, so DO NOT, EVER, OUTPUT ANYTHING OTHER THAN THE RULES. Example of good output: "<NEW_RULES>". Examples of bad output: "Here are the corrected rules <NEW_RULES>"`;
+        const response = await this.modelComms.run_query(query);
+        return response;    
+    }
+
 }

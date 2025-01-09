@@ -4,6 +4,7 @@ import { Queries } from "./Queries";
 import { assert } from "console";
 import { SnkmakerLogger } from "../utils/SnkmakerLogger";
 import * as vscode from 'vscode';
+import { TestRules } from "../utils/TestRules";
 
 const STACK_SIZE = 4;
 
@@ -50,6 +51,7 @@ export class TerminalHistory {
     archive: BashCommandContainer[];
     queries: Queries;
     index: number;
+    testRules: TestRules = new TestRules();
     undoRedoStack: UndoRedoStack;
     constructor(private llm: LLM, private memento: vscode.Memento, private stashState: boolean = false) {
         this.history = [];
@@ -184,13 +186,30 @@ export class TerminalHistory {
         SnkmakerLogger.instance()?.setCommandImportance(command, importance);
     }
 
+    mustCorrectRules(){
+        //Only if it is in Snakemake format and the user has not disabled the setting
+        return vscode.workspace.getConfiguration('snakemaker').get('rulesOutputFormat', "Snakemake")==="Snakemake" &&
+            vscode.workspace.getConfiguration('snakemaker').get('validateSnakemakeRules', false);
+    }
+
     async getRule(command: BashCommand): Promise<string>{
         if (command.get_temporary()===true){
             return "";
         }
         command.set_temporary(true);
         try {
-            const r = await this.queries.get_snakemake_rule(command);
+            var r = await this.queries.get_snakemake_rule(command);
+            if (this.mustCorrectRules()){
+                for (let i = 0; i < 3; i++){
+                    const valid:any = await this.testRules.validateRules(r);
+                    if (valid.success){
+                        break;
+                    }
+                    SnkmakerLogger.instance()?.log(`Generated rule not valid: ${valid.message}`);
+                    r = await this.queries.correct_rules(r, valid.message);
+                    SnkmakerLogger.instance()?.log(`Corrected rule: ${r}`);
+                }
+            }
             command.set_temporary(false);
             return r;
         } catch (e){
@@ -206,7 +225,18 @@ export class TerminalHistory {
         }
         important.forEach(command => command.set_temporary(true));
         try{
-            const r = await this.queries.get_all_rules(important);
+            var r = await this.queries.get_all_rules(important);
+            if (this.mustCorrectRules()){
+                for (let i = 0; i < 3; i++){
+                    const valid:any = await this.testRules.validateRules(r);
+                    if (valid.success){
+                        break;
+                    }
+                    SnkmakerLogger.instance()?.log(`Generated rule not valid: ${valid.message}`);
+                    r = await this.queries.correct_rules(r, valid.message);
+                    SnkmakerLogger.instance()?.log(`Corrected rule: ${r}`);
+                }
+            }
             return r;
         } catch (e){
             throw e;

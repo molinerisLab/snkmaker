@@ -385,6 +385,16 @@
           "enum": ["Snakemake", "Make"],
           "default": "Snakemake",
           "markdownDescription": "Produce rules in Snakemake or in Make format"
+        },
+        "snakemaker.snakemakeAbsolutePath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Absolute path to the Snakemake executable. Used to test the generated rules' correctness. If empty, the extension will try to find it in the PATH."
+        },
+        "snakemaker.validateSnakemakeRules": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When generating Snakemake rules, validate them with the Snakemake executable and try to automatically correct errors."
         }
       }
     },
@@ -446,6 +456,7 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
-    "openai": "^4.73.1"
+    "openai": "^4.73.1",
+    "tmp": "^0.2.3"
   }
 }

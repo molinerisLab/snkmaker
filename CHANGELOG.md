@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Automatic session recovery.
+- Automatic rule validation and correction: generated Snakemake rules are now checked for errors, and fed back to the model with the error message for correction. Can be disabled in settings.
 
 ### Changed
 
