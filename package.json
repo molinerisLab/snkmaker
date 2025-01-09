@@ -370,6 +370,11 @@
           "default": true,
           "markdownDescription": "Maintain the command history between VSCode sessions"
         },
+        "snakemaker.snakemakeBestPracticesSetLogFieldInSnakemakeRules": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Each rule has a Log field, as recommended by [Snakemake best practices](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html#log-files)."
+        },
         "snakemaker.rulesOutputFormat": {
           "type": "string",
           "enum": ["Snakemake", "Make"],
