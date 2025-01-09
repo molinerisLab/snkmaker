@@ -69,7 +69,7 @@ ${command}
 It is estimated that the input could be (${inputs}) and the output could be (${output}) - but it could be wrong. A possible name for the rule could be ${bashCommand.get_rule_name()}.
 Please do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary.
 Please output only the rule. What you output goes entirely in the ${rule_format} file, so Do not output other things. Example of good output: "<RULE>". Examples of bad output: "Here is the rule <RULE>" or "<RULE> is the rule".`;
-    if (this.add_log_to_rule()){
+    if (rule_format==="Snakemake" && this.add_log_to_rule()){
         query += "\nPlease add a log field to the rule with the name of the log file. For example, log: 'logs/{rule}.log'. If the rule contains wildcards, they must be part of the log file name or Snakemake will throw an error. Log field must be added before shell field.";
     }    
     const response = await this.modelComms.run_query(query);

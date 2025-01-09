@@ -41,7 +41,13 @@ By default, Snakemaker proposes one candidate rule for each important bash comma
 Snakemaker can also generate Make rules. The user can switch between Snakemake and Make rules generation by searching for "Rules output format" in the VSCode settings. Alternatively, ask [@snakemaker in the chat](#chat-directly-with-snakemaker) to open the setting for you.
 
 
-## Rule generation
+## Rule generation options
+
+For the Snakemake rules, some additional options are offered in the settings:
+* Log directive: whether to include the log directive in the rules. Log directive is recommended in the [Snakemake best practices](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html#log-files) and is On by default, but can be turned off manually.
+* Prefer generic rules: by default, when exporting multiple rules in a batch, generic rules with wildcards are preferred. This can be turned off in the settings.
+
+Settings related to Snakemake rule generation are grouped under "Snakemake Best Practices" in the VSCode settings.
 
 ## Chat directly with Snakemaker
 Snakemaker integrates with the Github Copilot chat, allowing the user to chat directly with the extension.
