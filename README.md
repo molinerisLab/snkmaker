@@ -40,6 +40,9 @@ By default, Snakemaker proposes one candidate rule for each important bash comma
 
 Snakemaker can also generate Make rules. The user can switch between Snakemake and Make rules generation by searching for "Rules output format" in the VSCode settings. Alternatively, ask [@snakemaker in the chat](#chat-directly-with-snakemaker) to open the setting for you.
 
+
+## Rule generation
+
 ## Chat directly with Snakemaker
 Snakemaker integrates with the Github Copilot chat, allowing the user to chat directly with the extension.
 
@@ -72,9 +75,10 @@ The direct chat can be used for a variety of purposes:
 
 ## Import-export workspace
 
-The workspace - intended as the collection of recorded and archived commands, together with their additional information, will be lost when VSCode is restarted.
+The workspace contains all the recorded commands and their details. By default, the workspace is preserved between VSCode sessions, an option that can be disabled in the settings ("Keep history between sessions").
 
-In order to preserve it, the workspace can be saved to a file and re-loaded.
+
+Explicit import and export of the workspace to a JSON file can be done:
 
 * Open the VSCode command palette with Ctrl + Shift + P 
 * Search for "Snakemaker: Load Workspace" or "Snakemaker: Save Workspace"

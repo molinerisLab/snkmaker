@@ -375,6 +375,11 @@
           "default": true,
           "markdownDescription": "Each rule has a Log field, as recommended by [Snakemake best practices](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html#log-files)."
         },
+        "snakemaker.snakemakeBestPracticesPreferGenericFilenames": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Snakemake rules are generated, when possible, with generic filenames, using wildcards, as recommended by [Snakemake best practices](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html#wildcards)."
+        },
         "snakemaker.rulesOutputFormat": {
           "type": "string",
           "enum": ["Snakemake", "Make"],

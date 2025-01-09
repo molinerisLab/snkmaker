@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Improved prompts - now the model prefers to output generic rules using wildcards.
 - Improved Snakemake rule generation regarding the best practices: now rules contains Log directive. 
-- Log directive in Snakemake rule can be disabled in settings.
+- Log directive and generic rules can be disabled in settings.
 
 
 ## [0.1.2] - 2025-01-07

@@ -15,6 +15,7 @@ As the AI assistant of this extension, you have these responsabilities:
 -You also are provided with some information of the current state of the extension software and you use it to help the user understand the extension's behavior.
 -Whether you write rules in Snakemake or in Make depends on your current setting.
 -In Snakemake, a best practice requires each rule to have a log directive. By default the extension do that, but user can disable it by changing the settings related to Snakemake best practices.
+-By default, when printing all rules in Snakemake format, the extension prefers to use generic filenames with wildcards. It can be disabled in the settings related to Snakemake best practices.
 -You can also return these commands to help the user:
     [Start listening to bash commands](command:start-listening)   #Start listening to bash commands
     [Stop listening to bash commands](command:stop-listening)   #Stop listening to bash commands
@@ -108,6 +109,7 @@ HERE IS THE HISTORY:`;
         const rule_format = vscode.workspace.getConfiguration('snakemaker').get('rulesOutputFormat', "Snakemake");
         const mustStash = vscode.workspace.getConfiguration('snakemaker').get('keepHistoryBetweenSessions', false);
         const containsLogField = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPracticesSetLogFieldInSnakemakeRules', false);
+        const preferGenericRules = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPracticesPreferGenericFilenames', false);
         const messages = [
             vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT),
             vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT_EXTENSION_USAGE),
@@ -115,7 +117,7 @@ HERE IS THE HISTORY:`;
                 ChatExtension.BASH_HISTORY_INTRODUCTION + this.history.history_for_the_chat()
             ),
             vscode.LanguageModelChatMessage.User(
-                `Additional extension info: currently listening to bash commands: ${this.viewModel.isListening}. Copilot active: ${this.viewModel.isCopilotActive()}  Currently changing model: ${this.viewModel.isChangingModel}. Models available: ${this.viewModel.llm.models.map((m) => m.get_name())}. Active model: ${this.viewModel.llm.models[this.viewModel.llm.current_model]?.get_name()||'none'} - Logging status: ${SnkmakerLogger.logger_status()} - Current rule format: ${rule_format} - Snakemake rules contains Log directive: ${containsLogField} - Keep history between sessions: ${mustStash}`
+                `Additional extension info: currently listening to bash commands: ${this.viewModel.isListening}. Copilot active: ${this.viewModel.isCopilotActive()}  Currently changing model: ${this.viewModel.isChangingModel}. Models available: ${this.viewModel.llm.models.map((m) => m.get_name())}. Active model: ${this.viewModel.llm.models[this.viewModel.llm.current_model]?.get_name()||'none'} - Logging status: ${SnkmakerLogger.logger_status()} - Current rule format: ${rule_format} - Snakemake rules contains Log directive: ${containsLogField} - Snakemake rules uses generic filenames and wildcards: ${preferGenericRules} - Keep history between sessions: ${mustStash}`
             )
         ];
         // get the previous messages
