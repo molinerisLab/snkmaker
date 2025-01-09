@@ -3,6 +3,7 @@ import { LLM } from "./ModelComms";
 import { Queries } from "./Queries";
 import { assert } from "console";
 import { SnkmakerLogger } from "../utils/SnkmakerLogger";
+import * as vscode from 'vscode';
 
 const STACK_SIZE = 4;
 
@@ -47,18 +48,16 @@ class UndoRedoStack{
 export class TerminalHistory {
     history: BashCommandContainer[];
     archive: BashCommandContainer[];
-    llm: LLM;
     queries: Queries;
     index: number;
     undoRedoStack: UndoRedoStack;
-    constructor(llm: LLM) {
+    constructor(private llm: LLM, private memento: vscode.Memento, private stashState: boolean = false) {
         this.history = [];
         this.archive = [];
-        this.llm = llm;
         this.queries = new Queries(this.llm);
         this.index = 0;
         this.undoRedoStack = new UndoRedoStack();
-        this.saveState();
+        this.saveState(true);
     }
 
     async addCommand(value: string, confidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean) {
@@ -153,6 +152,10 @@ export class TerminalHistory {
     }
     deleteAllCommands() {
         this.history = [];
+        this.saveState();
+    }
+    deleteAllArchivedCommands() {
+        this.archive = [];
         this.saveState();
     }
     restoreCommand(command: BashCommandContainer) {
@@ -302,8 +305,12 @@ export class TerminalHistory {
         SnkmakerLogger.instance()?.imported(this.history);
     }
 
-    saveState(){
-        this.undoRedoStack.push(this.export());
+    saveState(skip_stash: boolean = false){
+        const exported = this.export();
+        this.undoRedoStack.push(exported);
+        if (!skip_stash && this.stashState){
+            this.memento.update("stashed_state", exported);
+        }
     }
 
     undo(){

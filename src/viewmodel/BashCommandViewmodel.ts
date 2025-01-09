@@ -13,13 +13,13 @@ export class BashCommandViewModel{
     isListening = false;
     isChangingModel = false;
     
-    constructor(private memento: vscode.Memento){
+    constructor(private memento: vscode.Memento, stashState: boolean){
         this.llm = new LLM(memento);
         const modelId = memento.get<string|undefined>('current_model', undefined);
         if (modelId){
             this.useModel(modelId, true, true);
         }
-        this.terminalHistory = new TerminalHistory(this.llm);
+        this.terminalHistory = new TerminalHistory(this.llm, memento, stashState);
         this.writeToFiles = new WriteToFiles();
     }
 
@@ -100,6 +100,11 @@ export class BashCommandViewModel{
         this.observableCommands.next(this.terminalHistory.getHistory());
         this.updateCanUndoCanRedo();
     }
+    deleteAllArchivedCommands(){
+      this.terminalHistory.deleteAllArchivedCommands();
+      this.observableArchive.next(this.terminalHistory.getArchive());
+      this.updateCanUndoCanRedo();
+  }
     setCommandImportance(command: BashCommandContainer, importance: boolean){
         this.terminalHistory.setCommandImportance(command, importance);
         this.observableCommands.next(this.terminalHistory.getHistory());
@@ -306,6 +311,16 @@ export class BashCommandViewModel{
     deleteModel(id: string){
       this.llm.deleteModel(id);
       this.observableModel.next(this.llm);
+    }
+
+    popState(){
+      const stashed_state = this.memento.get<string|undefined>('stashed_state', undefined);
+      if (stashed_state){
+        this.terminalHistory.loadJson(stashed_state);
+        this.observableCommands.next(this.terminalHistory.getHistory());
+        this.observableArchive.next(this.terminalHistory.getArchive());
+        this.memento.update('stashed_state', undefined);
+      }
     }
 
 }

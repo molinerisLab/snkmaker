@@ -157,7 +157,7 @@ class CopilotModel implements ModelComms{
 
 class OpenAI_Models implements ModelComms{
     url: string; apiKey: string; model: string;
-    name: string;
+    name: string; id:string;
     max_tokens: number;
     constructor(url: string, apiKey: string, model: string, max_tokens: number){
         this.url = url;
@@ -165,6 +165,7 @@ class OpenAI_Models implements ModelComms{
         this.model = model;
         this.name = model + "-t"+max_tokens;
         this.max_tokens = max_tokens;
+        this.id = new Date().getTime() + model;
     }
     get_name(): string{
         return this.name;
@@ -176,7 +177,7 @@ class OpenAI_Models implements ModelComms{
         return;
     }
     get_id(): string{
-        return this.name;
+        return this.id;
     }
     is_user_added(): boolean {
         return true;

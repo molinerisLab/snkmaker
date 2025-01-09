@@ -12,6 +12,9 @@ import { HiddenTerminal } from './utils/HiddenTerminal';
 import { CommandInference } from './utils/CommandInference';
 import { SnkmakerLogger } from './utils/SnkmakerLogger';
 
+
+let viewModel: BashCommandViewModel;
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
@@ -61,7 +64,8 @@ export function activate(context: vscode.ExtensionContext) {
 	const commandInference = new CommandInference(hiddenTerminal);*/
 
 	//Create viewmodel for terminal history
-	const viewModel = new BashCommandViewModel(memento);
+	const mustStash = vscode.workspace.getConfiguration('snakemaker').get('keepHistoryBetweenSessions', false);
+	viewModel = new BashCommandViewModel(memento, mustStash);
 	//Create views
 	const bashHistoryDataProvider = new TerminalHistoryDataProvider(viewModel);
 	const bashCommandView = vscode.window.createTreeView('bash-commands', { treeDataProvider: bashHistoryDataProvider, dragAndDropController: bashHistoryDataProvider });
@@ -71,7 +75,10 @@ export function activate(context: vscode.ExtensionContext) {
 	const modelsDataProvider: ModelsDataProvider = new ModelsDataProvider(viewModel);
 	vscode.window.registerTreeDataProvider('llm-models', modelsDataProvider);
 	vscode.window.registerFileDecorationProvider(new TodoDecorationProvider(viewModel));
-	
+	//Unstash state if enabled
+	if (mustStash){
+		viewModel.popState();
+	}
 	//Register terminal listener, update view
 	vscode.window.onDidEndTerminalShellExecution(event => {
 		const commandLine = event.execution.commandLine;
@@ -135,6 +142,10 @@ export function activate(context: vscode.ExtensionContext) {
 		viewModel.deleteAllCommmands();
 	});
 	context.subscriptions.push(delete_all_commands);
+	const delete_all_archived_commands = vscode.commands.registerCommand('delete-all-archived-commands', () => {
+		viewModel.deleteAllArchivedCommands();
+	});
+	context.subscriptions.push(delete_all_archived_commands);
 	const archive_all_commands = vscode.commands.registerCommand('archive-all-commands', () => {
 		viewModel.archiveCommands([]);
 	});
@@ -256,4 +267,6 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() {
+	
+}

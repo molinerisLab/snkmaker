@@ -102,6 +102,11 @@
           "group": "navigation@5"
         },
         {
+          "command": "delete-all-archived-commands",
+          "when": "view == bash-commands-archive",
+          "group": "navigation"
+        },
+        {
           "command": "archive-all-commands",
           "when": "view == bash-commands",
           "group": "navigation@4"
@@ -273,6 +278,11 @@
         "icon": "$(notifications-clear)"
       },
       {
+        "command": "delete-all-archived-commands",
+        "title": "Snakemaker: Delete all archived",
+        "icon": "$(notifications-clear)"
+      },
+      {
         "command": "set-command-important",
         "title": "Set important",
         "icon": "$(debug-breakpoint-log-unverified)"
@@ -354,6 +364,11 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "Send anonymous logs to our server to improve the extension.  [See details on what is logged](command:open-loging-details)."
+        },
+        "snakemaker.keepHistoryBetweenSessions": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Maintain the command history between VSCode sessions"
         },
         "snakemaker.rulesOutputFormat": {
           "type": "string",
