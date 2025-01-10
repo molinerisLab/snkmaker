@@ -237,11 +237,13 @@ export class BashCommandViewModel{
 
     loadWorkspace(path: string){
       try{
-        this.terminalHistory.importFromJsonString(this.writeToFiles.readFromFile(path));
+        const exported = this.writeToFiles.readFromFile(path);
+        this.terminalHistory.importFromJsonString(exported);
         this.observableCommands.next(this.terminalHistory.getHistory());
         this.observableArchive.next(this.terminalHistory.getArchive());
         vscode.window.showInformationMessage('Workspace loaded');
         this.updateCanUndoCanRedo();
+        this.memento.update("stashed_state", exported);
       } catch (e){
         vscode.window.showInformationMessage('Error loading workspace: ' + e);
       }
@@ -318,7 +320,6 @@ export class BashCommandViewModel{
         this.terminalHistory.loadJsonString(stashedState);
         this.observableCommands.next(this.terminalHistory.getHistory());
         this.observableArchive.next(this.terminalHistory.getArchive());
-        this.memento.update('stashed_state', undefined);
       }
     }
 

@@ -376,6 +376,7 @@ export class TerminalHistory {
                 }
                 return container;
             });
+            this.saveState();
             SnkmakerLogger.instance()?.importedFromChat(this.history);
         } catch (e){
             this.loadJsonString(backup);
