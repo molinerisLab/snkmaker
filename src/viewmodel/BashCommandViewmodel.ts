@@ -13,13 +13,13 @@ export class BashCommandViewModel{
     isListening = false;
     isChangingModel = false;
     
-    constructor(private memento: vscode.Memento, stashState: boolean){
+    constructor(private memento: vscode.Memento){
         this.llm = new LLM(memento);
         const modelId = memento.get<string|undefined>('current_model', undefined);
         if (modelId){
             this.useModel(modelId, true, true);
         }
-        this.terminalHistory = new TerminalHistory(this.llm, memento, stashState);
+        this.terminalHistory = new TerminalHistory(this.llm, memento);
         this.writeToFiles = new WriteToFiles();
     }
 

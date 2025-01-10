@@ -54,7 +54,7 @@ export class TerminalHistory {
     index: number;
     testRules: TestRules = new TestRules();
     undoRedoStack: UndoRedoStack;
-    constructor(private llm: LLM, private memento: vscode.Memento, private stashState: boolean = false) {
+    constructor(private llm: LLM, private memento: vscode.Memento) {
         this.history = [];
         this.archive = [];
         this.queries = new Queries(this.llm);
@@ -337,7 +337,7 @@ export class TerminalHistory {
     private saveState(skipStash: boolean = false){
         const exported = this.exportAsJsonString();
         this.undoRedoStack.push(exported);
-        if (!skipStash && this.stashState){
+        if (!skipStash && ExtensionSettings.instance.getKeepHistoryBetweenSessions()){
             this.memento.update("stashed_state", exported);
         }
     }

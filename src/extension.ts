@@ -9,27 +9,12 @@ import { ChatExtension } from './utils/ChatExtension';
 import { SnkmakerLogger } from './utils/SnkmakerLogger';
 import { ExtensionSettings } from './utils/ExtensionSettings';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+
 export function activate(context: vscode.ExtensionContext) {
-	//Initialize logger
-	const logging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
-	console.log('Logging is ' + (logging?'enabled':'disabled'));
-	if (logging){
-		SnkmakerLogger.initialize(context.extension.packageJSON.version);
-	}
-	vscode.workspace.onDidChangeConfiguration(event => {
-        if (event.affectsConfiguration("snakemaker.allowLogging")) {
-			const logging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
-			if (logging){
-				SnkmakerLogger.initialize(context.extension.packageJSON.version);
-			} else {
-				SnkmakerLogger.destroy();
-				SnkmakerLogger.disabled_in_session = false; //Disabled globally
-			}
-        }
-    });
-	//If first time, ask for opt-in to logging
+	
+	//Initialize logger and logics to enable-disable it.
+	SnkmakerLogger.initialize(context.extension.packageJSON.version);
+	//If first time extension opened, ask for opt-in to logging
 	const currentVersion = context.extension.packageJSON.version as string;
 	const lastVersion = context.globalState.get("version") as string ?? "0.0.0";
 	if (lastVersion !== currentVersion) {
@@ -54,8 +39,7 @@ export function activate(context: vscode.ExtensionContext) {
 	vscode.commands.executeCommand('setContext', 'myExtension.canRedo', false);
 
 	//Create viewmodel for terminal history
-	const mustStash = ExtensionSettings.instance.getKeepHistoryBetweenSessions();
-	const viewModel = new BashCommandViewModel(memento, mustStash);
+	const viewModel = new BashCommandViewModel(memento);
 	//Create views
 	const bashHistoryDataProvider = new TerminalHistoryDataProvider(viewModel);
 	const bashCommandView = vscode.window.createTreeView('bash-commands', { treeDataProvider: bashHistoryDataProvider, dragAndDropController: bashHistoryDataProvider });
@@ -65,10 +49,12 @@ export function activate(context: vscode.ExtensionContext) {
 	const modelsDataProvider: ModelsDataProvider = new ModelsDataProvider(viewModel);
 	vscode.window.registerTreeDataProvider('llm-models', modelsDataProvider);
 	vscode.window.registerFileDecorationProvider(new TodoDecorationProvider(viewModel));
-	//Unstash state if enabled
-	if (mustStash){
+	
+	//Unstash state if enabled - must be done after view creation
+	if (ExtensionSettings.instance.getKeepHistoryBetweenSessions()){
 		viewModel.unstashHistory();
 	}
+
 	//Register terminal listener, update view
 	vscode.window.onDidEndTerminalShellExecution(event => {
 		const commandLine = event.execution.commandLine;
@@ -221,12 +207,13 @@ export function activate(context: vscode.ExtensionContext) {
 	const disableLogging = vscode.commands.registerCommand('disable-logs-session', () => {
 		const logger = SnkmakerLogger.instance();
 		if (logger){
-			logger.delete_all_logs().then(() => {
-				vscode.window.showInformationMessage('Logger disabled, log session deleted');
-			}).catch(
-				() => vscode.window.showInformationMessage('Logger disabled, log session not deleted')
-			);
-			SnkmakerLogger.destroy();
+			logger.disableInSession().then((success: boolean) => {
+				if (success){
+					vscode.window.showInformationMessage('Logger disabled, log session deleted');
+				} else {
+					vscode.window.showInformationMessage('Logger disabled, log session not deleted')
+				}
+			});
 		} else {
 			vscode.window.showInformationMessage('Logger already disabled');
 		}

@@ -1,19 +1,37 @@
 import { BashCommand } from "../model/TerminalHistory";
+import * as vscode from 'vscode';
 
+//Singleton class to log activity.
 
-//Singleton class to log activity. Yes yes it's an anti-pattern but I'm not getting into dependency injection in this small feature.
 export class SnkmakerLogger{
     static instance_?: SnkmakerLogger = undefined;
+    static disabledInSession: boolean = false;
     static URLs: string[] = ["https://www.3plex.unito.it/snakemaker","http://192.168.99.164/snakemaker"];
     URL: string = "";
-    static disabled_in_session: boolean = false;
+
 
     static async initialize(version: string){
+        const logging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
+        if (logging){
+            SnkmakerLogger.createInstance(version);
+        }
+        vscode.workspace.onDidChangeConfiguration(event => {
+            if (event.affectsConfiguration("snakemaker.allowLogging")) {
+                const logging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
+                if (logging){
+                    SnkmakerLogger.initialize(version);
+                } else {
+                    SnkmakerLogger.destroy();
+                }
+            }
+        });
+    }
+
+    private static async createInstance(version: string){
         if (SnkmakerLogger.instance_){
             throw new Error("Logger already initialized");
         }
-        console.log("Start logger");
-        var instance_: SnkmakerLogger;
+        let instance_: SnkmakerLogger;
         for (const url of SnkmakerLogger.URLs){
             instance_ = new SnkmakerLogger(version);
             instance_.session_key = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -23,7 +41,7 @@ export class SnkmakerLogger{
                 console.log(response);
                 instance_.session_confirmation_key = response["confirmation_key"]||"";
                 SnkmakerLogger.instance_ = instance_;
-                SnkmakerLogger.disabled_in_session = false;
+                SnkmakerLogger.disabledInSession = false;
                 break;
             } catch(e: any){
                 SnkmakerLogger.instance_ = undefined;
@@ -31,7 +49,7 @@ export class SnkmakerLogger{
         }
     }
     static destroy(){
-        console.log("Destroy logger");
+        SnkmakerLogger.disabledInSession = false;
         SnkmakerLogger.instance_ = undefined;
     }
 
@@ -39,8 +57,8 @@ export class SnkmakerLogger{
         return SnkmakerLogger.instance_;
     }
 
-    static logger_status(): string{
-        if (SnkmakerLogger.disabled_in_session){
+    static loggerStatus(): string{
+        if (SnkmakerLogger.disabledInSession){
             return "Disabled_in_current_session";
         } else if (SnkmakerLogger.instance_){
             return "Enabled";
@@ -71,9 +89,15 @@ export class SnkmakerLogger{
         }).catch(error => {console.log(error); return null;});
     }
 
-    async delete_all_logs(){
-        SnkmakerLogger.disabled_in_session = true;
-        return this.callAPI("/log/delete_all_logs", {});
+    async disableInSession(){
+        SnkmakerLogger.disabledInSession = true;
+        return this.callAPI("/log/delete_all_logs", {}).then(() => {
+            return true;
+        }).catch(() => {
+            return false;
+        }).finally(() => {
+            SnkmakerLogger.instance_ = undefined;
+        });
     }
 
     addCommand(command: BashCommand){
