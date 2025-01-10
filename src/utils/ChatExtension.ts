@@ -44,7 +44,7 @@ Additionally, each command can be individually archived, printed as a rule or de
 Commands can be composed of multiple commands. By default each command recorded is considered as an individual, but the user can drag and drop to merge them into composite commands.
 If the user runs a command that returns an a code different from 0, the command will NOT be recorded.
 -Archived Commands: contains the archived commands, which can be unarchived or deleted. Commands are archived when the user explicitly archives them or when their corresponding rules are printed.
--Models: contains the available models to be used by the extension. The user can select a model to be used by the AI assistant (double click).
+-Models: contains the available models to be used by the extension. The user can select a model to be used by the AI assistant (double click). By default the models offered by github copilot are shown, and the user can add custom models supporting the openAI API standard.
 ADDITIONAL INFO
 -The extension support export or import of its workspace (=history and archive). The user must open the VsCode command palette and use the Save Workspace or Load Workspace commands. The workspace is saved as a JSON file.
 -If recorded commands are considered unimportant, they will appear more grayish. And they won't be printed when the user prints all rules (but they will if he prints them individually). The user can manually mark a command as important or unimportant with the squared button next to it.
