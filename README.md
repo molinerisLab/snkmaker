@@ -11,7 +11,7 @@ This README is included in Copilot Chat's context, together with the extension's
 <img src=".img/copilot_introduction.gif" width="380px"/>
 
 ## Snakemaker panel overview 
-<img src=".img/Snakemaker_Overview.svg" width="750px"/>
+<img src=".img/Snakemaker_Overview.png" width="750px"/>
 
 ## Record bash commands history
 The extension's listening and recording of bash commands can be turned on and off manually.
