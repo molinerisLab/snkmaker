@@ -19,7 +19,7 @@ export class SnkmakerLogger{
             if (event.affectsConfiguration("snakemaker.allowLogging")) {
                 const logging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
                 if (logging){
-                    SnkmakerLogger.initialize(version);
+                    SnkmakerLogger.createInstance(version);
                 } else {
                     SnkmakerLogger.destroy();
                 }

@@ -77,8 +77,8 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 	context.subscriptions.push(set_history);
 	const print_rule = vscode.commands.registerCommand('print-rule', (event) => {
-		if (event && event.get_root()){
-			viewModel.printRule(event.get_root());
+		if (event && event.getRoot()){
+			viewModel.printRule(event.getRoot());
 		} else {
 			//TODO: can open menu to select command
 			vscode.window.showInformationMessage('No command selected');
@@ -90,8 +90,8 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 	context.subscriptions.push(print_all_rules);
 	const archive_rules = vscode.commands.registerCommand('archive-command', (event) => {
-		if (event && event.get_root()){
-			viewModel.archiveCommands([event.get_root()]);
+		if (event && event.getRoot()){
+			viewModel.archiveCommands([event.getRoot()]);
 		} else {
 			//TODO: can open menu to select command
 			vscode.window.showInformationMessage('No command selected');
@@ -99,8 +99,8 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 	context.subscriptions.push(archive_rules);
 	const restore_commands = vscode.commands.registerCommand('restore-command', (event) => {
-		if (event && event.get_root()){
-			viewModel.restoreCommands([event.get_root()]);
+		if (event && event.getRoot()){
+			viewModel.restoreCommands([event.getRoot()]);
 		} else {
 			//TODO: can open menu to select command
 			vscode.window.showInformationMessage('No command selected');
@@ -108,8 +108,8 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 	context.subscriptions.push(restore_commands);
 	const delete_command = vscode.commands.registerCommand('delete-command', (event) => {
-		if (event && event.get_root()){
-			viewModel.deleteCommand(event.get_root());
+		if (event && event.getRoot()){
+			viewModel.deleteCommand(event.getRoot());
 		} else {
 			vscode.window.showInformationMessage('No command selected');
 		}
@@ -128,16 +128,16 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 	context.subscriptions.push(archive_all_commands);
 	const set_command_important = vscode.commands.registerCommand('set-command-important', (event) => {
-		if (event && event.get_root()){
-			viewModel.setCommandImportance(event.get_root(), true);
+		if (event && event.getRoot()){
+			viewModel.setCommandImportance(event.getRoot(), true);
 		} else {
 			vscode.window.showInformationMessage('No command selected');
 		}
 	});
 	context.subscriptions.push(set_command_important);
 	const set_command_unimportant = vscode.commands.registerCommand('set-command-unimportant', (event) => {
-		if (event && event.get_root()){
-			viewModel.setCommandImportance(event.get_root(), false);
+		if (event && event.getRoot()){
+			viewModel.setCommandImportance(event.getRoot(), false);
 		} else {
 			vscode.window.showInformationMessage('No command selected');
 		}
@@ -167,7 +167,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(stop_listening);
 	const select_model = vscode.commands.registerCommand('use-model', async (model) => {
 		if (model && model.checkDoubleClick()){
-			viewModel.useModel(model.model.get_id());
+			viewModel.useModel(model.model.getId());
 		}
 	});
 	context.subscriptions.push(select_model);
@@ -225,7 +225,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(addNewModel);
 	const deleteModel = vscode.commands.registerCommand('delete-model', (model) => {
 		if (model){
-			viewModel.deleteModel(model.model.get_id());
+			viewModel.deleteModel(model.model.getId());
 		}
 	});
 	context.subscriptions.push(deleteModel);
@@ -236,7 +236,7 @@ export function activate(context: vscode.ExtensionContext) {
 		viewModel.activateCopilot();
 	}
 
-	
+
 	//Register copilot chat extension
 	const chatExtension: ChatExtension = new ChatExtension(viewModel);
 	const chat_handler: vscode.ChatRequestHandler = async (request: vscode.ChatRequest,context: vscode.ChatContext,
