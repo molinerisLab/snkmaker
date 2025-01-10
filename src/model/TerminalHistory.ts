@@ -259,9 +259,9 @@ export class TerminalHistory {
     async moveCommands(sourceBashCommands: any, targetBashCommand: BashCommandContainer|null) {
         SnkmakerLogger.instance()?.moveCommands(this.history, false);
         var remakeNames = [];
-        const children: SingleBashCommand[] = sourceBashCommands.map((c: any) => c[0].pop_children(c[1]));
+        const children: SingleBashCommand[] = sourceBashCommands.map((c: any) => c[0].popChildren(c[1]));
         sourceBashCommands.forEach((c: any) => {
-            if (c[0].is_dead()) {
+            if (c[0].isDead()) {
                 this.history.splice(this.history.indexOf(c[0]), 1);
             } else {
                 remakeNames.push(c[0]);
@@ -280,12 +280,12 @@ export class TerminalHistory {
             });
         }
         await Promise.all(remakeNames.map(async (c: any) => {
-            c.set_temporary(true);
+            c.setTemporary(true);
             try{
                 const newName = await this.queries.guessOnlyName(c);
-                c.set_rule_name(newName);
+                c.setRuleName(newName);
             } finally {
-                c.set_temporary(false);
+                c.setTemporary(false);
             }
         }));
         this.saveState();
@@ -507,13 +507,13 @@ class SingleBashCommand implements BashCommand{
     public important: boolean;
     public index: number;
     public temporary: boolean;
-    public ruleName: string;
+    public rule_name: string;
     constructor(command: string, exitStatus: number, input: string, output: string, important: boolean, index: number, temporary: boolean = false, ruleName?: string){ 
         this.command = command;
         if (ruleName){
-            this.ruleName = ruleName;
+            this.rule_name = ruleName;
         } else {
-            this.ruleName = command;
+            this.rule_name = command;
         }
         this.exitStatus = exitStatus;
         this.inputs = input;
@@ -547,7 +547,7 @@ class SingleBashCommand implements BashCommand{
         return null;
     }
     getRuleName(): string {
-        return this.ruleName;
+        return this.rule_name;
     }
     getIndex(): number {
         return this.index;
@@ -565,6 +565,6 @@ class SingleBashCommand implements BashCommand{
         this.output = output;
     }
     setRuleName(ruleName: string): void {
-        this.ruleName = ruleName;
+        this.rule_name = ruleName;
     }
 }
