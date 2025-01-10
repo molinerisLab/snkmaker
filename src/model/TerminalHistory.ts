@@ -6,13 +6,13 @@ import { SnkmakerLogger } from "../utils/SnkmakerLogger";
 import * as vscode from 'vscode';
 import { TestRules } from "../utils/TestRules";
 
+//Undo/Redo stack for the terminal history
 const STACK_SIZE = 4;
-
 class UndoRedoStack{
     stack: (string | null)[] = [];
     index: number = -1;
-    undo_count = -1;
-    redo_count = 0;
+    undoCount = -1;
+    redoCount = 0;
     constructor(){
         for (let i = 0; i < STACK_SIZE; i++){
             this.stack.push(null);
@@ -22,26 +22,26 @@ class UndoRedoStack{
     push(state: string){
         this.index = (this.index + 1) % STACK_SIZE;
         this.stack[this.index] = state;
-        this.undo_count ++;
-        this.redo_count = 0;
+        this.undoCount ++;
+        this.redoCount = 0;
     }
 
     undo(): string | null{
-        if (this.undo_count === 0){
+        if (this.undoCount === 0){
             return null;
         }
         this.index = (this.index - 1 + STACK_SIZE) % STACK_SIZE;
-        this.undo_count --;
-        this.redo_count ++;
+        this.undoCount --;
+        this.redoCount ++;
         return this.stack[this.index];
     }
     redo(): string | null{
-        if (this.redo_count === 0){
+        if (this.redoCount === 0){
             return null;
         }
         this.index = (this.index + 1) % STACK_SIZE;
-        this.undo_count ++;
-        this.redo_count --;
+        this.undoCount ++;
+        this.redoCount --;
         return this.stack[this.index];
     }
 }
@@ -62,13 +62,21 @@ export class TerminalHistory {
         this.saveState(true);
     }
 
+    getHistory() {
+        return this.history;
+    }
+
+    getArchive() {
+        return this.archive;
+    }
+
     async addCommand(value: string, confidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean) {
-        const index_existing = this.isCommandInHistory(value);
-        if (index_existing !== -1) {
-            const command = this.history[index_existing];
-            SnkmakerLogger.instance()?.addCommandExisting(command, value);
-            this.history.splice(index_existing, 1);
+        const indexExisting = this.isCommandInHistory(value);
+        if (indexExisting !== -1) {
+            const command = this.history[indexExisting];
+            this.history.splice(indexExisting, 1);
             this.history.push(command);
+            SnkmakerLogger.instance()?.addCommandExisting(command, value);
             return;
         }
         const singleTempCommand = new SingleBashCommand(value, 0, "", "", false, this.index, true);
@@ -76,52 +84,44 @@ export class TerminalHistory {
         this.index+=2;
         this.history.push(tempCommand);
         SnkmakerLogger.instance()?.addCommand(tempCommand);
+        
         //Get positive and negative examples
-        const positive_examples = this.history.filter(command => command.get_important() === true && command.get_temporary()===false).map(command => command.get_command());
-        const negative_examples = this.history.filter(command => command.get_important() === false && command.get_temporary()===false).map(command => command.get_command());
+        let positiveExamples = this.history.filter(command => command.getImportant() === true && command.getTemporary()===false).map(command => command.getCommand());
+        let negativeExamples = this.history.filter(command => command.getImportant() === false && command.getTemporary()===false).map(command => command.getCommand());
         //Don't send more than 35 examples each
-        if (positive_examples.length > 35){
-            positive_examples.splice(35);
-        }
-        if (negative_examples.length > 35){
-            negative_examples.splice(35);
-        }
-        const important = this.queries.guess_if_important(value, positive_examples, negative_examples);
-        const guesses = this.queries.guess_rule_details(value);
+        positiveExamples = positiveExamples.slice(0, 35);
+        negativeExamples = negativeExamples.slice(0, 35);
+
+        const important = this.queries.guessIfCommandImportant(value, positiveExamples, negativeExamples);
+        const guesses = this.queries.guessRuleDetails(value);
         //Wait for both promises to resolve
         await Promise.all([important, guesses]).then((values) => {
             const important = values[0];
             const guesses = values[1];
-            singleTempCommand.set_input(guesses[0]);
-            singleTempCommand.set_output(guesses[1]);
-            singleTempCommand.set_rule_name(guesses[2]);
-            singleTempCommand.set_importance(important);
-            tempCommand.set_temporary(false);
+            singleTempCommand.setInput(guesses[0]);
+            singleTempCommand.setOutput(guesses[1]);
+            singleTempCommand.setRuleName(guesses[2]);
+            singleTempCommand.setImportance(important);
+            tempCommand.setTemporary(false);
             this.saveState();
             SnkmakerLogger.instance()?.commandDetails(tempCommand);
         }).catch((e) => {;
             this.history.splice(this.history.indexOf(tempCommand), 1);
             throw e;
         });
+    }
 
-    }
-    getHistory() {
-        return this.history;
-    }
-    getArchive() {
-        return this.archive;
-    }
-    //TODO: optimize using a hashmap
     //Returns index of the command in the history, -1 if not found
     //if it's subcommand returns input of parent
+    //TODO: can be optimized w.t some hashmap
     private isCommandInHistory(command: string) {
         for (var i = 0; i < this.history.length; i++) {
             const c = this.history[i];
-            if (c.get_num_children() === 0 && c.get_command() === command) {
+            if (c.getNumChildren() === 0 && c.getCommand() === command) {
                 return i;
             }
-            for (var j = 0; j < c.get_num_children(); j++) {
-                if (c.get_children(j)?.get_command() === command) {
+            for (var j = 0; j < c.getNumChildren(); j++) {
+                if (c.getChildren(j)?.getCommand() === command) {
                     return i;
                 }
             }
@@ -131,45 +131,49 @@ export class TerminalHistory {
 
     archiveCommand(command: BashCommandContainer) {
         const index = this.history.indexOf(command);
-        if (index > -1 && command.get_temporary()===false) {
+        if (index > -1 && command.getTemporary()===false) {
             this.history.splice(index, 1);
             this.archive.push(command);
         }
         this.saveState();
     }
-    deleteCommand(command: BashCommandContainer): number {
-        var index = this.history.indexOf(command);
+    
+    deleteCommand(command: BashCommandContainer): boolean {
+        let index = this.history.indexOf(command);
         if (index > -1) {
             this.history.splice(index, 1);
-            return 0;
-        } else {
-            index = this.archive.indexOf(command);
-            if (index > -1) {
-                this.archive.splice(index, 1);
-                return 1;
-            }
-            return -1;
+            this.saveState();
+            return true;
+        } 
+        index = this.archive.indexOf(command);
+        if (index > -1) {
+            this.archive.splice(index, 1);
+            this.saveState();
+            return false;
         }
-        this.saveState();
+        throw new Error("Command does not exist");
     }
+
     deleteAllCommands() {
         this.history = [];
         this.saveState();
     }
+
     deleteAllArchivedCommands() {
         this.archive = [];
         this.saveState();
     }
+
     restoreCommand(command: BashCommandContainer) {
         const index = this.archive.indexOf(command);
-        const index_existing = this.isCommandInHistory(command.get_command());
+        const indexExisting = this.isCommandInHistory(command.getCommand());
         if (index > -1) {
             this.archive.splice(index, 1);
-            if (index_existing === -1) {
+            if (indexExisting === -1) {
                 this.history.push(command);
             } else {
                 //Move the command to the end of the history
-                this.history.splice(index_existing, 1);
+                this.history.splice(indexExisting, 1);
                 this.history.push(command);
             }
         }
@@ -180,79 +184,74 @@ export class TerminalHistory {
         this.history = [];
         this.saveState();
     }
+
     setCommandImportance(command: BashCommand, importance: boolean) {
-        command.set_importance(importance);
+        command.setImportance(importance);
         this.saveState();
         SnkmakerLogger.instance()?.setCommandImportance(command, importance);
     }
 
-    mustCorrectRules(){
+    private async validateAndCorrectRules(rules: string){
         //Only if it is in Snakemake format and the user has not disabled the setting
-        return vscode.workspace.getConfiguration('snakemaker').get('rulesOutputFormat', "Snakemake")==="Snakemake" &&
-            vscode.workspace.getConfiguration('snakemaker').get('validateSnakemakeRules', false);
+        if  (!(vscode.workspace.getConfiguration('snakemaker').get('rulesOutputFormat', "Snakemake")==="Snakemake" &&
+            vscode.workspace.getConfiguration('snakemaker').get('validateSnakemakeRules', false))){
+                return rules;
+            }
+        //TODO: max tries should be a setting or a configuration
+        for (let i = 0; i < 3; i++){
+            const valid: { success: boolean; message?: string;} = await this.testRules.validateRules(rules);
+            if (valid.success){
+                return rules;
+            }
+            SnkmakerLogger.instance()?.log(`Generated rule not valid: ${valid.message}`);
+            rules = await this.queries.autoCorrectRulesFromError(rules, valid.message||"");
+            SnkmakerLogger.instance()?.log(`Corrected rule: ${rules}`);
+        }
+        return rules;
     }
 
     async getRule(command: BashCommand): Promise<string>{
-        if (command.get_temporary()===true){
-            return "";
+        if (command.getTemporary()===true){
+            throw new Error("Command is being processed - please wait before exporting the rule.");
         }
-        command.set_temporary(true);
+        command.setTemporary(true);
         try {
-            var r = await this.queries.get_snakemake_rule(command);
-            if (this.mustCorrectRules()){
-                for (let i = 0; i < 3; i++){
-                    const valid:any = await this.testRules.validateRules(r);
-                    if (valid.success){
-                        break;
-                    }
-                    SnkmakerLogger.instance()?.log(`Generated rule not valid: ${valid.message}`);
-                    r = await this.queries.correct_rules(r, valid.message);
-                    SnkmakerLogger.instance()?.log(`Corrected rule: ${r}`);
-                }
-            }
-            command.set_temporary(false);
-            return r;
+            let rule = await this.queries.getRuleFromCommand(command);
+            rule = await this.validateAndCorrectRules(rule);
+            return rule;
         } catch (e){
-            command.set_temporary(false);
             throw e;
+        } finally {
+            command.setTemporary(false);
         }
     }
 
     async getAllRules(): Promise<string | null>{
-        const important = this.history.filter(command=>command.get_important()===true && command.get_temporary()===false);
+        const important = this.history.filter(command=>command.getImportant()===true && command.getTemporary()===false);
         if (important.length === 0){
             return null;
         }
-        important.forEach(command => command.set_temporary(true));
+        important.forEach(command => command.setTemporary(true));
         try{
-            var r = await this.queries.get_all_rules(important);
-            if (this.mustCorrectRules()){
-                for (let i = 0; i < 3; i++){
-                    const valid:any = await this.testRules.validateRules(r);
-                    if (valid.success){
-                        break;
-                    }
-                    SnkmakerLogger.instance()?.log(`Generated rule not valid: ${valid.message}`);
-                    r = await this.queries.correct_rules(r, valid.message);
-                    SnkmakerLogger.instance()?.log(`Corrected rule: ${r}`);
-                }
-            }
-            return r;
+            var rules = await this.queries.getAllRulesFromCommands(important);
+            rules = await this.validateAndCorrectRules(rules);
+            return rules;
         } catch (e){
             throw e;
         } finally {
-            important.forEach(command => command.set_temporary(false));
+            important.forEach(command => command.setTemporary(false));
         }
     }
+
     modifyCommandDetail(command: BashCommand, modifier: string, detail: string){
         if (modifier === "Inputs"){
-            command.set_input(detail);
+            command.setInput(detail);
             this.saveState();
         } else if (modifier === "Output"){ 
-            command.set_output(detail);
+            command.setOutput(detail);
             this.saveState();
         } else if (modifier === "RuleName"){
-            command.set_rule_name(detail);
+            command.setRuleName(detail);
             this.saveState();
         }
         SnkmakerLogger.instance()?.commandDetails(command, true);
@@ -260,19 +259,19 @@ export class TerminalHistory {
 
     async moveCommands(sourceBashCommands: any, targetBashCommand: BashCommandContainer|null) {
         SnkmakerLogger.instance()?.moveCommands(this.history, false);
-        var remake_names = [];
+        var remakeNames = [];
         const children: SingleBashCommand[] = sourceBashCommands.map((c: any) => c[0].pop_children(c[1]));
         sourceBashCommands.forEach((c: any) => {
             if (c[0].is_dead()) {
                 this.history.splice(this.history.indexOf(c[0]), 1);
             } else {
-                remake_names.push(c[0]);
+                remakeNames.push(c[0]);
             }
         });
         if (targetBashCommand) {
-            remake_names.push(targetBashCommand);
+            remakeNames.push(targetBashCommand);
             children.forEach((c) => {
-                targetBashCommand.add_child(c);
+                targetBashCommand.addChild(c);
             });
         } else {
             children.forEach((c) => {
@@ -281,25 +280,25 @@ export class TerminalHistory {
                 );
             });
         }
-        await Promise.all(remake_names.map(async (c: any) => {
+        await Promise.all(remakeNames.map(async (c: any) => {
             c.set_temporary(true);
             try{
-                const new_name = await this.queries.re_guess_name(c);
-                c.set_rule_name(new_name);
+                const newName = await this.queries.guessOnlyName(c);
+                c.set_rule_name(newName);
             } finally {
                 c.set_temporary(false);
             }
         }));
         this.saveState();
         SnkmakerLogger.instance()?.moveCommands(this.history, true);
-        return remake_names.length !== 0;
+        return remakeNames.length !== 0;
     }
 
-    history_for_the_chat(){
+    getHistoryFormattedForChat(){
         return this.history.length===0 ? "History is Empty" : JSON.stringify(this.history);
     }
 
-    export(){
+    exportAsJsonString(){
         return JSON.stringify({
             history: this.history,
             archive: this.archive,
@@ -307,13 +306,13 @@ export class TerminalHistory {
         });
     }
 
-    loadJson(data: string){
+    loadJsonString(data: string){
         const parsed = JSON.parse(data);
         this.history = parsed.history.map((cmd: any) => {
             const singleCommands = cmd.commands.map((sc: any) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary, sc.rule_name));
             const container = new BashCommandContainer(singleCommands[0], cmd.index);
             for (let i = 1; i < singleCommands.length; i++) {
-                container.add_child(singleCommands[i]);
+                container.addChild(singleCommands[i]);
             }
             return container;
         });
@@ -321,24 +320,24 @@ export class TerminalHistory {
             const singleCommands = cmd.commands.map((sc: any) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary, sc.rule_name));
             const container = new BashCommandContainer(singleCommands[0], cmd.index);
             for (let i = 1; i < singleCommands.length; i++) {
-                container.add_child(singleCommands[i]);
+                container.addChild(singleCommands[i]);
             }
             return container;
         });
         this.index = parsed.index;
     }
 
-    import(data: string){
-        this.loadJson(data);
+    importFromJsonString(data: string){
+        this.loadJsonString(data);
         this.undoRedoStack = new UndoRedoStack();
         this.undoRedoStack.push(data);
         SnkmakerLogger.instance()?.imported(this.history);
     }
 
-    saveState(skip_stash: boolean = false){
-        const exported = this.export();
+    private saveState(skipStash: boolean = false){
+        const exported = this.exportAsJsonString();
         this.undoRedoStack.push(exported);
-        if (!skip_stash && this.stashState){
+        if (!skipStash && this.stashState){
             this.memento.update("stashed_state", exported);
         }
     }
@@ -346,52 +345,62 @@ export class TerminalHistory {
     undo(){
         const data = this.undoRedoStack.undo();
         if (data){
-            this.loadJson(data);
+            this.loadJsonString(data);
         }
     }
+
     canUndo(){
-        return this.undoRedoStack.undo_count > 0;
+        return this.undoRedoStack.undoCount > 0;
     }
+
     redo(){
         const data = this.undoRedoStack.redo();
         if (data){
-            this.loadJson(data);
+            this.loadJsonString(data);
             return true;
         }
         return false;
     }
+
     canRedo(){
-        return this.undoRedoStack.redo_count > 0;
+        return this.undoRedoStack.redoCount > 0;
     }
+
     setHistoryFromChat(history: any){
-        this.history = history.map((cmd: any) => {
-            const singleCommands = cmd.commands.map((sc: any) => new SingleBashCommand(sc.command, sc.exitStatus||0, sc.inputs, sc.output, sc.important||true, ++this.index, false, sc.rule_name));
-            const container = new BashCommandContainer(singleCommands[0], ++this.index);
-            for (let i = 1; i < singleCommands.length; i++) {
-                container.add_child(singleCommands[i]);
-            }
-            return container;
-        });
-        SnkmakerLogger.instance()?.importedFromChat(this.history);
+        const backup = this.exportAsJsonString();
+        try{
+            this.history = history.map((cmd: any) => {
+                const singleCommands = cmd.commands.map((sc: any) => new SingleBashCommand(sc.command, sc.exitStatus||0, sc.inputs, sc.output, sc.important||true, ++this.index, false, sc.rule_name));
+                const container = new BashCommandContainer(singleCommands[0], ++this.index);
+                for (let i = 1; i < singleCommands.length; i++) {
+                    container.addChild(singleCommands[i]);
+                }
+                return container;
+            });
+            SnkmakerLogger.instance()?.importedFromChat(this.history);
+        } catch (e){
+            this.loadJsonString(backup);
+            throw e;
+        }
     }
 }
 
 export interface BashCommand{
-    get_command(): string;
-    get_command_for_model(): string;
-    get_rule_name(): string;
-    get_input(): string;
-    get_output(): string;
-    get_important(): boolean;
-    get_temporary(): boolean;
-    get_num_children(): number;
-    get_children(index: number): BashCommand | null;
-    get_index(): number;
-    set_importance(important: boolean): void;
-    set_temporary(temporary: boolean): void;
-    set_input(input: string): void;
-    set_output(output: string): void;
-    set_rule_name(rule_name: string): void;
+    getCommand(): string;
+    getCommandForModel(): string;
+    getRuleName(): string;
+    getInput(): string;
+    getOutput(): string;
+    getImportant(): boolean;
+    getTemporary(): boolean;
+    getNumChildren(): number;
+    getChildren(index: number): BashCommand | null;
+    getIndex(): number;
+    setImportance(important: boolean): void;
+    setTemporary(temporary: boolean): void;
+    setInput(input: string): void;
+    setOutput(output: string): void;
+    setRuleName(rule_name: string): void;
 }
 export class BashCommandContainer implements BashCommand{
     commands: SingleBashCommand[];
@@ -401,88 +410,88 @@ export class BashCommandContainer implements BashCommand{
         this.commands = [command];
         this.index = index;
     }
-    get_rule_name(): string {
+    getRuleName(): string {
         if (this.commands.length === 1){
-            return this.commands[0].get_rule_name();
+            return this.commands[0].getRuleName();
         }
         return this.rule_name;
     }
-    set_rule_name(rule_name: string): void {
+    setRuleName(rule_name: string): void {
         if (this.commands.length === 1){
-            this.commands[0].set_rule_name(rule_name);
+            this.commands[0].setRuleName(rule_name);
         }
         this.rule_name = rule_name;
     }
-    get_command(): string {
-        return this.commands.map( (c) => c.get_command()).join(" && ");
+    getCommand(): string {
+        return this.commands.map( (c) => c.getCommand()).join(" && ");
     }
-    get_command_for_model(): string {
-        return this.commands.map( (c) => c.get_command()).join("\n");
+    getCommandForModel(): string {
+        return this.commands.map( (c) => c.getCommand()).join("\n");
     }
-    get_input(): string {
+    getInput(): string {
         if (this.commands.length === 1){
-            return this.commands[0].get_input();
+            return this.commands[0].getInput();
         }
         //Return all inputs but removing duplicates
         var inputs = new Set<string>();
         var outputs = new Set<string>();
         this.commands.forEach((c) => {
-            inputs.add(c.get_input());
-            outputs.add(c.get_output());
+            inputs.add(c.getInput());
+            outputs.add(c.getOutput());
         });
         //Delete all elements in outputs from inputs 
         outputs.forEach((o) => inputs.delete(o));
         return Array.from(inputs).join(" && ");
     }
-    is_dead(): boolean{
+    isDead(): boolean{
         return this.commands.length === 0;
     }
-    add_child(command: SingleBashCommand){
+    addChild(command: SingleBashCommand){
         this.commands.push(command);
     }
-    get_output(): string {
-        return this.commands[this.commands.length-1].get_output();
+    getOutput(): string {
+        return this.commands[this.commands.length-1].getOutput();
     }
-    get_important(): boolean {
-        return this.commands.some((c) => c.get_important());
+    getImportant(): boolean {
+        return this.commands.some((c) => c.getImportant());
     }
-    get_temporary(): boolean {
-        return this.commands.some((c) => c.get_temporary());
+    getTemporary(): boolean {
+        return this.commands.some((c) => c.getTemporary());
     }
-    get_num_children(): number {
+    getNumChildren(): number {
         if (this.commands.length === 1){
             return 0;
         }
         return this.commands.length;
     }
-    get_children(index: number): BashCommand | null {
+    getChildren(index: number): BashCommand | null {
         if (index < this.commands.length){
             return this.commands[index];
         }
         return null;
     }
-    pop_children(index: number): SingleBashCommand | undefined {
+    popChildren(index: number): SingleBashCommand | undefined {
         if (index < this.commands.length){
             return this.commands.splice(index, 1)[0];
         }
     }
-    get_index(): number {
+    getIndex(): number {
         return this.index;
     }
-    set_importance(important: boolean){
+    setImportance(important: boolean){
         this.commands.forEach((c) => c.important = important);
     }
-    set_temporary(temporary: boolean): void {
+    setTemporary(temporary: boolean): void {
         this.commands.forEach((c) => c.temporary = temporary);
     }
-    set_input(input: string): void {
+    setInput(input: string): void {
         if (this.commands.length === 1){
             this.commands[0].inputs = input;
             return;
         }
         throw new Error("Cannot set input for a container command");
     }
-    set_output(output: string): void {
+    setOutput(output: string): void {
         if (this.commands.length === 1){
             this.commands[0].output = output;
             return;
@@ -499,13 +508,13 @@ class SingleBashCommand implements BashCommand{
     public important: boolean;
     public index: number;
     public temporary: boolean;
-    public rule_name: string;
-    constructor(command: string, exitStatus: number, input: string, output: string, important: boolean, index: number, temporary: boolean = false, rule_name?: string){ 
+    public ruleName: string;
+    constructor(command: string, exitStatus: number, input: string, output: string, important: boolean, index: number, temporary: boolean = false, ruleName?: string){ 
         this.command = command;
-        if (rule_name){
-            this.rule_name = rule_name;
+        if (ruleName){
+            this.ruleName = ruleName;
         } else {
-            this.rule_name = command;
+            this.ruleName = command;
         }
         this.exitStatus = exitStatus;
         this.inputs = input;
@@ -514,49 +523,49 @@ class SingleBashCommand implements BashCommand{
         this.index = index;
         this.temporary = temporary;
     }
-    get_command(): string {
+    getCommand(): string {
         return this.command;
     }
-    get_command_for_model(): string {
+    getCommandForModel(): string {
         return this.command;
     }
-    get_input(): string {
+    getInput(): string {
         return this.inputs;
     }
-    get_output(): string {
+    getOutput(): string {
         return this.output;
     }
-    get_important(): boolean {
+    getImportant(): boolean {
         return this.important;
     }
-    get_temporary(): boolean {
+    getTemporary(): boolean {
         return this.temporary;
     }
-    get_num_children(): number {
+    getNumChildren(): number {
         return 0;
     }
-    get_children(index: number): BashCommand | null {
+    getChildren(index: number): BashCommand | null {
         return null;
     }
-    get_rule_name(): string {
-        return this.rule_name;
+    getRuleName(): string {
+        return this.ruleName;
     }
-    get_index(): number {
+    getIndex(): number {
         return this.index;
     }
-    set_importance(important: boolean){
+    setImportance(important: boolean){
         this.important = important;
     }
-    set_temporary(temporary: boolean): void {
+    setTemporary(temporary: boolean): void {
         this.temporary = temporary;
     }
-    set_input(input: string): void {
+    setInput(input: string): void {
         this.inputs = input;
     }
-    set_output(output: string): void {
+    setOutput(output: string): void {
         this.output = output;
     }
-    set_rule_name(rule_name: string): void {
-        this.rule_name = rule_name;
+    setRuleName(ruleName: string): void {
+        this.ruleName = ruleName;
     }
 }

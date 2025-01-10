@@ -79,8 +79,8 @@ export class SnkmakerLogger{
     addCommand(command: BashCommand){
         try{
             this.callAPI("/log/add_command", {
-                command: command.get_command(),
-                index: command.get_index(),
+                command: command.getCommand(),
+                index: command.getIndex(),
             });
         } catch(e){
             console.log(e);
@@ -89,9 +89,9 @@ export class SnkmakerLogger{
     addCommandExisting(command: BashCommand, user_string: string){
         try{
             this.callAPI("/log/add_command_existing", {
-                command: command.get_command(),
+                command: command.getCommand(),
                 new_command: user_string,
-                index: command.get_index(),
+                index: command.getIndex(),
             });
         } catch(e){
             console.log(e);
@@ -100,12 +100,12 @@ export class SnkmakerLogger{
     commandDetails(command: BashCommand, manual: boolean = false){
         try{
             this.callAPI("/log/command_details", {
-                command: command.get_command(),
+                command: command.getCommand(),
                 manual: manual,
-                input: command.get_input(),
-                output: command.get_output(),
-                rule_name: command.get_rule_name(),
-                index: command.get_index(),
+                input: command.getInput(),
+                output: command.getOutput(),
+                rule_name: command.getRuleName(),
+                index: command.getIndex(),
             });
         } catch(e){
             console.log(e);
@@ -114,9 +114,9 @@ export class SnkmakerLogger{
     setCommandImportance(command: BashCommand, isImportant: boolean){
         try{
             this.callAPI("/log/set_command_importance", {
-                command: command.get_command(),
+                command: command.getCommand(),
                 importance: isImportant,
-                index: command.get_index()
+                index: command.getIndex()
             });
         } catch(e){
             console.log(e);
@@ -125,7 +125,7 @@ export class SnkmakerLogger{
     moveCommands(commands: BashCommand[], finished: boolean){
         try{
             this.callAPI("/log/move_commands", {
-                commands: commands.map(command => [command?.get_command(), command?.get_index(), command?.get_input(), command?.get_output(), command?.get_rule_name()]),
+                commands: commands.map(command => [command?.getCommand(), command?.getIndex(), command?.getInput(), command?.getOutput(), command?.getRuleName()]),
                 finished: finished
             });
         } catch(e){
@@ -135,7 +135,7 @@ export class SnkmakerLogger{
     imported(commands: BashCommand[]){
         try{
             this.callAPI("/log/imported", {
-                commands: commands.map(command => [command.get_command(), command.get_index(), command.get_input(), command.get_output(), command.get_rule_name()])
+                commands: commands.map(command => [command.getCommand(), command.getIndex(), command.getInput(), command.getOutput(), command.getRuleName()])
             });
         } catch(e){
             console.log(e);
@@ -144,7 +144,7 @@ export class SnkmakerLogger{
     importedFromChat(commands: BashCommand[]){
         try{
             this.callAPI("/log/imported_chat", {
-                commands: commands.map(command => [command.get_command(), command.get_index(), command.get_input(), command.get_output(), command.get_rule_name()])
+                commands: commands.map(command => [command.getCommand(), command.getIndex(), command.getInput(), command.getOutput(), command.getRuleName()])
             });
         } catch(e){
             console.log(e);

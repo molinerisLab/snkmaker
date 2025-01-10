@@ -7,14 +7,9 @@ import { TerminalHistory } from './model/TerminalHistory';
 import { BashCommandViewModel } from './viewmodel/BashCommandViewmodel';
 import { TodoDecorationProvider } from './view/MyDecorator';
 import { ModelsDataProvider } from './view/ModelsDataProvider';
-import { ChatExtension } from './model/ChatExtension';
-import { HiddenTerminal } from './utils/HiddenTerminal';
-import { CommandInference } from './utils/CommandInference';
+import { ChatExtension } from './utils/ChatExtension';
 import { SnkmakerLogger } from './utils/SnkmakerLogger';
 import { TestRules } from './utils/TestRules';
-
-
-let viewModel: BashCommandViewModel;
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -60,13 +55,9 @@ export function activate(context: vscode.ExtensionContext) {
 	vscode.commands.executeCommand('setContext', 'myExtension.canUndo', false);
 	vscode.commands.executeCommand('setContext', 'myExtension.canRedo', false);
 
-	/*
-	const hiddenTerminal = new HiddenTerminal();
-	const commandInference = new CommandInference(hiddenTerminal);*/
-
 	//Create viewmodel for terminal history
 	const mustStash = vscode.workspace.getConfiguration('snakemaker').get('keepHistoryBetweenSessions', false);
-	viewModel = new BashCommandViewModel(memento, mustStash);
+	const viewModel = new BashCommandViewModel(memento, mustStash);
 	//Create views
 	const bashHistoryDataProvider = new TerminalHistoryDataProvider(viewModel);
 	const bashCommandView = vscode.window.createTreeView('bash-commands', { treeDataProvider: bashHistoryDataProvider, dragAndDropController: bashHistoryDataProvider });
@@ -78,7 +69,7 @@ export function activate(context: vscode.ExtensionContext) {
 	vscode.window.registerFileDecorationProvider(new TodoDecorationProvider(viewModel));
 	//Unstash state if enabled
 	if (mustStash){
-		viewModel.popState();
+		viewModel.unstashHistory();
 	}
 	//Register terminal listener, update view
 	vscode.window.onDidEndTerminalShellExecution(event => {

@@ -1,6 +1,6 @@
 import { LLM, ModelComms } from "../model/ModelComms";
 import { BashCommand, BashCommandContainer, TerminalHistory } from "../model/TerminalHistory";
-import { WriteToFiles } from "../model/WriteToFiles";
+import { WriteToFiles } from "../utils/WriteToFiles";
 import * as vscode from 'vscode';
 
 export class BashCommandViewModel{
@@ -45,18 +45,19 @@ export class BashCommandViewModel{
     }
 
     addCommand(value: string, confidence: number, isTrusted: boolean){
-        if (!this.isListening){
-            return;
-        }
-          this.terminalHistory.addCommand(value, confidence, isTrusted).then(() => {
-              this.observableCommands.next(this.terminalHistory.getHistory());
-              this.updateCanUndoCanRedo();
-          }).catch((e) => {
-            vscode.window.showInformationMessage(e.toString());
-            this.observableCommands.next(this.terminalHistory.getHistory());
-          });
-          this.observableCommands.next(this.terminalHistory.getHistory());
+      if (!this.isListening){
+          return;
       }
+      this.terminalHistory.addCommand(value, confidence, isTrusted).then(() => {
+          this.observableCommands.next(this.terminalHistory.getHistory());
+          this.updateCanUndoCanRedo();
+      }).catch((e) => {
+        vscode.window.showInformationMessage(e.toString());
+        this.observableCommands.next(this.terminalHistory.getHistory());
+      });
+      this.observableCommands.next(this.terminalHistory.getHistory());
+    }
+
     addCommandGoneWrong(value: string, confidence: number, isTrusted: boolean, returnCode: number | undefined){
       if (!this.isListening){
         return;
@@ -65,16 +66,17 @@ export class BashCommandViewModel{
     }
 
     archiveCommands(commands: BashCommandContainer[]){
-        if (commands.length === 0){
-            this.terminalHistory.archiveAllCommands();
-        }
-        commands.forEach(command => {
-            this.terminalHistory.archiveCommand(command);
-        });
-        this.observableCommands.next(this.terminalHistory.getHistory());
-        this.observableArchive.next(this.terminalHistory.getArchive());
-        this.updateCanUndoCanRedo();
+      if (commands.length === 0){
+          this.terminalHistory.archiveAllCommands();
+      }
+      commands.forEach(command => {
+          this.terminalHistory.archiveCommand(command);
+      });
+      this.observableCommands.next(this.terminalHistory.getHistory());
+      this.observableArchive.next(this.terminalHistory.getArchive());
+      this.updateCanUndoCanRedo();
     }
+
     restoreCommands(commands: BashCommandContainer[]){
       commands.forEach(command => {
           this.terminalHistory.restoreCommand(command);
@@ -83,33 +85,34 @@ export class BashCommandViewModel{
       this.observableArchive.next(this.terminalHistory.getArchive());
       this.updateCanUndoCanRedo();
     }
+
     deleteCommand(command: BashCommandContainer){
-        const result = this.terminalHistory.deleteCommand(command);
-        switch (result){
-            case 0:
-                this.observableCommands.next(this.terminalHistory.getHistory());
-                break;
-            case 1:
-                this.observableArchive.next(this.terminalHistory.getArchive());
-                break;
-        }
-        this.updateCanUndoCanRedo();
-    }
-    deleteAllCommmands(){
-        this.terminalHistory.deleteAllCommands();
+      const isCommandInHistory = this.terminalHistory.deleteCommand(command);
+      if (isCommandInHistory){
         this.observableCommands.next(this.terminalHistory.getHistory());
-        this.updateCanUndoCanRedo();
+      } else {
+        this.observableArchive.next(this.terminalHistory.getArchive());
+      }
+      this.updateCanUndoCanRedo();
     }
+
+    deleteAllCommmands(){
+      this.terminalHistory.deleteAllCommands();
+      this.observableCommands.next(this.terminalHistory.getHistory());
+      this.updateCanUndoCanRedo();
+    }
+
     deleteAllArchivedCommands(){
       this.terminalHistory.deleteAllArchivedCommands();
       this.observableArchive.next(this.terminalHistory.getArchive());
       this.updateCanUndoCanRedo();
-  }
-    setCommandImportance(command: BashCommandContainer, importance: boolean){
-        this.terminalHistory.setCommandImportance(command, importance);
-        this.observableCommands.next(this.terminalHistory.getHistory());
-        this.updateCanUndoCanRedo();
     }
+    setCommandImportance(command: BashCommandContainer, importance: boolean){
+      this.terminalHistory.setCommandImportance(command, importance);
+      this.observableCommands.next(this.terminalHistory.getHistory());
+      this.updateCanUndoCanRedo();
+    }
+
     modifyCommandDetail(command: BashCommand, modifier?: string){
       if (!modifier){
         return;
@@ -117,13 +120,13 @@ export class BashCommandViewModel{
       var value;
       switch (modifier){
         case "RuleName":
-          value = command.get_rule_name();
+          value = command.getRuleName();
           break;
         case "Output":
-          value = command.get_output();
+          value = command.getOutput();
           break;
         case "Inputs":
-          value = command.get_input();
+          value = command.getInput();
           break;
         default:
           return;
@@ -137,34 +140,18 @@ export class BashCommandViewModel{
       });
     }
 
-    printRule(command: BashCommandContainer){
-      this.terminalHistory.getRule(command).then((rule) => {
-        if (rule){
-            this.writeToFiles.writeToCurrentFile(rule).then((success) => {
-                if (success){
-                    this.archiveCommands([command]);
-                }
-                this.updateCanUndoCanRedo();
-            });
+    private ruleOutputRoutine(output: Promise<string|null>, commands: BashCommandContainer[]){
+      output.then((rules) => {
+        if (rules){
+          this.writeToFiles.writeToCurrentFile(rules).then((success) => {
+            if (success){
+                this.archiveCommands(commands);
+            }
+            this.updateCanUndoCanRedo();
+          });
+        } else {
+          vscode.window.showInformationMessage('No rules to print');
         }
-      }).catch((e) => {
-        vscode.window.showInformationMessage(e.toString());
-        this.observableCommands.next(this.terminalHistory.getHistory());
-      });
-      this.observableCommands.next(this.terminalHistory.getHistory());
-    }
-    printAllRules(){
-      this.terminalHistory.getAllRules().then((rules) => {
-        if (!rules){
-            vscode.window.showInformationMessage('No rules to print');
-            return;
-        }
-        this.writeToFiles.writeToCurrentFile(rules).then((success) => {
-          if (success){
-            this.archiveCommands([]);
-          }
-        });
-        this.updateCanUndoCanRedo();
       }).catch((e) => {
         vscode.window.showInformationMessage(e.toString());
         this.observableCommands.next(this.terminalHistory.getHistory());
@@ -172,28 +159,39 @@ export class BashCommandViewModel{
       this.observableCommands.next(this.terminalHistory.getHistory());
     }
 
-    async useModel(id: string, skip_message: boolean = false, skip_error_message: boolean = false){
-        if (this.isChangingModel){
-            return;
+    printRule(command: BashCommandContainer){
+      this.ruleOutputRoutine(this.terminalHistory.getRule(command), [command]);
+    }
+
+    printAllRules(){
+      this.ruleOutputRoutine(this.terminalHistory.getAllRules(), []);
+    }
+
+    async useModel(id: string, skipMessage: boolean = false, skipErrorMessage: boolean = false){
+      if (this.isChangingModel){
+          return;
+      }
+      this.isChangingModel = true;
+      this.llm.useModel(id, skipMessage).then((hi) => {
+        this.observableModel.next(this.llm);
+        vscode.window.showInformationMessage('Model activated. The model says hi: "' + hi + '"');
+      }).catch((e) => {
+        if (!skipErrorMessage){
+          vscode.window.showInformationMessage('Error activating model: ' + (<Error>e).message);
         }
-        this.isChangingModel = true;
-        this.llm.useModel(id, skip_message).then((hi) => {
-            this.isChangingModel = false;
-            this.observableModel.next(this.llm);
-			      vscode.window.showInformationMessage('Model activated. The model says hi: "' + hi + '"');
-        }).catch((e) => {
-          this.isChangingModel = false;
-          if (!skip_error_message){
-            vscode.window.showInformationMessage('Error activating model: ' + (<Error>e).message);
-          }
-        });
+      }).finally(() => {
+        this.isChangingModel = false;
+        this.llm.isCopilotWaiting = false;
+      });
     }
 
     isCopilotActive(){
         return this.llm.isCopilotActive();
     }
+
     async activateCopilot(){
       var models: vscode.LanguageModelChat[] = [];
+      //Copilot takes a while to load after vscode opening - wait a bit for it
       for (var i = 0; i < 40; i++){
         models = await vscode.lm.selectChatModels({vendor: 'copilot'});
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -201,13 +199,15 @@ export class BashCommandViewModel{
           break;
         }
       }
+
+      //If no copilot available, notify user
       if (models.length===0){
+        this.llm.isCopilotWaiting = false;
         vscode.window.showInformationMessage('Copilot not available');
-        this.llm.is_copilot_waiting = false;
         return;
       }
+
       this.llm.activateCopilot(models);
-      this.llm.is_copilot_waiting = false;
       if (this.llm.current_model === -1){
         const modelId = this.memento.get<string>('current_model', 'gpt-4o');
         this.useModel(modelId, true);
@@ -228,16 +228,16 @@ export class BashCommandViewModel{
     }
 
     saveWorkspace(path: string | undefined){
-      if (!path){
-        return;
-      }
-      if (this.writeToFiles.writeToFile(path, this.terminalHistory.export())){
+      if (!path){return;}
+
+      if (this.writeToFiles.writeToFile(path, this.terminalHistory.exportAsJsonString())){
         vscode.window.showInformationMessage('Workspace saved');
       }
     }
+
     loadWorkspace(path: string){
       try{
-        this.terminalHistory.import(this.writeToFiles.readFromFile(path));
+        this.terminalHistory.importFromJsonString(this.writeToFiles.readFromFile(path));
         this.observableCommands.next(this.terminalHistory.getHistory());
         this.observableArchive.next(this.terminalHistory.getArchive());
         vscode.window.showInformationMessage('Workspace loaded');
@@ -253,6 +253,7 @@ export class BashCommandViewModel{
       this.observableArchive.next(this.terminalHistory.getArchive());
       this.updateCanUndoCanRedo();
     }
+
     redo(){
       if (this.terminalHistory.redo()){
         this.observableCommands.next(this.terminalHistory.getHistory());
@@ -267,12 +268,10 @@ export class BashCommandViewModel{
     }
 
     setHistory(history: any){
-      const backup = this.terminalHistory.export();
       try{
         this.terminalHistory.setHistoryFromChat(history);
         this.observableCommands.next(this.terminalHistory.getHistory());
       } catch (e){
-        this.terminalHistory.loadJson(backup);
         vscode.window.showInformationMessage('Error setting history: ' + e);
       }
     }
@@ -313,10 +312,10 @@ export class BashCommandViewModel{
       this.observableModel.next(this.llm);
     }
 
-    popState(){
-      const stashed_state = this.memento.get<string|undefined>('stashed_state', undefined);
-      if (stashed_state){
-        this.terminalHistory.loadJson(stashed_state);
+    unstashHistory(){
+      const stashedState = this.memento.get<string|undefined>('stashed_state', undefined);
+      if (stashedState){
+        this.terminalHistory.loadJsonString(stashedState);
         this.observableCommands.next(this.terminalHistory.getHistory());
         this.observableArchive.next(this.terminalHistory.getArchive());
         this.memento.update('stashed_state', undefined);

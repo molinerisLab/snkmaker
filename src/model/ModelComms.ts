@@ -7,18 +7,19 @@ export class LLM{
     models: ModelComms[];
     current_model: number;
     current_model_id: string | undefined = undefined;
-    copilot_active = false;
-    is_copilot_waiting = true;
+    copilotActive = false;
+    isCopilotWaiting = true;
+
     constructor(private memento: vscode.Memento){
         this.current_model = -1;
         this.models = this.loadModels();
     }
-    async run_query(query: string): Promise<string>{
-        if (this.is_copilot_waiting){
+
+    async runQuery(query: string): Promise<string>{
+        if (this.isCopilotWaiting){
             while (this.current_model === -1){
-                //Sleep until a model is selected
                 await new Promise(r => setTimeout(r, 5000));
-                SnkmakerLogger.instance()?.log("User tried running query but no model selected - sleeping");
+                SnkmakerLogger.instance()?.log("User tried running query but copilot still unactive and no model selected - sleeping");
             }
         }
         if (this.current_model === -1){
@@ -32,7 +33,7 @@ export class LLM{
         });
     }
 
-    async useModel(id: string, skip_message: boolean = false){
+    async useModel(id: string, skip_message: boolean = false): Promise<string>{
         const index = this.models.findIndex(model => model.get_id() === id);
         if (index === -1 || index === this.current_model){
             throw new Error("Model not found");
@@ -47,18 +48,20 @@ export class LLM{
     }
         
     isCopilotActive(){
-        return this.copilot_active;
+        return this.copilotActive;
     }
+
     activateCopilot(models: vscode.LanguageModelChat[]){
-        if (models.length === 0 || this.copilot_active===true){
+        if (models.length === 0 || this.copilotActive===true){
             return -1;
         }
+        //Remove gpt-3.5 because it sucks
         models = models.filter(model => model.id.indexOf("gpt-3.5") === -1);
         const copilot_models: ModelComms[] = models.map(_model => 
             new CopilotModel(_model)
         );
         this.models = this.models.concat(copilot_models);
-        this.copilot_active = true;
+        this.copilotActive = true;
     }
 
     addModel(url: string, apiKey: string, model:string, max_tokens: number){
@@ -69,11 +72,12 @@ export class LLM{
     }
 
     exportModels(){
-        const exported = this.models.filter(model => model.is_user_added()).map(model => {
+        const exported = this.models.filter(model => model.isUserAdded()).map(model => {
             return model.export();
         });
         this.memento.update('models', exported);
     }
+    
     loadModels(): ModelComms[]{
         return this.memento.get<string[]>('models', []).map(model => {
             const parsed = JSON.parse(model);
@@ -110,7 +114,7 @@ export interface ModelComms{
     get_id(): string;
     get_params(): ModelParameters[];
     set_param(key: string, value: string): void;
-    is_user_added(): boolean;
+    isUserAdded(): boolean;
     export(): string;
 }
 
@@ -135,7 +139,7 @@ class CopilotModel implements ModelComms{
         response = response.replace(/```/g, '');
         return response;
     }
-    is_user_added(): boolean {
+    isUserAdded(): boolean {
         return false;
     }
     get_name(): string{
@@ -179,7 +183,7 @@ class OpenAI_Models implements ModelComms{
     get_id(): string{
         return this.id;
     }
-    is_user_added(): boolean {
+    isUserAdded(): boolean {
         return true;
     }
     export(): string {

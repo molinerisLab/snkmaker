@@ -1,8 +1,8 @@
 
 import * as vscode from 'vscode';
-import { TerminalHistory } from './TerminalHistory';
+import { TerminalHistory } from '../model/TerminalHistory';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
-import { SnkmakerLogger } from '../utils/SnkmakerLogger';
+import { SnkmakerLogger } from './SnkmakerLogger';
 
 export class ChatExtension{
 
@@ -32,7 +32,6 @@ As the AI assistant of this extension, you have these responsabilities:
     [Settings - Snakemake rules properties](command:workbench.action.openSettings?"snakemaker.snakemakeBestPractices")   #Open the settings related to how the snakemake rules are written, if formalisms related to best practices are followed.
     [Settings - Autocorrect rules](command:workbench.action.openSettings?"snakemaker.validateSnakemakeRules")   #Open the settings to enable/disable automatic Snakemake rule validation.
     [Settings - Snakemake path](command:workbench.action.openSettings?"snakemaker.snakemakeAbsolutePath")   #Open the settings to set the absolute path to Snakemake binary.
-
 
 The command history-set?NEW_HISTORY_JSON sets a new history. Use it if the user asks to perform changes. You have to: 1- Briefly tell the user which changes you are performing (DO NOT show the entire JSON with the new history, explain briefly which things you're modifying). 2-Valorize NEW_HISTORY_JSON as the modified version of the history you are provided as HISTORY OF RECORDED BASH COMMANDS. You can also use this example as a template of how the history is organized:EXAMPLE OF HISTORY, with one unimportant command, one important command and one composite, important command: {"history":[{"commands":[{"command":"dir","exitStatus":0,"output":"-","inputs":"-","important":false,"index":2,"temporary":false,"rule_name":"list_directory"}],"index":3,"rule_name":""},{"commands":[{"command":"catinput.txt|wc-l>output.txt","exitStatus":0,"output":"\"output.txt\"","inputs":"\"input.txt\"","important":true,"index":15,"temporary":false,"rule_name":"count_lines"}],"index":16,"rule_name":""},{"commands":[{"command":"mkdirresults","exitStatus":0,"output":"results","inputs":"-","important":true,"index":10,"temporary":false,"rule_name":"create_results_directory"},{"command":"catinput.txt|wc-l>results/output.txt","exitStatus":0,"output":"\"results/output.txt\"","inputs":"\"input.txt\"","important":true,"index":13,"temporary":false,"rule_name":"\"count_lines\""}],"index":9,"rule_name":"make_results_and_outputs"}]}
 Please note the command history-set can be used only through the chat, not manually from command palette.
@@ -96,17 +95,6 @@ HERE IS THE HISTORY:`;
         const r = encodeURIComponent(F);
         return r;
     }
-
-    async process_TEST(request: vscode.ChatRequest,context: vscode.ChatContext,
-        stream: vscode.ChatResponseStream,token: vscode.CancellationToken){
-            const prompt = request.prompt;
-            const llm = this.viewModel.llm;
-            console.log("Prompt: ", prompt);
-            const response = await llm.run_query(prompt);
-            console.log("Response: ", response);
-            let markdownCommandString: vscode.MarkdownString = new vscode.MarkdownString(response);
-            stream.markdown(markdownCommandString);
-    }
     
     async process(request: vscode.ChatRequest,context: vscode.ChatContext,
     stream: vscode.ChatResponseStream,token: vscode.CancellationToken){
@@ -119,7 +107,7 @@ HERE IS THE HISTORY:`;
             vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT),
             vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT_EXTENSION_USAGE),
             vscode.LanguageModelChatMessage.User(
-                ChatExtension.BASH_HISTORY_INTRODUCTION + this.history.history_for_the_chat()
+                ChatExtension.BASH_HISTORY_INTRODUCTION + this.history.getHistoryFormattedForChat()
             ),
             vscode.LanguageModelChatMessage.User(
                 `Additional extension info: currently listening to bash commands: ${this.viewModel.isListening}. Copilot active: ${this.viewModel.isCopilotActive()}  Currently changing model: ${this.viewModel.isChangingModel}. Models available: ${this.viewModel.llm.models.map((m) => m.get_name())}. Active model: ${this.viewModel.llm.models[this.viewModel.llm.current_model]?.get_name()||'none'} - Logging status: ${SnkmakerLogger.logger_status()} - Current rule format: ${rule_format} - Snakemake rules contains Log directive: ${containsLogField} - Snakemake rules uses generic filenames and wildcards: ${preferGenericRules} - automatic validation of snakemake rules: ${snakemakeValidation} - Keep history between sessions: ${mustStash}`

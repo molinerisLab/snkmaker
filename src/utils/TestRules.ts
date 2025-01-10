@@ -22,7 +22,7 @@ export class TestRules{
         });
     }
 
-    async validateRules(rules: string){
+    async validateRules(rules: string): Promise<{ success: boolean; message?: string; }>{
         let snakemakePath = vscode.workspace.getConfiguration('snakemaker').get('snakemakeAbsolutePath', "");
         if (snakemakePath === ""){
             snakemakePath = "snakemake";
