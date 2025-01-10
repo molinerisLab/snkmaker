@@ -22,7 +22,7 @@ export class ModelsDataProvider implements vscode.TreeDataProvider<Model>{
 
 	getChildren(element?: Model): Thenable<Model[]> {
 		if (element) {
-            if (element.isChild===true || element.model.get_params().length===0) {
+            if (element.isChild===true || element.model.getParams().length===0) {
 		        return Promise.resolve([]);
             } else {
                 return Promise.resolve([]);
@@ -42,7 +42,7 @@ class Model extends vscode.TreeItem {
     model: ModelComms; isChild: boolean; isSelected: boolean;
     index: number; lastClicked: number;
     constructor(model: ModelComms, index:number, isSelected: boolean, isChild: boolean) {
-        super(model.get_name(), vscode.TreeItemCollapsibleState.None);
+        super(model.getName(), vscode.TreeItemCollapsibleState.None);
         this.model = model;
         this.isChild = isChild;
         this.isSelected = isSelected;
@@ -55,12 +55,12 @@ class Model extends vscode.TreeItem {
                 command: 'use-model',
                 arguments: [this],
             };
-            this.tooltip = model.get_name() + (isSelected ? ' (selected)' : '');
+            this.tooltip = model.getName() + (isSelected ? ' (selected)' : '');
             if (isSelected){
-                this.resourceUri = vscode.Uri.parse('selected_model://'+this.model.get_name());
+                this.resourceUri = vscode.Uri.parse('selected_model://'+this.model.getName());
                 this.iconPath = new vscode.ThemeIcon("debug-breakpoint");
             } else {
-                this.resourceUri = vscode.Uri.parse('available_model://'+this.model.get_name());
+                this.resourceUri = vscode.Uri.parse('available_model://'+this.model.getName());
                 this.iconPath = new vscode.ThemeIcon("debug-breakpoint-data-unverified");
             }
         }

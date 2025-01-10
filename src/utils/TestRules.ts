@@ -1,5 +1,4 @@
 const fs = require('fs');
-const path = require('path');
 const tmp = require('tmp');
 import * as vscode from 'vscode';
 import { SnkmakerLogger } from './SnkmakerLogger';

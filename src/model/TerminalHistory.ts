@@ -1,7 +1,6 @@
 import { TerminalShellExecutionCommandLineConfidence } from "vscode";
 import { LLM } from "./ModelComms";
 import { Queries } from "./Queries";
-import { assert } from "console";
 import { SnkmakerLogger } from "../utils/SnkmakerLogger";
 import * as vscode from 'vscode';
 import { TestRules } from "../utils/TestRules";

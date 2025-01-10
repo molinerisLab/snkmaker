@@ -1,4 +1,4 @@
-import { LLM, ModelComms } from "../model/ModelComms";
+import { LLM } from "../model/ModelComms";
 import { BashCommand, BashCommandContainer, TerminalHistory } from "../model/TerminalHistory";
 import { WriteToFiles } from "../utils/WriteToFiles";
 import * as vscode from 'vscode';

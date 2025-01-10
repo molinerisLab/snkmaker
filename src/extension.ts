@@ -40,6 +40,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	//Create viewmodel for terminal history
 	const viewModel = new BashCommandViewModel(memento);
+
 	//Create views
 	const bashHistoryDataProvider = new TerminalHistoryDataProvider(viewModel);
 	const bashCommandView = vscode.window.createTreeView('bash-commands', { treeDataProvider: bashHistoryDataProvider, dragAndDropController: bashHistoryDataProvider });
@@ -203,7 +204,6 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.executeCommand('markdown.showPreview', uri);
 	  });
 	context.subscriptions.push(logDetailsScreen);
-
 	const disableLogging = vscode.commands.registerCommand('disable-logs-session', () => {
 		const logger = SnkmakerLogger.instance();
 		if (logger){
@@ -211,7 +211,7 @@ export function activate(context: vscode.ExtensionContext) {
 				if (success){
 					vscode.window.showInformationMessage('Logger disabled, log session deleted');
 				} else {
-					vscode.window.showInformationMessage('Logger disabled, log session not deleted')
+					vscode.window.showInformationMessage('Logger disabled, log session not deleted');
 				}
 			});
 		} else {
@@ -229,10 +229,14 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 	context.subscriptions.push(deleteModel);
+
+
 	//Activate copilot, if not already active
 	if (!viewModel.isCopilotActive()){
 		viewModel.activateCopilot();
 	}
+
+	
 	//Register copilot chat extension
 	const chatExtension: ChatExtension = new ChatExtension(viewModel);
 	const chat_handler: vscode.ChatRequestHandler = async (request: vscode.ChatRequest,context: vscode.ChatContext,

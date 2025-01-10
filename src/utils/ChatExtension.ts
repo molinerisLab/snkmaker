@@ -1,6 +1,5 @@
 
 import * as vscode from 'vscode';
-import { TerminalHistory } from '../model/TerminalHistory';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
 import { SnkmakerLogger } from './SnkmakerLogger';
 import { ExtensionSettings } from './ExtensionSettings';
@@ -111,7 +110,7 @@ HERE IS THE HISTORY:`;
                 ChatExtension.BASH_HISTORY_INTRODUCTION + this.history.getHistoryFormattedForChat()
             ),
             vscode.LanguageModelChatMessage.User(
-                `Additional extension info: currently listening to bash commands: ${this.viewModel.isListening}. Copilot active: ${this.viewModel.isCopilotActive()}  Currently changing model: ${this.viewModel.isChangingModel}. Models available: ${this.viewModel.llm.models.map((m) => m.get_name())}. Active model: ${this.viewModel.llm.models[this.viewModel.llm.current_model]?.get_name()||'none'} - Logging status: ${SnkmakerLogger.loggerStatus()} - Current rule format: ${rule_format} - Snakemake rules contains Log directive: ${containsLogField} - Snakemake rules uses generic filenames and wildcards: ${preferGenericRules} - automatic validation of snakemake rules: ${snakemakeValidation} - Keep history between sessions: ${mustStash}`
+                `Additional extension info: currently listening to bash commands: ${this.viewModel.isListening}. Copilot active: ${this.viewModel.isCopilotActive()}  Currently changing model: ${this.viewModel.isChangingModel}. Models available: ${this.viewModel.llm.models.map((m) => m.getName())}. Active model: ${this.viewModel.llm.models[this.viewModel.llm.current_model]?.getName()||'none'} - Logging status: ${SnkmakerLogger.loggerStatus()} - Current rule format: ${rule_format} - Snakemake rules contains Log directive: ${containsLogField} - Snakemake rules uses generic filenames and wildcards: ${preferGenericRules} - automatic validation of snakemake rules: ${snakemakeValidation} - Keep history between sessions: ${mustStash}`
             )
         ];
         // get the previous messages

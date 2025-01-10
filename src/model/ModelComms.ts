@@ -1,7 +1,6 @@
 import OpenAI from 'openai';
 import * as vscode from 'vscode';
 import { SnkmakerLogger } from '../utils/SnkmakerLogger';
-import { randomInt } from 'crypto';
 
 export class LLM{
     models: ModelComms[];
@@ -27,21 +26,21 @@ export class LLM{
             throw new Error("No model currently selected - please select a model to use Snakemaker");
         }
         
-        return this.models[this.current_model].run_query(query).then(response => {
-            SnkmakerLogger.instance()?.query(this.models[this.current_model].get_name(), query, response);
+        return this.models[this.current_model].runQuery(query).then(response => {
+            SnkmakerLogger.instance()?.query(this.models[this.current_model].getName(), query, response);
             return response;
         });
     }
 
     async useModel(id: string, skip_message: boolean = false): Promise<string>{
-        const index = this.models.findIndex(model => model.get_id() === id);
+        const index = this.models.findIndex(model => model.getId() === id);
         if (index === -1 || index === this.current_model){
             throw new Error("Model not found");
         }
         if (!skip_message){
-		    vscode.window.showInformationMessage('Activating model: ' + this.models[index].get_name() + "...");
+		    vscode.window.showInformationMessage('Activating model: ' + this.models[index].getName() + "...");
         }
-        const hi = await this.models[index].run_query("You are part of a vscode extension that helps users write snakemake (or Make) rules from bash prompts - the user just selected you as the model of choice. Say Hi to the user! :) (please keep very short, you are in a small window - please do not ask questions to the user, he cannot respond)");
+        const hi = await this.models[index].runQuery("You are part of a vscode extension that helps users write snakemake (or Make) rules from bash prompts - the user just selected you as the model of choice. Say Hi to the user! :) (please keep very short, you are in a small window - please do not ask questions to the user, he cannot respond)");
         this.current_model = index;
         this.memento.update('current_model', id);
         return hi;
@@ -89,7 +88,7 @@ export class LLM{
     }
 
     deleteModel(id: string){
-        const index = this.models.findIndex(model => model.get_id() === id);
+        const index = this.models.findIndex(model => model.getId() === id);
         if (index === -1){
             return false;
         }
@@ -109,11 +108,11 @@ export interface ModelParameters{
 }
 
 export interface ModelComms{
-    run_query(query: string): Promise<string>;
-    get_name(): string;
-    get_id(): string;
-    get_params(): ModelParameters[];
-    set_param(key: string, value: string): void;
+    runQuery(query: string): Promise<string>;
+    getName(): string;
+    getId(): string;
+    getParams(): ModelParameters[];
+    setParams(key: string, value: string): void;
     isUserAdded(): boolean;
     export(): string;
 }
@@ -124,7 +123,7 @@ class CopilotModel implements ModelComms{
     constructor(model: vscode.LanguageModelChat){
         this.model = model;
     }
-    async run_query(query: string): Promise<string> {
+    async runQuery(query: string): Promise<string> {
         const craftedPrompt = [
             vscode.LanguageModelChatMessage.User(this.userPrompt),
             vscode.LanguageModelChatMessage.User(query)
@@ -142,16 +141,16 @@ class CopilotModel implements ModelComms{
     isUserAdded(): boolean {
         return false;
     }
-    get_name(): string{
+    getName(): string{
         return "Copilot - " + this.model.id;
     }
-    get_params(): ModelParameters[]{
+    getParams(): ModelParameters[]{
         return [];
     }
-    set_param(key: string, value: string){
+    setParams(key: string, value: string){
         return;
     }
-    get_id(): string{
+    getId(): string{
         return this.model.id;
     }
     export(): string{
@@ -171,16 +170,16 @@ class OpenAI_Models implements ModelComms{
         this.max_tokens = max_tokens;
         this.id = new Date().getTime() + model;
     }
-    get_name(): string{
+    getName(): string{
         return this.name;
     }
-    get_params(): ModelParameters[]{
+    getParams(): ModelParameters[]{
         return [];
     }
-    set_param(key: string, value: string){
+    setParams(key: string, value: string){
         return;
     }
-    get_id(): string{
+    getId(): string{
         return this.id;
     }
     isUserAdded(): boolean {
@@ -195,7 +194,7 @@ class OpenAI_Models implements ModelComms{
             });
     }
 
-    async run_query(query: string): Promise<string>{
+    async runQuery(query: string): Promise<string>{
         const openai = new OpenAI({
             apiKey: this.apiKey,
             baseURL: this.url,
