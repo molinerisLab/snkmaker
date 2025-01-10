@@ -5,6 +5,7 @@ import { assert } from "console";
 import { SnkmakerLogger } from "../utils/SnkmakerLogger";
 import * as vscode from 'vscode';
 import { TestRules } from "../utils/TestRules";
+import { ExtensionSettings } from "../utils/ExtensionSettings";
 
 //Undo/Redo stack for the terminal history
 const STACK_SIZE = 4;
@@ -193,10 +194,9 @@ export class TerminalHistory {
 
     private async validateAndCorrectRules(rules: string){
         //Only if it is in Snakemake format and the user has not disabled the setting
-        if  (!(vscode.workspace.getConfiguration('snakemaker').get('rulesOutputFormat', "Snakemake")==="Snakemake" &&
-            vscode.workspace.getConfiguration('snakemaker').get('validateSnakemakeRules', false))){
-                return rules;
-            }
+        if (! (ExtensionSettings.instance.getRulesOutputFormat()==="Snakemake" && ExtensionSettings.instance.getValidateSnakemakeRules())){
+            return rules;
+        }
         //TODO: max tries should be a setting or a configuration
         for (let i = 0; i < 3; i++){
             const valid: { success: boolean; message?: string;} = await this.testRules.validateRules(rules);

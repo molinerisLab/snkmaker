@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { TerminalHistory } from '../model/TerminalHistory';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
 import { SnkmakerLogger } from './SnkmakerLogger';
+import { ExtensionSettings } from './ExtensionSettings';
 
 export class ChatExtension{
 
@@ -98,11 +99,11 @@ HERE IS THE HISTORY:`;
     
     async process(request: vscode.ChatRequest,context: vscode.ChatContext,
     stream: vscode.ChatResponseStream,token: vscode.CancellationToken){
-        const rule_format = vscode.workspace.getConfiguration('snakemaker').get('rulesOutputFormat', "Snakemake");
-        const mustStash = vscode.workspace.getConfiguration('snakemaker').get('keepHistoryBetweenSessions', false);
-        const containsLogField = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPracticesSetLogFieldInSnakemakeRules', false);
-        const preferGenericRules = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPracticesPreferGenericFilenames', false);
-        const snakemakeValidation = vscode.workspace.getConfiguration('snakemaker').get('validateSnakemakeRules', false);
+        const rule_format = ExtensionSettings.instance.getRulesOutputFormat();
+        const mustStash = ExtensionSettings.instance.getKeepHistoryBetweenSessions();
+        const containsLogField = ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules();
+        const preferGenericRules = ExtensionSettings.instance.getSnakemakeBestPracticesPreferGenericFilenames();
+        const snakemakeValidation = ExtensionSettings.instance.getValidateSnakemakeRules();
         const messages = [
             vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT),
             vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT_EXTENSION_USAGE),

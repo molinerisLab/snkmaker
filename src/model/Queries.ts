@@ -1,6 +1,6 @@
 import { LLM } from "./ModelComms";
 import { BashCommand } from "./TerminalHistory";
-import * as vscode from 'vscode';
+import { ExtensionSettings } from '../utils/ExtensionSettings';
 
 class ModelPrompts{
 static ruleDetailsPrompt(command: string): string{
@@ -70,17 +70,6 @@ export class Queries{
         this.modelComms = modelComms;
     }
 
-    //TODO these shitty functions will be removed when the new abstraction over settings is introduced
-    get_rule_format(): string{
-        return vscode.workspace.getConfiguration('snakemaker').get('rulesOutputFormat', "Snakemake");
-    }
-    add_log_to_rule(): boolean{
-        return vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPracticesSetLogFieldInSnakemakeRules', false);
-    }
-    use_wildcards(): boolean{
-        return vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPracticesPreferGenericFilenames', false);
-    }
-
     async guessRuleDetails(command: string){
         const query = ModelPrompts.ruleDetailsPrompt(command);
         const response = await this.modelComms.runQuery(query);
@@ -109,22 +98,22 @@ export class Queries{
     }
 
     async getRuleFromCommand(bashCommand: BashCommand){
-        const ruleFormat = this.get_rule_format();
+        const ruleFormat = ExtensionSettings.instance.getRulesOutputFormat();
         var inputs = bashCommand.getInput();
         var output = bashCommand.getOutput();
         const command = bashCommand.getCommandForModel();
         if (inputs === "-"){ inputs = "No input";}
         if (output === "-"){ output = "No output";}
-        let prompt = ModelPrompts.ruleFromCommandPrompt(command, bashCommand.getRuleName(), ruleFormat, inputs, output, ruleFormat==="Snakemake" && this.add_log_to_rule());
+        let prompt = ModelPrompts.ruleFromCommandPrompt(command, bashCommand.getRuleName(), ruleFormat, inputs, output, ruleFormat==="Snakemake" && ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules());
         const response = await this.modelComms.runQuery(prompt);
         return response;
     }
 
     async getAllRulesFromCommands(commands: BashCommand[]){
-        const ruleFormat = this.get_rule_format();
+        const ruleFormat = ExtensionSettings.instance.getRulesOutputFormat();
         let extraPrompt = "";
         if (ruleFormat==="Snakemake"){
-            extraPrompt = ModelPrompts.snakemakeBestPracticesPrompt(this.use_wildcards(), this.add_log_to_rule());
+            extraPrompt = ModelPrompts.snakemakeBestPracticesPrompt(ExtensionSettings.instance.getSnakemakeBestPracticesPreferGenericFilenames(), ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules());
         }
         const formatted = commands.map(command => 
             `\nEstimated inputs: (${command.getInput()}) Estimated outputs: (${command.getOutput()})\nShell command: ${command.getCommandForModel()}\nPossible rule name: ${command.getRuleName()}}\n\n`

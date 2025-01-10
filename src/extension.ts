@@ -1,15 +1,13 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import { TerminalShellExecutionCommandLine } from 'vscode';
 import { TerminalHistoryDataProvider } from './view/TerminalHistoryDataProvider';
-import { TerminalHistory } from './model/TerminalHistory';
 import { BashCommandViewModel } from './viewmodel/BashCommandViewmodel';
 import { TodoDecorationProvider } from './view/MyDecorator';
 import { ModelsDataProvider } from './view/ModelsDataProvider';
 import { ChatExtension } from './utils/ChatExtension';
 import { SnkmakerLogger } from './utils/SnkmakerLogger';
-import { TestRules } from './utils/TestRules';
+import { ExtensionSettings } from './utils/ExtensionSettings';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -56,7 +54,7 @@ export function activate(context: vscode.ExtensionContext) {
 	vscode.commands.executeCommand('setContext', 'myExtension.canRedo', false);
 
 	//Create viewmodel for terminal history
-	const mustStash = vscode.workspace.getConfiguration('snakemaker').get('keepHistoryBetweenSessions', false);
+	const mustStash = ExtensionSettings.instance.getKeepHistoryBetweenSessions();
 	const viewModel = new BashCommandViewModel(memento, mustStash);
 	//Create views
 	const bashHistoryDataProvider = new TerminalHistoryDataProvider(viewModel);

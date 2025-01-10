@@ -3,6 +3,7 @@ const path = require('path');
 const tmp = require('tmp');
 import * as vscode from 'vscode';
 import { SnkmakerLogger } from './SnkmakerLogger';
+import { ExtensionSettings } from './ExtensionSettings';
 
 export class TestRules{
 
@@ -11,7 +12,6 @@ export class TestRules{
     }
 
     showMessageForSnakemakePath(){
-        const path = vscode.workspace.getConfiguration('snakemaker').get('snakemakeAbsolutePath', "");
         //Show message with a button
         vscode.window.showInformationMessage("Snakemake path is not set or is incorrect. Please set a correct, absolute path to Snakemake bin to allow for automatic validation of rules, ir disable rule validation", "Set path", "Disable validation").then((value) => {
             if (value === "Set path"){
@@ -23,7 +23,7 @@ export class TestRules{
     }
 
     async validateRules(rules: string): Promise<{ success: boolean; message?: string; }>{
-        let snakemakePath = vscode.workspace.getConfiguration('snakemaker').get('snakemakeAbsolutePath', "");
+        let snakemakePath = ExtensionSettings.instance.getSnakemakeAbsolutePath();
         if (snakemakePath === ""){
             snakemakePath = "snakemake";
         }
