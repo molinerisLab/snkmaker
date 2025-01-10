@@ -1,26 +1,29 @@
 # SnakeMaker
 Record bash history and convert it into Snakemake or Make rules.
 
+<img src=".img/general_presentation.gif" style="max-width:550px"/>
+
+
 # General Usage
 
 This README is included in Copilot Chat's context, together with the extension's settings and state. Tag *@snakemaker* in the Copilot Chat to ask any question or to get help with the extension.
 
-<img src=".img/copilot_chat.png" style="max-width:380px"/>
+<img src=".img/copilot_introduction.gif" style="max-width:380px"/>
 
 ## Snakemaker panel overview 
-<img src=".img/Snakemaker_Overview.png"/>
+<img src=".img/Snakemaker_Overview.svg" style="max-width:750px"/>
 
 ## Record bash commands history
 The extension's listening and recording of bash commands can be turned on and off manually.
 
-<img src=".img/start_stop_listening.png"/>
+<img src=".img/start_stop_listening.png" style="max-width:640px"/>
 
 ## Commands importance
 When recording bash commands, Snakemaker tries to distinguish between important commands, which can contribute to the Snakefile, and unimportant, one-timer commands, which are not.
 
-Non-important commands will be shown in the Snakemaker panel in a dark-gray color, and by default they are not exported as rules. Importance of a command can be changed manually
+Non-important commands will be shown in the Snakemaker panel in a dark-gray color, and by default they are not exported as rules. Importance of a command can be changed manually.
 
-<img src=".img/Importance.png"/>
+<img src=".img/Importance.png" style="max-width:640px"/>
 
 
 
@@ -30,7 +33,7 @@ When recording a bash command, Snakemaker tries to extract some details:
 * Output files produced by the command
 * Possible name for a corresponding rules
 
-<img src=".img/RuleDetails.png"/>
+<img src=".img/RuleDetails.png" style="max-width:640px"/>
 
 These details can be edited manually for better rules production. 
 
@@ -38,12 +41,13 @@ These details can be edited manually for better rules production.
 
 By default, Snakemaker proposes one candidate rule for each important bash command recorded. If the user whishes for multiple commands to be considered for a single snakemake rule, he can use drag-and-drop to merge commands into composite commands.
 
-<img src=".img/Composite.png"/>
+<img src=".img/composite_example.gif" style="max-width:540px"/>
 
 ## GNU Make support
 
 Snakemaker can also generate Make rules. The user can switch between Snakemake and Make rules generation by searching for "Rules output format" in the VSCode settings. Alternatively, ask [@snakemaker in the chat](#chat-directly-with-snakemaker) to open the setting for you.
 
+<img src=".img/output_format.png" style="max-width:640px"/>
 
 ## Rule generation options
 
@@ -53,14 +57,16 @@ For the Snakemake rules, some additional options are offered in the settings:
 
 Settings related to Snakemake rule generation are grouped under "Snakemake Best Practices" in the VSCode settings.
 
+<img src=".img/best_practices.png" style="max-width:640px"/>
+
 ## Automatic rule validation and correction
 
 Generated Snakemake rules are checked for errors, and fed back to the model with the error message for correction.
-This feature makes rule generation more reliable, but can slow down the process and consume more tokens of the LLM API. It can be disabled in the settings: "Snakemaker: Validate Snakemake Rules".
+This feature makes rule generation more reliable, but can slow down the process and consume more tokens of the LLM API. It can be disabled in the settings: `Snakemaker: Validate Snakemake Rules`.
 
 In order for automatic correction to work, a path to *snakemake* must be provided in the settings, or snakemake must be on user's $PATH.
-* Open the VSCode settings with Ctrl + ,
-* Search for "Snakemaker: Snakemake Absolute Path"
+* Open the VSCode settings with `Ctrl + ,`
+* Search for `Snakemaker: Snakemake Absolute Path`
 * Provide the absolute path to the snakemake executable
 * Leave empty to use the $PATH
 
