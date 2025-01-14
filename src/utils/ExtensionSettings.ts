@@ -43,8 +43,8 @@ export class ExtensionSettings{
         this.allowLogging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
         this.keepHistoryBetweenSessions = vscode.workspace.getConfiguration('snakemaker').get('keepHistoryBetweenSessions', false);
         this.rulesOutputFormat = vscode.workspace.getConfiguration('snakemaker').get('rulesOutputFormat', "Snakemake");
-        this.snakemakeBestPracticesSetLogFieldInSnakemakeRules = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPracticesSetLogFieldInSnakemakeRules', false);
-        this.snakemakeBestPracticesPreferGenericFilenames = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPracticesPreferGenericFilenames', false);
+        this.snakemakeBestPracticesSetLogFieldInSnakemakeRules = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.SetLogFieldInSnakemakeRules', false);
+        this.snakemakeBestPracticesPreferGenericFilenames = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.PreferGenericFilenames', false);
         this.validateSnakemakeRules = vscode.workspace.getConfiguration('snakemaker').get('validateSnakemakeRules', false);
         this.snakemakeAbsolutePath = vscode.workspace.getConfiguration('snakemaker').get('snakemakeAbsolutePath', "");
 
@@ -55,10 +55,10 @@ export class ExtensionSettings{
                 this.keepHistoryBetweenSessions = vscode.workspace.getConfiguration('snakemaker').get('keepHistoryBetweenSessions', false);
             } else if (event.affectsConfiguration("snakemaker.rulesOutputFormat")) {
                 this.rulesOutputFormat = vscode.workspace.getConfiguration('snakemaker').get('rulesOutputFormat', "Snakemake");
-            } else if (event.affectsConfiguration("snakemaker.snakemakeBestPracticesSetLogFieldInSnakemakeRules")) {
-                this.snakemakeBestPracticesSetLogFieldInSnakemakeRules = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPracticesSetLogFieldInSnakemakeRules', false);
-            } else if (event.affectsConfiguration("snakemaker.snakemakeBestPracticesPreferGenericFilenames")) {
-                this.snakemakeBestPracticesPreferGenericFilenames = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPracticesPreferGenericFilenames', false);
+            } else if (event.affectsConfiguration("snakemaker.snakemakeBestPractices.SetLogFieldInSnakemakeRules")) {
+                this.snakemakeBestPracticesSetLogFieldInSnakemakeRules = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.SetLogFieldInSnakemakeRules', false);
+            } else if (event.affectsConfiguration("snakemaker.snakemakeBestPractices.PreferGenericFilenames")) {
+                this.snakemakeBestPracticesPreferGenericFilenames = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.PreferGenericFilenames', false);
             } else if (event.affectsConfiguration("snakemaker.validateSnakemakeRules")) {
                 this.validateSnakemakeRules = vscode.workspace.getConfiguration('snakemaker').get('validateSnakemakeRules', false);
             } else if (event.affectsConfiguration("snakemaker.snakemakeAbsolutePath")) {

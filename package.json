@@ -370,12 +370,12 @@
           "default": true,
           "markdownDescription": "Maintain the command history between VSCode sessions"
         },
-        "snakemaker.snakemakeBestPracticesSetLogFieldInSnakemakeRules": {
+        "snakemaker.snakemakeBestPractices.SetLogFieldInSnakemakeRules": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Each rule has a Log field, as recommended by [Snakemake best practices](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html#log-files)."
         },
-        "snakemaker.snakemakeBestPracticesPreferGenericFilenames": {
+        "snakemaker.snakemakeBestPractices.PreferGenericFilenames": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Snakemake rules are generated, when possible, with generic filenames, using wildcards, as recommended by [Snakemake best practices](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html#wildcards)."
