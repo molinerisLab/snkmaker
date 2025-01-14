@@ -8,6 +8,7 @@ import { ModelsDataProvider } from './view/ModelsDataProvider';
 import { ChatExtension } from './utils/ChatExtension';
 import { SnkmakerLogger } from './utils/SnkmakerLogger';
 import { ExtensionSettings } from './utils/ExtensionSettings';
+import { AddModelView } from './view/AddModelView';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -219,8 +220,10 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 	context.subscriptions.push(disableLogging);
+	let modelAddingPanel: vscode.WebviewPanel | undefined = undefined;
 	const addNewModel = vscode.commands.registerCommand('add-model', () => {
-		viewModel.addModel();
+		//viewModel.addModel();
+		AddModelView.createOrShow(context.extensionUri);
 	});
 	context.subscriptions.push(addNewModel);
 	const deleteModel = vscode.commands.registerCommand('delete-model', (model) => {

@@ -166,7 +166,7 @@ class OpenAI_Models implements ModelComms{
         this.url = url;
         this.apiKey = apiKey;
         this.model = model;
-        this.name = model + "-t"+max_tokens;
+        this.name = model + "-max_t_"+max_tokens;
         this.max_tokens = max_tokens;
         this.id = new Date().getTime() + model;
     }
