@@ -322,25 +322,37 @@
       {
         "command": "history-undo",
         "title": "Undo",
-        "icon": "resources/undo.svg",
+        "icon": {
+          "light": "resources/undo_light_theme.svg",
+          "dark": "resources/undo.svg"
+        },
         "enablement": "myExtension.canUndo"
       },
       {
         "command": "history-undo-fake",
         "title": "Undo",
-        "icon": "resources/undo_disabled.svg",
+        "icon": {
+          "light": "resources/undo_disabled_light_theme.svg",
+          "dark": "resources/undo_disabled.svg"
+        },
         "enablement": "false"
       },
       {
         "command": "history-redo",
         "title": "Redo",
-        "icon": "resources/redo.svg",
+        "icon": {
+          "light": "resources/redo_light_theme.svg",
+          "dark":"resources/redo.svg"
+        },
         "enablement": "myExtension.canRedo"
       },
       {
         "command": "history-redo-fake",
         "title": "Redo",
-        "icon": "resources/redo_disabled.svg",
+        "icon": {
+          "light": "resources/redo_disabled_light_theme.svg",
+          "dark":"resources/redo_disabled.svg"
+        },
         "enablement": "false"
       },
       {
