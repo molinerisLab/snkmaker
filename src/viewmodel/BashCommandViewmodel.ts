@@ -271,10 +271,19 @@ export class BashCommandViewModel{
 
     setHistory(history: any){
       try{
+        //Check if history is an array
+        if (!Array.isArray(history)){
+          //Check if history has a field called history
+          if (history.hasOwnProperty('history')){
+            history = history.history;
+          } else {
+            throw new Error('History is not an array');
+          }
+        }
         this.terminalHistory.setHistoryFromChat(history);
         this.observableCommands.next(this.terminalHistory.getHistory());
       } catch (e){
-        vscode.window.showInformationMessage('Error setting history: ' + e);
+        vscode.window.showInformationMessage('Could not set history from LLM response');
       }
     }
 
