@@ -287,35 +287,9 @@ export class BashCommandViewModel{
       }
     }
 
-    addModel(){
-      vscode.window.showQuickPick(['Continue', 'Cancel'], {placeHolder: 'Adding a new model with OpenAI API'}).then((value) => {
-          if (value !== 'Continue'){
-            return;
-          }
-          vscode.window.showInputBox({prompt: 'Enter the API URL'}).then((url) => {
-            if (!url){
-              return;
-            }
-            vscode.window.showInputBox({prompt: 'Enter the API key',ignoreFocusOut: true}).then((token) => {
-              if (!token){
-                return;
-              }
-              vscode.window.showInputBox({prompt: 'Enter the name of the model',ignoreFocusOut: true}).then((name) => {
-                if (!name){
-                  return;
-                }
-                vscode.window.showInputBox({prompt: 'Enter the maximum number of tokens',ignoreFocusOut: true}).then((max_tokens) => {
-                  if (!max_tokens){
-                    return;
-                  }
-                  this.llm.addModel(url, token, name, parseInt(max_tokens));
-                  this.observableModel.next(this.llm);
-                });
-              });
-            });
-          });
-        }
-      );
+    addModel(url: string, name: string, max_tokens: number, token: string){
+      this.llm.addModel(url, token, name, max_tokens);
+      this.observableModel.next(this.llm);
     }
 
     deleteModel(id: string){

@@ -1,5 +1,6 @@
 
 import * as vscode from 'vscode';
+import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
 
 export class AddModelView{
     public static currentPanel: AddModelView | undefined;
@@ -8,7 +9,7 @@ export class AddModelView{
 	private readonly _extensionUri: vscode.Uri;
 	private _disposables: vscode.Disposable[] = [];
 
-	public static createOrShow(extensionUri: vscode.Uri) {
+	public static createOrShow(extensionUri: vscode.Uri, viewModel: BashCommandViewModel) {
 		if (AddModelView.currentPanel) {
 			AddModelView.currentPanel._panel.reveal(vscode.window.activeTextEditor? vscode.window.activeTextEditor.viewColumn: undefined);
 			return;
@@ -20,21 +21,20 @@ export class AddModelView{
 			(vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn: undefined) || vscode.ViewColumn.One,
             {enableScripts: true,localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')]}
 		);
-		AddModelView.currentPanel = new AddModelView(panel, extensionUri);
-	}
-	public static revive(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
-		AddModelView.currentPanel = new AddModelView(panel, extensionUri);
+		AddModelView.currentPanel = new AddModelView(panel, extensionUri, viewModel);
 	}
 
-	private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+	private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, viewModel: BashCommandViewModel) {
 		this._panel = panel;
 		this._extensionUri = extensionUri;
 		this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
 		this._panel.webview.onDidReceiveMessage(
 			message => {
 				switch (message.command) {
-					case 'alert':
-						vscode.window.showErrorMessage(message.text);
+					case 'submit':
+						const data = message.data;
+						viewModel.addModel(data.url, data.model_name, data.max_tokens, data.api_key);
+						panel.dispose();
 						return;
 				}
 			},
@@ -56,11 +56,11 @@ export class AddModelView{
 	}
 
 	private _getHtmlForWebview(webview: vscode.Webview) {
-		const scriptPathOnDisk = vscode.Uri.joinPath(this._extensionUri, 'media', 'main.js');
+		const scriptPathOnDisk = vscode.Uri.joinPath(this._extensionUri, 'media', 'add_model_view_main.js');
 		const scriptUri = webview.asWebviewUri(scriptPathOnDisk);
 
 		//const styleResetPath = vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css');
-		const stylesPathMainPath = vscode.Uri.joinPath(this._extensionUri, 'media', 'style.css');
+		const stylesPathMainPath = vscode.Uri.joinPath(this._extensionUri, 'media', 'add_viewmodel_view_style.css');
 		//const stylesResetUri = webview.asWebviewUri(styleResetPath);
 		const stylesMainUri = webview.asWebviewUri(stylesPathMainPath);
 
@@ -80,7 +80,7 @@ export class AddModelView{
                     <h1>Setup a custom language model</h1>
                     <p>Custom language models are connected through the OpenAI API standard.</p>
                     <p>Fill in the following form to setup a custom language model:</p>
-                    <form>
+                    <form id="modelForm">
                         <label for="url">API URL:</label>
                         <input type="url" id="url" name="url" required placeholder="http://localhost:8080"><br><br>
 
@@ -96,7 +96,7 @@ export class AddModelView{
                         <input type="submit" id="submit" value="Add custom model">
                     </form>
                 </div>
-                <script nonce="${nonce}" src="${scriptUri}"></script>
+				<script nonce="${nonce}" src="${scriptUri}"></script>
             </body>
 			</html>`;
 	}

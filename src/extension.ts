@@ -223,7 +223,7 @@ export function activate(context: vscode.ExtensionContext) {
 	let modelAddingPanel: vscode.WebviewPanel | undefined = undefined;
 	const addNewModel = vscode.commands.registerCommand('add-model', () => {
 		//viewModel.addModel();
-		AddModelView.createOrShow(context.extensionUri);
+		AddModelView.createOrShow(context.extensionUri, viewModel);
 	});
 	context.subscriptions.push(addNewModel);
 	const deleteModel = vscode.commands.registerCommand('delete-model', (model) => {
