@@ -2,7 +2,7 @@
   "name": "snkmaker",
   "displayName": "Snakemaker",
   "description": "",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "repository": "https://github.com/molinerisLab/snkmaker",
   "engines": {
     "vscode": "^1.95.0"
@@ -13,82 +13,84 @@
   "publisher": "SnakemakerUnito",
   "icon": "resources/icon.png",
   "activationEvents": [],
-  "main": "./out/extension.js",
+  "main":"./dist/extension.js"
+
+,
   "contributes": {
     "menus": {
       "commandPalette": [
-          {
-            "command": "delete-model",
-            "when": "false"
-          },
-          {
-            "command": "add-model",
-            "when": "false"
-          },
-          {
-            "command": "print-rule",
-            "when": "false"
-          },
-          {
-            "command": "open-loging-details",
-            "when": "false"
-          },
-          {
-            "command": "archive-command",
-            "when": "false"
-          },
-          {
-            "command": "restore-command",
-            "when": "false"
-          },
-          {
-            "command": "delete-command",
-            "when": "false"
-          },
-          {
-            "command": "set-command-important",
-            "when": "false"
-          },
-          {
-            "command": "set-command-unimportant",
-            "when": "false"
-          },
-          {
-            "command": "modify-command-detail",
-            "when": "false"
-          },
-          {
-            "command": "use-model",
-            "when": "false"
-          },
-          {
-            "command": "history-undo",
-            "when": "false"
-          },
-          {
-            "command": "history-redo",
-            "when": "false"
-          },
-          {
-            "command": "history-set",
-            "when": "false"
-          },
-          {
-            "command": "history-redo-fake",
-            "when": "false"
-          },
-          {
-            "command": "history-undo-fake",
-            "when": "false"
-          },
-          {
-            "command": "history-redo",
-            "when": "false"
-          },
-          {
-            "command": "history-undo",
-            "when": "false"
-          }
+        {
+          "command": "delete-model",
+          "when": "false"
+        },
+        {
+          "command": "add-model",
+          "when": "false"
+        },
+        {
+          "command": "print-rule",
+          "when": "false"
+        },
+        {
+          "command": "open-loging-details",
+          "when": "false"
+        },
+        {
+          "command": "archive-command",
+          "when": "false"
+        },
+        {
+          "command": "restore-command",
+          "when": "false"
+        },
+        {
+          "command": "delete-command",
+          "when": "false"
+        },
+        {
+          "command": "set-command-important",
+          "when": "false"
+        },
+        {
+          "command": "set-command-unimportant",
+          "when": "false"
+        },
+        {
+          "command": "modify-command-detail",
+          "when": "false"
+        },
+        {
+          "command": "use-model",
+          "when": "false"
+        },
+        {
+          "command": "history-undo",
+          "when": "false"
+        },
+        {
+          "command": "history-redo",
+          "when": "false"
+        },
+        {
+          "command": "history-set",
+          "when": "false"
+        },
+        {
+          "command": "history-redo-fake",
+          "when": "false"
+        },
+        {
+          "command": "history-undo-fake",
+          "when": "false"
+        },
+        {
+          "command": "history-redo",
+          "when": "false"
+        },
+        {
+          "command": "history-undo",
+          "when": "false"
+        }
       ],
       "view/title": [
         {
@@ -342,7 +344,7 @@
         "title": "Redo",
         "icon": {
           "light": "resources/redo_light_theme.svg",
-          "dark":"resources/redo.svg"
+          "dark": "resources/redo.svg"
         },
         "enablement": "myExtension.canRedo"
       },
@@ -351,7 +353,7 @@
         "title": "Redo",
         "icon": {
           "light": "resources/redo_disabled_light_theme.svg",
-          "dark":"resources/redo_disabled.svg"
+          "dark": "resources/redo_disabled.svg"
         },
         "enablement": "false"
       },
@@ -394,7 +396,10 @@
         },
         "snakemaker.rulesOutputFormat": {
           "type": "string",
-          "enum": ["Snakemake", "Make"],
+          "enum": [
+            "Snakemake",
+            "Make"
+          ],
           "default": "Snakemake",
           "markdownDescription": "Produce rules in Snakemake or in Make format"
         },
@@ -412,49 +417,66 @@
     },
     "chatParticipants": [
       {
-          "id": "chat-snakemaker",
-          "name": "snakemaker",
-          "fullName": "Snakemaker",
-          "description": "Hello I'm Snakemaker and I can assist you building great pipelines :)",
-          "isSticky": true,
-          "disambiguation": [
-            {
-                "category": "Bash command history and Snakemake pipeline building support",
-                "description": "The user run bash commands on its terminal for its data analysis purposes and needs help tracking them and automatically turning them into Snakemake rules",
-                "examples": [
-                    "How many commands to I have in history?",
-                    "Can you write one single snakemake rule with all the commands currently in history?",
-                    "Can you show me the most important commands in my history?",
-                    "Can you convert this command into a snakemake rule?",
-                    "Can you show me the commands that are not important?",
-                    "Can you convert for me this command in a generic snakemake rule that uses wildcards?"
-                ]
-            },
-            {
-                "category": "Support for the usage of the Snakemaker extension",
-                "description": "The user installed the Snakemaker extension but don't know how to use it, needs help with the commands and the views",
-                "examples": [
-                    "How does Snakemaker work?", "What does Snakemaker do?",
-                    "How can I archive a command?", "How can I restore a command?",
-                    "Where is my command history?", "How can I delete a command?",
-                    "How can I set a command as important?", "How can I set a command as unimportant?",
-                    "What is an important command?", "Why my commands aren't being recorded?",
-                    "How can I change the details of a command?", "How can I use a model?",
-                    "How can I save my workspace?", "How can I load my workspace?",
-                    "How can I start listening to commands?", "How can I stop listening to commands?"
-                ]
-            }
+        "id": "chat-snakemaker",
+        "name": "snakemaker",
+        "fullName": "Snakemaker",
+        "description": "Hello I'm Snakemaker and I can assist you building great pipelines :)",
+        "isSticky": true,
+        "disambiguation": [
+          {
+            "category": "Bash command history and Snakemake pipeline building support",
+            "description": "The user run bash commands on its terminal for its data analysis purposes and needs help tracking them and automatically turning them into Snakemake rules",
+            "examples": [
+              "How many commands to I have in history?",
+              "Can you write one single snakemake rule with all the commands currently in history?",
+              "Can you show me the most important commands in my history?",
+              "Can you convert this command into a snakemake rule?",
+              "Can you show me the commands that are not important?",
+              "Can you convert for me this command in a generic snakemake rule that uses wildcards?"
             ]
+          },
+          {
+            "category": "Support for the usage of the Snakemaker extension",
+            "description": "The user installed the Snakemaker extension but don't know how to use it, needs help with the commands and the views",
+            "examples": [
+              "How does Snakemaker work?",
+              "What does Snakemaker do?",
+              "How can I archive a command?",
+              "How can I restore a command?",
+              "Where is my command history?",
+              "How can I delete a command?",
+              "How can I set a command as important?",
+              "How can I set a command as unimportant?",
+              "What is an important command?",
+              "Why my commands aren't being recorded?",
+              "How can I change the details of a command?",
+              "How can I use a model?",
+              "How can I save my workspace?",
+              "How can I load my workspace?",
+              "How can I start listening to commands?",
+              "How can I stop listening to commands?"
+            ]
+          }
+        ]
       }
-  ]
+    ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "compile": "npm run check-types && node esbuild.js",
+    "check-types": "tsc --noEmit",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "vscode:prepublish": "npm run package",
+    "package": "npm run check-types && node esbuild.js --production"
+  },
+  "TEMP":{
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.9",
@@ -464,6 +486,7 @@
     "@typescript-eslint/parser": "^8.7.0",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1",
+    "esbuild": "^0.24.2",
     "eslint": "^9.13.0",
     "typescript": "^5.6.3"
   },

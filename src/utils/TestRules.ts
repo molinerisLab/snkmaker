@@ -12,7 +12,7 @@ export class TestRules{
 
     showMessageForSnakemakePath(){
         //Show message with a button
-        vscode.window.showInformationMessage("Snakemake path is not set or is incorrect. Please set a correct, absolute path to Snakemake bin to allow for automatic validation of rules, ir disable rule validation", "Set path", "Disable validation").then((value) => {
+        vscode.window.showInformationMessage("Snakemake path is not set or is incorrect. Please set a correct, absolute path to Snakemake bin to allow for automatic validation of rules, or disable rule validation", "Set path", "Disable validation").then((value) => {
             if (value === "Set path"){
                 vscode.commands.executeCommand('workbench.action.openSettings', 'snakemaker.snakemakeAbsolutePath');
             } else if (value === "Disable validation"){
