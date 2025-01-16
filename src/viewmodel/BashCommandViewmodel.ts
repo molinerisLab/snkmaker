@@ -45,8 +45,8 @@ export class BashCommandViewModel{
         return this.observableModel.subscribe(observer);
     }
 
-    addCommand(value: string, confidence: number, isTrusted: boolean){
-      if (!this.isListening){
+    addCommand(value: string, confidence: number, isTrusted: boolean, alwaysAdd=false){
+      if (!this.isListening && !alwaysAdd){
           return;
       }
       this.terminalHistory.addCommand(value, confidence, isTrusted).then(() => {
@@ -308,6 +308,10 @@ export class BashCommandViewModel{
         this.observableCommands.next(this.terminalHistory.getHistory());
         this.observableArchive.next(this.terminalHistory.getArchive());
       }
+    }
+
+    filterCommands(commands: string[]){
+      return commands.filter(command => this.terminalHistory.isCommandInHistory(command)===-1);
     }
 
 }

@@ -9,6 +9,7 @@ import { ChatExtension } from './utils/ChatExtension';
 import { SnkmakerLogger } from './utils/SnkmakerLogger';
 import { ExtensionSettings } from './utils/ExtensionSettings';
 import { AddModelView } from './view/AddModelView';
+import { AddHistoryView } from './view/AddHistoryView';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -222,10 +223,12 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(disableLogging);
 	let modelAddingPanel: vscode.WebviewPanel | undefined = undefined;
 	const addNewModel = vscode.commands.registerCommand('add-model', () => {
-		//viewModel.addModel();
 		AddModelView.createOrShow(context.extensionUri, viewModel);
 	});
 	context.subscriptions.push(addNewModel);
+	const addHistory = vscode.commands.registerCommand("add-history-manually", () => {
+		AddHistoryView.createOrShow(context.extensionUri, viewModel);
+	});
 	const deleteModel = vscode.commands.registerCommand('delete-model', (model) => {
 		if (model){
 			viewModel.deleteModel(model.model.getId());

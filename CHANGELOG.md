@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added 
 
 - Snakefile/Makefile is now included in the model's context. Redundant rules are not generated, and the model tries to follow the formalism of the existing rules. Limited to the currently opened file in the editor for now.
+- New command allows to manually paste command history into Snakemaker history.
 
 ### Changed
 
