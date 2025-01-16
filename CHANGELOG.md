@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - TODO
+
+### Added 
+
+- Snakefile/Makefile is now included in the model's context. Redundant rules are not generated, and the model tries to follow the formalism of the existing rules. Limited to the currently opened file in the editor for now.
+
+### Changed
+
+- Prompts improved, allowing for better rule generation.
+- Model's output cleaned up from recurrent headers that do not belong to the Snakefile and the models insist in producing.
+
 ## [0.1.6] - 2025-01-15
 
 ### Added

@@ -1,5 +1,6 @@
 import { LLM } from "../model/ModelComms";
 import { BashCommand, BashCommandContainer, TerminalHistory } from "../model/TerminalHistory";
+import { ExtensionSettings } from "../utils/ExtensionSettings";
 import { WriteToFiles } from "../utils/WriteToFiles";
 import * as vscode from 'vscode';
 
@@ -142,12 +143,15 @@ export class BashCommandViewModel{
 
     private ruleOutputRoutine(output: Promise<string|null>, commands: BashCommandContainer[]){
       output.then((rules) => {
-        if (rules){
+        if (rules !== null){
           this.writeToFiles.writeToCurrentFile(rules).then((success) => {
             if (success){
                 this.archiveCommands(commands);
             }
             this.updateCanUndoCanRedo();
+            if (rules.length < 2){
+              vscode.window.showInformationMessage('No rule has been printed');
+            }
           });
         } else {
           vscode.window.showInformationMessage('No rules to print');

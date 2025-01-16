@@ -196,6 +196,9 @@ export class TerminalHistory {
         if (! (ExtensionSettings.instance.getRulesOutputFormat()==="Snakemake" && ExtensionSettings.instance.getValidateSnakemakeRules())){
             return rules;
         }
+        if (rules.length < 10){
+            return "";
+        }
         //TODO: max tries should be a setting or a configuration
         for (let i = 0; i < 3; i++){
             const valid: { success: boolean; message?: string;} = await this.testRules.validateRules(rules);
