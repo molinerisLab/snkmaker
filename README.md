@@ -18,6 +18,10 @@ The extension's listening and recording of bash commands can be turned on and of
 
 <img src=".img/start_stop_listening.png" width="640px"/>
 
+## Adding commands manually
+
+If you forgot to turn on the listening mode, you can add commands manually by running the command `Manually add commands to Snakemaker history`. You can copy-paste the output of the `history` command of bash and it will be automatically parsed.
+
 ## Commands importance
 When recording bash commands, Snakemaker tries to distinguish between important commands, which can contribute to the Snakefile, and unimportant, one-timer commands, which are not.
 

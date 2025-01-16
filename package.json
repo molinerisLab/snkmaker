@@ -370,6 +370,10 @@
       {
         "command": "add-model",
         "title": "Add model"
+      },
+      {
+        "command": "add-history-manually",
+        "title": "Manually add commands to Snakemaker history"
       }
     ],
     "configuration": {

@@ -114,7 +114,7 @@ export class TerminalHistory {
     //Returns index of the command in the history, -1 if not found
     //if it's subcommand returns input of parent
     //TODO: can be optimized w.t some hashmap
-    private isCommandInHistory(command: string) {
+    public isCommandInHistory(command: string) {
         for (var i = 0; i < this.history.length; i++) {
             const c = this.history[i];
             if (c.getNumChildren() === 0 && c.getCommand() === command) {
