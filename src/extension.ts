@@ -10,6 +10,7 @@ import { SnkmakerLogger } from './utils/SnkmakerLogger';
 import { ExtensionSettings } from './utils/ExtensionSettings';
 import { AddModelView } from './view/AddModelView';
 import { AddHistoryView } from './view/AddHistoryView';
+import { NotebookView } from './view/NotebookView';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -235,6 +236,11 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 	context.subscriptions.push(deleteModel);
+	const processNotebook = vscode.commands.registerCommand("process-notebook", (notebook) => {
+		if (notebook){
+			const view = NotebookView.create(context.extensionUri, viewModel, notebook.notebookEditor.notebookUri);
+		}
+	});
 
 
 	//Activate copilot, if not already active

@@ -1,8 +1,11 @@
 import { LLM } from "../model/ModelComms";
+import { NotebookController } from "../model/NotebookController";
 import { BashCommand, BashCommandContainer, TerminalHistory } from "../model/TerminalHistory";
 import { ExtensionSettings } from "../utils/ExtensionSettings";
 import { WriteToFiles } from "../utils/WriteToFiles";
 import * as vscode from 'vscode';
+import { NotebookViewCallbacks } from "../view/NotebookView";
+import { NotebookPresenter } from "./NotebookPresenter";
 
 export class BashCommandViewModel{
     llm: LLM;
@@ -312,6 +315,10 @@ export class BashCommandViewModel{
 
     filterCommands(commands: string[]){
       return commands.filter(command => this.terminalHistory.isCommandInHistory(command)===-1);
+    }
+    
+    openNotebook(notebookPath: vscode.Uri, view: NotebookViewCallbacks){
+        return new NotebookPresenter(view, new NotebookController(notebookPath, this.llm));
     }
 
 }

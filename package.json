@@ -13,13 +13,17 @@
   "publisher": "SnakemakerUnito",
   "icon": "resources/icon.png",
   "activationEvents": [],
-  "main_dev":"./out/extension.js",
-  "main":"./dist/extension.js"
+  "main":"./out/extension.js",
+  "main_prod":"./dist/extension.js"
 
 ,
   "contributes": {
     "menus": {
       "commandPalette": [
+        {
+          "command": "process-notebook",
+          "when": "false"
+        },
         {
           "command": "delete-model",
           "when": "false"
@@ -91,6 +95,11 @@
         {
           "command": "history-undo",
           "when": "false"
+        }
+      ],
+      "notebook/toolbar":[
+        {
+          "command": "process-notebook"
         }
       ],
       "view/title": [
@@ -374,6 +383,10 @@
       {
         "command": "add-history-manually",
         "title": "Manually add commands to Snakemaker history"
+      },
+      {
+        "command": "process-notebook",
+        "title": "Process with Snakemaker"
       }
     ],
     "configuration": {
@@ -471,7 +484,7 @@
       }
     ]
   },
-  "scripts": {
+  "scripts_prod": {
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "vscode-test",
@@ -483,7 +496,7 @@
     "vscode:prepublish": "npm run package",
     "package": "npm run check-types && node esbuild.js --production"
   },
-  "scripts_dev":{
+  "scripts":{
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./"
