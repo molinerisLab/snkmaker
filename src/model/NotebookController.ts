@@ -127,6 +127,8 @@ class CellDependencyGraphImpl implements CellDependencyGraph{
                 cell.reads.forEach((read) => {
                     if (lastChanged[index-1][read] !== undefined) {
                         cell.dependsOn[read] = lastChanged[index-1][read];
+                    } else if (cell.writes.includes(read)){
+
                     } else {
                         throw new DependencyError(`Variable ${read} is not defined in previous cells`, index, read);
                     }
@@ -142,8 +144,130 @@ class CellDependencyGraphImpl implements CellDependencyGraph{
     }
 }
 
+export interface RulesNode{
+    isLoading: boolean;
+    cell: Cell;
+    name: string;
+    can_become: { [key: string]: boolean };
+    type: "rule" | "script" | "undecided";
+}
+
+export class RulesNodeImpl implements RulesNode{
+    can_become = {"rule": true, "script": true, "undecided": true};
+    private import_dependencies: { [key: string]: RulesNodeImpl } = {};
+    private rule_dependencies: { [key: string]: RulesNodeImpl } = {};
+    private undecided_dependencies: { [key: string]: RulesNodeImpl } = {};
+
+    constructor(public isLoading: boolean, public cell: Cell, public type: "rule" | "script" | "undecided", public name: string){
+    }
+    getType(): 'rule' | 'script' | 'undecided' {
+        return this.type;
+    }
+    addDependency(key: string, target: RulesNodeImpl): boolean{
+        const oldType = this.type;
+        if (target.type === "rule"){
+            this.rule_dependencies[key] = target;
+        } else if (target.type === "script"){
+            this.import_dependencies[key] = target;
+        } else {
+            this.undecided_dependencies[key] = target;
+        }
+        this.updateCanBecome();
+        this.updateType();
+        return this.type!==oldType;
+    }
+    updateDependencies(){
+        const allDependencies = [...Object.keys(this.import_dependencies), ...Object.keys(this.rule_dependencies), ...Object.keys(this.undecided_dependencies)];
+        const allDependencyNodes: RulesNodeImpl[] = [...Object.values(this.import_dependencies), ...Object.values(this.rule_dependencies), ...Object.values(this.undecided_dependencies)];
+        this.rule_dependencies = {}; this.import_dependencies = {}; this.undecided_dependencies = {};
+        allDependencies.forEach((key, target) => {
+            if (allDependencyNodes[target].type === "rule"){
+                this.rule_dependencies[key] = allDependencyNodes[target];
+            } else if (allDependencyNodes[target].type === "script"){
+                this.import_dependencies[key] = allDependencyNodes[target];
+            } else {
+                this.undecided_dependencies[key] = allDependencyNodes[target];
+            }
+        });
+        this.updateCanBecome();
+        this.updateType();
+    }
+    updateCanBecome(){
+        if (this.cell.isFunctions){
+            this.can_become = {"rule": false, "script": true, "undecided": false};
+            return;
+        }
+        this.can_become = {"rule": true, "script": true, "undecided": true};
+        if (Object.keys(this.rule_dependencies).length > 0){
+            this.can_become = {"rule": true, "script": false, "undecided": false};
+        } else if (Object.keys(this.undecided_dependencies).length > 0){
+            this.can_become = {"rule": true, "script": false, "undecided": true};
+        }
+    }
+    updateType(){
+        if (this.can_become[this.type]){
+            return;
+        }
+        if (this.can_become["undecided"]){
+            this.type = "undecided";
+            return;
+        }
+        if (this.can_become["rule"]){
+            this.type = "rule";
+            return;
+        }
+        this.type = "script";
+    }
+    setType(type: "rule" | "script" | "undecided"){
+        if (this.can_become[type] === false){
+            throw new Error("Cannot change type to " + type);
+        }
+        this.type = type;
+    }
+}
+
+class RulesDependencyGraph{
+    nodes: RulesNodeImpl[];
+    constructor(cells: CellDependencyGraph){
+        this.nodes = this.buildFromDependencyGraph(cells);
+    }
+    buildFromDependencyGraph(cells: CellDependencyGraph): RulesNodeImpl[]{
+        let nodes: RulesNodeImpl[] = [];
+        for (let i=0; i<cells.cells.length; i++){
+            const cell = cells.cells[i];
+            if (cell.isFunctions){
+                nodes.push(new RulesNodeImpl(true, cell, "script", ""));
+                continue;
+            }
+            const rule = new RulesNodeImpl(true, cell, "undecided", "");
+            Object.keys(cell.dependsOn).forEach((dependency: string) => {
+                rule.addDependency(dependency, nodes[cell.dependsOn[dependency]]);
+            });
+            nodes.push(rule);
+        }
+        return nodes;
+    }
+
+    setNodeDetails(index: number, name: string, type: "rule" | "script" | "undecided"){
+        this.nodes[index].name = name;
+        this.nodes[index].setType(type);
+        for (let i=index+1; i<this.nodes.length; i++){
+            this.nodes[i].updateDependencies();
+        }
+    }
+    async guessGraphTypesAndNames(response:any){
+        response.rules.forEach((rule: any) => {
+            //"cell_index": <number>, "rule_name": <string>, "type": <string>} for each cell... ]
+            try{
+                this.setNodeDetails(rule.cell_index, rule.rule_name, rule.type);
+            } catch (e:any){}
+        });
+    }
+}
+
 export class NotebookController{
     cells: CellDependencyGraphImpl | undefined;
+    rulesGraph: RulesDependencyGraph | undefined;
     constructor(private path: vscode.Uri, private llm: LLM){
     }
 
@@ -162,6 +286,39 @@ export class NotebookController{
         //Build dependency indexes:
         this.cells.buildDependencyGraph();
         return this.cells;
+    }
+
+    async getRulesGraph(): Promise<RulesNode[] | undefined>{
+        if (!this.cells){
+            return;
+        }
+        this.rulesGraph = new RulesDependencyGraph(this.cells);
+        let prompt = "I have a jupyter notebook that is being processed into a snakemake pipeline. This process is complex and involves " +
+        "decomposition of the notebook into smaller pieces of python code, and linking them together in a snakemake pipeline.\n" +
+        "In this step, I have a list of cells. Each cell can have three states: \n"+
+        "1- A rule: A cell that is a candidate to become a snakemake rule. It will produce output files.\n"+
+        "2- A script: A cell will not become a rule, but will be imported by other cells.\n"+
+        "3- Undecided: A cell that can be either a rule or a script and it will be decided later.\n\n"+
+        "Note: each cell has data dependencies toward other cells. Data dependencies include the following limitations:\n"+
+        "1- A rule can depend from any type of cells\n"+
+        "2- A script can depend only from other scripts\n"+
+        "3- An undecided cell can depend from scripts and undecided cells\n"+
+        "This implies that turning an undecided cell into a rule will force its undecided dependencies to become rules too.\n\n"+
+        "Consider the following notebook cells:\n\n" +
+        this.rulesGraph.nodes.map((node, index) => {
+            return "Cell. " + index + "\n" + node.cell.code + 
+            " depends on cells: " + Object.values(node.cell.dependsOn).join(", ");
+        }).join("\n\n") + "\n\n" +
+        "For every cell I need you to provide:\n"+
+        "1- A suggestion for the cell state, only if the cell is undecided.\n"+
+        "2- A possible short name for the rule or the script of the cell\n"+
+        "When deciding if changing an undecided cell state consider this: small pieces of code that do not produce significant data are good candidates for scripts. Pieces of code that produce meaningful data, or that produce data that is readed by many other cells are good candidates to be rules. If you are undecided, let it undecided and the user will choose himself.\n"+
+        "Please output your response in the following JSON schema:\n"+
+        `{"rules": [ {"cell_index": <number>, "rule_name": <string>, "type": <string>} for each cell... ] }`;
+        const response = await this.llm.runQuery(prompt);
+        const formatted: any = this.parseJsonFromResponse(response);
+        this.rulesGraph.guessGraphTypesAndNames(formatted);
+        return this.rulesGraph.nodes;
     }
 
     private async setDependenciesForCells(){

@@ -32,10 +32,13 @@ form > * {
     margin-left: 12px;
 }
 
-label {
+.biglabel {
     padding-right: 10px;
     max-width: 300px;
-	font-size: large;
+	font-size: x-large;
+}
+label{
+	font-size: medium;
 }
 *:focus {
 	outline-color: var(--vscode-focusBorder) !important;
@@ -49,7 +52,6 @@ a:hover,
 a:active {
 	color: var(--vscode-textLink-activeForeground);
 }
-
 code {
 	font-size: var(--vscode-editor-font-size);
 	font-family: var(--vscode-editor-font-family);
@@ -126,6 +128,17 @@ input[type="number"] {
 	left: 50%;
 	transform: translate(-50%, -50%);
 }
+.smallSpinner {
+	border: 16px solid #f3f3f3;
+	border-top: 16px solid #3498db;
+	border-radius: 50%;
+	width: 40px;
+	height: 40px;
+	animation: spin 2s linear infinite;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+}
 
 @keyframes spin {
 	0% { transform: rotate(0deg); }
@@ -135,19 +148,21 @@ input[type="number"] {
 #mainContainer {
     border-left: 16px;
     border-top: 32px;
+	padding-top: 32px;
 }
 
 .cell_container{
 	width: 95%;
 	display: flex;
 	justify-content: space-between;
-	margin-bottom: 12px;
+	margin-top: 8px;
+	margin-bottom: 32px;
 }
 .cell_code_container{
-	width: 45%;
+	width: 52%;
 }
 .cell_rule_container{
-	width: 45%;
+	width: 42%;
 }
 .cell{
 	background-color: var(--vscode-input-background);
@@ -180,7 +195,6 @@ input[type="number"] {
 	font-size: small;
 }
 .cell_rule{
-	background-color: var(--vscode-input-background);
 	padding-bottom: 8px;
 	padding-top: 8px;
 	padding-left: 8px;
@@ -188,9 +202,9 @@ input[type="number"] {
 	margin-top: 9px;
 }
 .cell_rule p{
-	margin-top: 0px;
-	margin-bottom: 0px;
-	padding: 0px;
+	margin-top: 4px;
+	margin-bottom: 4px;
+	padding: 5px;
 }
 .connectionSVG{
 	position: absolute; 

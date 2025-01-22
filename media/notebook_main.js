@@ -56,9 +56,10 @@
         const container = document.getElementById('mainContainer');
         let html = "";
         cells.cells.forEach((element, index) => {
+            html += `<label for="cell_container_${index}" class="biglabel">Cell n. ${index}</label>\n`;
             html += `<div class="cell_container" id="cell_container_${index}">\n`;
             html += `<div class="cell_code_container">\n`;
-            html += `<label for="cell${index}">Cell ${index}</label>\n`;
+            html += `<label for="cell${index}">Code: </label>\n`;
             html += `<div id="cell${index}" class="cell">\n`;
             html += `<p>${element.code}</p>\n`;
             html += "</div>\n";
@@ -107,20 +108,24 @@
                 splitButton.onclick = () => split_cell_view(cells, i, document.getElementById(`cell_container_${i}`));
             }
         }
-        setArrows(cells);
     }
 
-    function set_rule_candidates(candidates){
-        candidates.forEach((element, index) => {
-            const container = document.getElementById(`cell_rule_${element.cell_index}`);
+    function set_rules(rules){
+        rules.forEach((element, index) => {
+            const container = document.getElementById(`cell_rule_${index}`);
             let html = "";
-            html += `<label for="cell_rule_${index}">Candidate rule</label>\n`;
             html += `<div class="cell_rule" id="cell_rule_${index}">\n`;
-            html += `<p>Rule name: ${element.rule_name}</p>`;
-            html += `<p>Output: ${element.output_names}</p>`;
-            html += `<p>Inputs: ${element.other_rules_outputs}</p>`;
-            html += `<p>Strong dependencies: ${element.strong_dependencies}</p>`;
-            html += `<p>Weak dependencies: ${element.weak_dependencies}</p>`;
+            if (element.type==="rule"){
+                html += `<p>Export as: <strong>Snakemake Rule</strong></p>\n`;
+            } else if (element.type==="script"){
+                html += `<p>Export as: <strong>Script</strong></p>\n`;
+            } else {
+                html += `<p><strong>Undecided</strong>: can be either a script or a rule.</p>\n`;
+            }
+            html += `<p>Name: <strong>${element.name}</strong></p>\n`;
+            if (element.isLoading){
+                html += '<div class="smallSpinner"></div>';
+            }
             html += "</div>\n";
             container.innerHTML = html;
         });
@@ -134,16 +139,16 @@
                 const cells = message.data;
                 set_cells(cells);
                 break;
-            case 'set_candidates':
-                const candidates = message.data;
-                set_rule_candidates(candidates);
+            case 'set_rules':
+                const rules = message.data;
+                set_rules(rules);
                 break;
             case 'set_loading':
                 if (!message.loading){
                     document.getElementById('loadingscreen').style.display = 'none';
                 } else {
                     document.getElementById('loadingscreen').style.display = 'block';
-                    document.getElementById('loadingmessage').value = message.data;
+                    document.getElementById('loadingmessage').innerText = message.data;
                 }
                 break;
         }

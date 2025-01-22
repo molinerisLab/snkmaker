@@ -1,6 +1,8 @@
+import { mock } from "node:test";
 import { LLM } from "../model/ModelComms";
-import { NotebookController, CellDependencyGraph, Cell, DependencyError } from "../model/NotebookController";
+import { NotebookController, CellDependencyGraph, Cell, DependencyError, RulesNode } from "../model/NotebookController";
 import { NotebookViewCallbacks } from "../view/NotebookView";
+const vscode = require('vscode');
 
 /**The notebook functionality uses MVP pattern instead of MVVM
  * Compared to the bash history this component is based on a limited and very ordered sequence of commands 
@@ -15,10 +17,14 @@ export class NotebookPresenter{
     }
 
     private async buildNotebook(){
+        mockData(this.view); return;
         try{
             this.view.setLoading("Building dependency graph...");
             const cellD: CellDependencyGraph = await this.model.openNotebook();
             this.view.setNotebookCells(cellD);
+            this.view.setLoading("Building rules graph...");
+            const nodes: RulesNode[]|undefined = await this.model.getRulesGraph();
+            this.view.setRulesNodes(nodes||[]);
         } catch(error: any){
             this.view.onError(error);
         }
@@ -59,7 +65,24 @@ export class NotebookPresenter{
             }
         );
     }
+}
 
+function mockData(view:any){
+    let d1 = {
+        cells: [
+            {code: "EXPERMENT_NAME = \"V_4\"\nDATASET_PATH = f\"dataset/{EXPERMENT_NAME}\"\nEXPERIMENT_CONFIG = None", reads: [], reads_file: [], writes: ["EXPERMENT_NAME", "DATASET_PATH", "EXPERIMENT_CONFIG"], imports: [], isFunctions: false, declares: [], dependsOn: {}, calls: []},
+            {code: "def MY_FUN(arg1, __experment_name__):\n    print(arg1)\n    print(__experment_name__)\n\n", reads: [], reads_file: [], writes: [], imports: [], isFunctions: true, declares: ["MY_FUN"], dependsOn: {}, calls: []},
+            {code: "MY_FUN(\"ciao\", EXPERMENT_NAME)\nMY_FUN(\"ciao2\", EXPERMENT_NAME)\nEXPERIMENT_CONFIG = \"config\"", reads: ["EXPERMENT_NAME"], reads_file: [], writes: ["EXPERIMENT_CONFIG"], imports: [], isFunctions: false, declares: [], dependsOn: {EXPERMENT_NAME: 0}, calls: ["MY_FUN"]}
+        ]
+    };
+    let d2 = [
+        {isLoading: true, cell: {code: "EXPERMENT_NAME = \"V_4\"\nDATASET_PATH = f\"dataset/{EXPERMENT_NAME}\"\nEXPERIMENT_CONFIG = None", reads: [], reads_file: [], writes: ["EXPERMENT_NAME", "DATASET_PATH", "EXPERIMENT_CONFIG"], imports: [], isFunctions: false, declares: [], dependsOn: {}, calls: []}, type: "script", name: "setup_experiment", can_become: {rule: true, script: true, undecided: true}, import_dependencies: {}, rule_dependencies: {}, undecided_dependencies: {}},
+        {isLoading: true, cell: {code: "def MY_FUN(arg1, __experment_name__):\n    print(arg1)\n    print(__experment_name__)\n\n", reads: [], reads_file: [], writes: [], imports: [], isFunctions: true, declares: ["MY_FUN"], dependsOn: {}, calls: []}, type: "script", name: "define_function", can_become: {rule: true, script: true, undecided: true}, import_dependencies: {}, rule_dependencies: {}, undecided_dependencies: {}},
+        {isLoading: true, cell: {code: "MY_FUN(\"ciao\", EXPERMENT_NAME)\nMY_FUN(\"ciao2\", EXPERMENT_NAME)\nEXPERIMENT_CONFIG = \"config\"", reads: ["EXPERMENT_NAME"], reads_file: [], writes: ["EXPERIMENT_CONFIG"], imports: [], isFunctions: false, declares: [], dependsOn: {EXPERMENT_NAME: 0}, calls: ["MY_FUN"]}, type: "rule", name: "run_experiment", can_become: {rule: true, script: true, undecided: true}, import_dependencies: {EXPERMENT_NAME: {isLoading: true, cell: {code: "EXPERMENT_NAME = \"V_4\"\nDATASET_PATH = f\"dataset/{EXPERMENT_NAME}\"\nEXPERIMENT_CONFIG = None", reads: [], reads_file: [], writes: ["EXPERMENT_NAME", "DATASET_PATH", "EXPERIMENT_CONFIG"], imports: [], isFunctions: false, declares: [], dependsOn: {}, calls: []}, type: "script", name: "setup_experiment", can_become: {rule: true, script: true, undecided: true}, import_dependencies: {}, rule_dependencies: {}, undecided_dependencies: {}}}, rule_dependencies: {}, undecided_dependencies: {}}
 
-
+    ]
+    view.setLoading("Building dependency graph...");
+    view.setNotebookCells(d1);
+    view.setLoading("Building rules graph...");
+    view.setRulesNodes(d2);
 }

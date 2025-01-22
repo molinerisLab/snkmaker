@@ -1,13 +1,14 @@
 
 import * as vscode from 'vscode';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
-import { CellDependencyGraph } from '../model/NotebookController';
+import { CellDependencyGraph, RulesNode } from '../model/NotebookController';
 
 export interface NotebookViewCallbacks{
     setNotebookCells(cells: CellDependencyGraph): void;
     onError(error: string): void;
     onSoftError(error: string): void;
     setLoading(loadMessage: string): void;
+    setRulesNodes(nodes: RulesNode[]): void;
 }
 
 export class NotebookView implements NotebookViewCallbacks{
@@ -30,6 +31,10 @@ export class NotebookView implements NotebookViewCallbacks{
     setNotebookCells(cells: CellDependencyGraph): void {
         this.stopLoading();
         this._panel.webview.postMessage({ command: 'set_cells', data: cells });
+    }
+    setRulesNodes(nodes: RulesNode[]){
+        this.stopLoading();
+        this._panel.webview.postMessage({ command: 'set_rules', data: nodes });
     }
     onError(error: string): void {
         console.log(error);
