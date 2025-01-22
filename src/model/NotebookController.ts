@@ -2,53 +2,204 @@ import { json } from 'stream/consumers';
 import * as vscode from 'vscode';
 import { LLM, ModelComms } from './ModelComms';
 
-export interface NotebookRulesCandidates{
-    cell_index: number;
-    rule_name: string;
-    output_names: string[];
-    strong_dependencies: number[];
-    weak_dependencies: number[];
-    other_rules_outputs: string[];
+
+export interface Cell{
+    code: string; reads: string[]; reads_file: string[], writes: string[], imports: string[];
+    isFunctions: boolean; declares: string[]; calls: string[];
+    dependsOn: { [key: string]: number };
+}
+export interface CellDependencyGraph{
+    cells: Cell[];
+}
+
+class CellDependencyGraphImpl implements CellDependencyGraph{
+    cells: Cell[];
+    constructor(cells: string[][]){
+        this.cells = cells.map((cell) => {
+            return {code: cell.join(""), reads: [], reads_file: [], writes: [], imports: [], isFunctions:false, declares:[], dependsOn:{}, calls:[]};
+        });
+    }
+    public setDependency(index: number, reads: string[], reads_file: string[], writes: string[], imports: string[]){
+        this.cells[index].reads = reads;
+        this.cells[index].reads_file = reads_file;
+        this.cells[index].writes = writes;
+        this.cells[index].imports = imports;
+    }
+    private findGlobalFunctions(code: string): Array<{ name: string; content: string }> {
+        const lines = code.split("\n");
+        const functions: Array<{ name: string; content: string }> = [];
+        let currentFunc: { name: string; content: string } | null = null;
+        let currentIndent = 0;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const defMatch = line.match(/^def\s+([A-Za-z_]\w*)\s*\(.*\)\s*:/);
+            if (defMatch) {
+                if (currentFunc) {functions.push(currentFunc)};
+                currentFunc = { name: defMatch[1], content: line + "\n" };
+                currentIndent = line.search(/\S|$/);
+            } else if (currentFunc) {
+                const indent = line.search(/\S|$/);
+                if (indent <= currentIndent && line.trim() !== "") {
+                    functions.push(currentFunc);
+                    currentFunc = null;
+                } else if (currentFunc) {
+                    currentFunc.content += line + "\n";
+                }
+            }
+        }
+        if (currentFunc) {functions.push(currentFunc);};
+        return functions;
+    }
+
+    public parseFunctions(){
+        //Get list of functions defined by each cell
+        const functions: Array<Array<{ name: string; content: string }>> = this.cells.map(
+            (cell) => this.findGlobalFunctions(cell.code)
+        );
+        let fi=0; let ci=0;
+        while(fi<functions.length){
+            const fun = functions[fi];
+            const cell = this.cells[ci];
+            if (fun.length===0){
+                fi++; ci++;
+                continue;
+            }
+            //Remove function declaration from cells
+            fun.forEach((f) => {
+                cell.code = cell.code.replace(f.content, "");
+            });
+            //Append new cell with only function declarations
+            this.cells.splice(ci, 0, {code: fun.map((f) => f.content).join(""), reads: [], reads_file: [], writes: [], imports: [], isFunctions: true, declares: fun.map((f) => f.name), dependsOn:{}, calls:[]});
+            ci+=2;
+            fi++;
+        }
+    }
+
+    public makeFunctionsIndependent(){
+        for (let i=0; i<this.cells.length; i++){ 
+            if (!this.cells[i].isFunctions) {continue};
+
+            const fcell = this.cells[i];
+            const reads = fcell.reads;
+            const replaced = reads.map((read) => `__${read.toLowerCase()}__` );
+            //Replace all reads with replaced keyword inside code
+            for (let j=0; j<reads.length; j++){
+                fcell.code = fcell.code.replace(reads[j], replaced[j]);
+            }
+            fcell.declares.forEach((decl, index) => {
+                const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
+                fcell.code = fcell.code.replace(regex, (match, p1) => {
+                    return match.replace(p1, p1 + ", " + replaced.join(", "));
+                });
+            });
+            //Find cells that call one of these functions - replace call and add dependencies
+            for (let j=i+1; j<this.cells.length; j++){
+                const cell = this.cells[j];
+                if (cell.isFunctions){
+                    continue;
+                }
+                fcell.declares.forEach((decl, index) => {
+                    const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
+                    if (cell.code.match(regex)){
+                        cell.calls.push(decl);
+                        cell.reads.push(...reads);
+                        cell.reads = [...new Set(cell.reads)];
+                        cell.code = cell.code.replace(regex, (match, p1) => {
+                            return match.replace(p1, p1 + ", " + reads.join(", "));
+                        });
+                    }
+                });
+            }
+            fcell.reads = [];
+        }
+        //Remove eventually empty cells
+        this.cells = this.cells.filter((cell) => cell.code.length>1);
+    }
+
+    buildDependencyGraph(){
+        const lastChanged: { [key: string]: number }[] = this.cells.map(() => ({}));
+        this.cells.forEach((cell, index) => {
+            if (index > 0){
+                cell.reads.forEach((read) => {
+                    cell.dependsOn[read] = lastChanged[index-1][read];
+                });
+                Object.keys(lastChanged[index - 1]).forEach((key) => {
+                    lastChanged[index][key] = lastChanged[index - 1][key];
+                });
+            }
+            cell.writes.forEach((write) => {
+                lastChanged[index][write] = index;
+            });
+        });
+    }
 }
 
 export class NotebookController{
-    cells: string[][] | undefined;
+    cells: CellDependencyGraphImpl | undefined;
     constructor(private path: vscode.Uri, private llm: LLM){
     }
 
-    private parseJsonFromResponse(response: string): NotebookRulesCandidates[]{
+    async openNotebook(): Promise<CellDependencyGraph>{
+        const opened = await vscode.workspace.openTextDocument(this.path);
+        const json = await JSON.parse(opened.getText());  
+        const result: string[][] = json.cells.filter((cell: any) => cell.cell_type === "code").map((cell: any) => cell.source);
+        //Build data structure
+        this.cells = new CellDependencyGraphImpl(result);
+        //Parse function declarations
+        this.cells.parseFunctions();
+        //Get dependencies
+        await this.setDependenciesForCells();
+        //Use parsed info to make functions independent from context
+        this.cells.makeFunctionsIndependent();
+        //Build dependency indexes:
+        this.cells.buildDependencyGraph();
+        return this.cells;
+    }
+
+    private async setDependenciesForCells(){
+        let prompt = "I have a jupyter notebook that is being processed into a snakemake pipeline. This process involves " +
+        "decomposition of the notebook into smaller pieces of python code, and linking them together in a snakemake pipeline.\n" +
+        "The most important thing is define how each cell changes the global state.\nFor each cell, " +
+        "I need the set of non-local variables that the code inside the cell WRITES (either define first time or modify) and READS. I also need the list of files that the cell might read.\n"+
+        "The READS variables must contain only GLOBAL variables readed. If a cell declares a function that receives an argument, the argument is NOT in the READS list. Contrarily, if the cell calls the function and valorize the argument with a global variable then the variables goes in the READS. If a function reads a global variable inside its body, it goes into the READS list of the cell that declares this function.\n"+
+        "Regarding the WRITES list, notice that only variables and data goes there, not function declaration. For example MY_VAR+=1: MY_VAR goes in the list. def my_func(..): my_func does not go in the list.\n" +
+        "Consider the following notebook cells:\n\n" +
+        this.cells?.cells.map((cell, index) => "Cell. " + index + "\n" + cell.code).join("\n\n") + "\n\n" +
+        "Please provide to me the list of READED variables, WRITTEN variables and READED file for each cell. For each variable use the same name used in the code without changing it.\n"+
+        "\n\nPlease write the output in JSON format following this schema:\n"+
+        `{ "cells": [ {"cell_index": <number>, "reads": [<strings>], "writes": [<indexes>], "reads_file": [<indexes>]}  for each rule... ] }`;
+        const response = await this.llm.runQuery(prompt);
+        const formatted: any = this.parseJsonFromResponse(response);
+        if (!formatted.cells || !Array.isArray(formatted.cells)) {
+            throw new Error("Invalid response format: 'rules' is missing or not an array");
+        }
+        formatted.cells.forEach(
+            (cell: any) => {
+                if (typeof cell.cell_index !== 'number' ||
+                !Array.isArray(cell.reads) ||
+                !Array.isArray(cell.writes) ||
+                !Array.isArray(cell.reads_file)) {
+                throw new Error("Invalid response format: One or more cell properties are missing or of incorrect type");
+                }
+                this.cells?.setDependency(cell.cell_index, cell.reads, cell.reads_file, cell.writes, []);
+            }
+        );
+    }
+
+    private parseJsonFromResponse(response: string): any{
         // If response is in form <some text>{ ..  }<some text>, remove surrounding text
         let start = response.indexOf("{");
         let end = response.lastIndexOf("}");
         if (start !== -1 && end !== -1){
             response = response.substring(start, end + 1);
         }
-        const formatted = JSON.parse(response);
-        if (!formatted.rules || !Array.isArray(formatted.rules)) {
-            throw new Error("Invalid response format: 'rules' is missing or not an array");
-        }
-        formatted.rules.forEach((rule: any) => {
-            if (typeof rule.cell_index !== 'number' ||
-            typeof rule.rule_name !== 'string' ||
-            !Array.isArray(rule.output_names) ||
-            !Array.isArray(rule.strong_dependencies) ||
-            !Array.isArray(rule.weak_dependencies) ||
-            !Array.isArray(rule.other_rules_outputs)) {
-            throw new Error("Invalid response format: One or more rule properties are missing or of incorrect type");
-            }
-        });
-        return formatted.rules;
+        return JSON.parse(response);
     }
 
-    async openNotebook(): Promise<string[][]>{
-        const opened = await vscode.workspace.openTextDocument(this.path);
-        const json = await JSON.parse(opened.getText());  
-        const result: string[][] = json.cells.filter((cell: any) => cell.cell_type === "code").map((cell: any) => cell.source);
-        this.cells = result;
-        return result;
-    }
+}
 
-    public async getCandidateRules(): Promise<any>{
+
+/**public async getCandidateRules(): Promise<any>{
         let prompt = "I have a jupyter notebook that is being processed into a snakemake pipeline. This process involves " +
         "decomposition of the notebook into smaller pieces of python code, and linking them together in a snakemake pipeline.\n" +
         "As the first step, please consider the following notebook cell:\n\n" +
@@ -64,5 +215,4 @@ export class NotebookController{
         const response = await this.llm.runQuery(prompt);
         const formatted: NotebookRulesCandidates[] = this.parseJsonFromResponse(response);
         return formatted;
-    }
-}
+    } */

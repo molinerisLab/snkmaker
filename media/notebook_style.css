@@ -139,6 +139,20 @@ input[type="number"] {
 	margin-bottom: 0px;
 	padding: 0px;
 }
+.cell_details{
+	background-color: var(--vscode-input-background);
+	padding-bottom: 0px;
+	padding-top: 0px;
+	padding-left: 2px;
+	margin-bottom: 4px;
+	margin-top: 0px;
+	max-height: 370px;
+	overflow-y:scroll;
+	overflow-x: scroll;
+}
+.cell_details p{
+	font-size: small;
+}
 .cell_rule{
 	background-color: var(--vscode-input-background);
 	padding-bottom: 8px;
@@ -151,4 +165,10 @@ input[type="number"] {
 	margin-top: 0px;
 	margin-bottom: 0px;
 	padding: 0px;
+}
+.connectionSVG{
+	position: absolute; 
+    top: 0; 
+    left: 0; 
+    pointer-events: none;
 }

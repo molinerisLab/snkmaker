@@ -1,23 +1,69 @@
 
 (function () {
     const vscode = acquireVsCodeApi();
-    
+    //MainContainer( [(CellContainer(..,CellRuleContainer)) for each cell] )
+
+    function setArrows(cells){
+        const container = document.getElementById('mainContainer');
+        container.innerHTML = container.innerHTML + `<svg class="connectionSVG">
+<defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+            refX="0" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" />
+    </marker>
+</defs>
+<line id="myLine" stroke="black" stroke-width="2" 
+        marker-end="url(#arrowhead)" />
+</svg>`;
+        let distanceFromDiv = 20;
+        cells.cells.forEach((element, index) => {
+            Object.entries(element.dependsOn).forEach(
+                ([key, value]) => {
+                    const c1 = document.getElementById('cell_container_'+index).getBoundingClientRect();
+                    const c2 = document.getElementById('cell_container_'+value).getBoundingClientRect();
+                    const mainRect = document.getElementById('MainContainer').getBoundingClientRect();
+                    const svg = document.getElementById('connectionSVG');
+                    svg.setAttribute('width', mainRect.width);
+                    svg.setAttribute('height', mainRect.height);
+
+                    const line = document.getElementById('myLine');
+                    const x = distanceFromDiv;  
+                    const y1 = c1.top - mainRect.top + c1.height / 2;
+                    const y2 = c2.top - mainRect.top + c2.height / 2;
+                    line.setAttribute('x1', x);
+                    line.setAttribute('y1', y1);
+                    line.setAttribute('x2', x);
+                    line.setAttribute('y2', y2);
+                    distanceFromDiv += 5;
+                }
+            );
+        });
+    }
     function set_cells(cells) {
         const container = document.getElementById('mainContainer');
         let html = "";
-        cells.forEach((element, index) => {
-            html += `<div class="cell_container">\n`;
+        cells.cells.forEach((element, index) => {
+            html += `<div class="cell_container" id="cell_container_${index}">\n`;
             html += `<div class="cell_code_container">\n`;
             html += `<label for="cell${index}">Cell ${index}</label>\n`;
             html += `<div id="cell${index}" class="cell">\n`;
-            element.forEach((subelement) => {
-                html += `<p>${subelement}</p>\n`;});
+            html += `<p>${element.code}</p>\n`;
+            html += "</div>\n";
+            html += `<div id="cell${index}_details" class="cell_details">\n`;
+            if (element.isFunctions){
+                html += `<p>Declares: ${element.declares}</p>`;
+            } else {
+                html += `<p>Depends on: ${ Object.entries(element.dependsOn).map(([key, value]) => `(${key}: ${value})`).join(', ')}</p>\n`;
+                //html += `<p>Depends on2: ${element.reads}</p>\n`;//Should have same entries as keys of dependsOn
+                html += `<p>Writes: ${element.writes}</p>`;
+            }
             html += "</div>\n";
             html += "</div>\n";
             html += `<div class="cell_rule_container" id="cell_rule_${index}"></div>\n`;
             html += "</div>\n";
         });
         container.innerHTML = html;
+        setArrows(cells);
     }
 
     function set_rule_candidates(candidates){
