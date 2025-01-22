@@ -1,44 +1,57 @@
 
 (function () {
     const vscode = acquireVsCodeApi();
-    //MainContainer( [(CellContainer(..,CellRuleContainer)) for each cell] )
-
-    function setArrows(cells){
-        const container = document.getElementById('mainContainer');
-        container.innerHTML = container.innerHTML + `<svg class="connectionSVG">
-<defs>
-    <marker id="arrowhead" markerWidth="10" markerHeight="7" 
-            refX="0" refY="3.5" orient="auto">
-    <polygon points="0 0, 10 3.5, 0 7" />
-    </marker>
-</defs>
-<line id="myLine" stroke="black" stroke-width="2" 
-        marker-end="url(#arrowhead)" />
-</svg>`;
-        let distanceFromDiv = 20;
-        cells.cells.forEach((element, index) => {
-            Object.entries(element.dependsOn).forEach(
-                ([key, value]) => {
-                    const c1 = document.getElementById('cell_container_'+index).getBoundingClientRect();
-                    const c2 = document.getElementById('cell_container_'+value).getBoundingClientRect();
-                    const mainRect = document.getElementById('MainContainer').getBoundingClientRect();
-                    const svg = document.getElementById('connectionSVG');
-                    svg.setAttribute('width', mainRect.width);
-                    svg.setAttribute('height', mainRect.height);
-
-                    const line = document.getElementById('myLine');
-                    const x = distanceFromDiv;  
-                    const y1 = c1.top - mainRect.top + c1.height / 2;
-                    const y2 = c2.top - mainRect.top + c2.height / 2;
-                    line.setAttribute('x1', x);
-                    line.setAttribute('y1', y1);
-                    line.setAttribute('x2', x);
-                    line.setAttribute('y2', y2);
-                    distanceFromDiv += 5;
-                }
-            );
+    function delete_cell(cell_index){
+        vscode.postMessage({
+            command: 'delete_cell',
+            data: cell_index
         });
     }
+    function merge_cell(index_top, index_bottom){
+        vscode.postMessage({
+            command: 'merge_cell',
+            index_top: index_top, index_bottom: index_bottom
+        });
+    }
+
+    function split_cell_view(cells, cell_index, container){
+        code = cells.cells[cell_index].code;
+
+        //const container = document.getElementById('mainContainer');
+        const oldHtml = container.innerHTML;
+        let html = "";
+        html += `<div class="cell_container" id="cell_container_${cell_index}">\n`;
+        html += "<h2>Split cell code</h2>\n";
+        html += "<p>First part of split</p>\n";
+        html += `<textarea id="area_1" class="cell" rows="10" cols="50">\n${code}\n</textarea>\n`;
+        html += "<p>Second part of split</p>\n";
+        html += `<textarea id="area_2" class="cell" rows="10" cols="50"></textarea>\n`;
+        html += "<div class='cell_buttons'>\n";
+        html += `<button id="cancel_button_${cell_index}">Cancel</button>\n`;
+        html += `<button id="split_button_${cell_index}">Split</button>\n`;
+        html += "</div>\n";
+        html += "</div>\n";
+        container.innerHTML = html;
+        const splitButton = document.getElementById(`split_button_${cell_index}`);
+        if (splitButton) {
+            splitButton.onclick = () => {
+                vscode.postMessage({
+                    command: 'split_cell',
+                    index: cell_index,
+                    code1: document.getElementById('area_1').value,
+                    code2: document.getElementById('area_2').value
+                });
+            };
+        }
+        const cancelButton = document.getElementById(`cancel_button_${cell_index}`);
+        if (cancelButton) {
+            cancelButton.onclick = () => {
+                container.innerHTML = oldHtml;
+            };
+        }
+    }
+
+    //MainContainer( [(CellContainer(..,CellRuleContainer)) for each cell] )
     function set_cells(cells) {
         const container = document.getElementById('mainContainer');
         let html = "";
@@ -58,11 +71,42 @@
                 html += `<p>Writes: ${element.writes}</p>`;
             }
             html += "</div>\n";
+            if (!element.isFunctions){
+                html += "<div class='cell_buttons'>\n";
+                html += `<button id="delete_button_${index}">Delete</button>\n`;
+                if (index < cells.cells.length-1 && !cells.cells[index+1].isFunctions){
+                    html += `<button id="merge_next_button_${index}">Merge with next</button>\n`;
+                }
+                if (index > 0 && !cells.cells[index-1].isFunctions){
+                    html += `<button id="merge_prev_button_${index}">Merge with previous</button>\n`;
+                }
+                //TODO split
+                html += `<button id="split_button_${index}">Split cell</button>\n`;
+                html += "</div>\n";
+            }
             html += "</div>\n";
             html += `<div class="cell_rule_container" id="cell_rule_${index}"></div>\n`;
             html += "</div>\n";
         });
         container.innerHTML = html;
+        for (let i=0; i<cells.cells.length; i++){
+            const deleteButton = document.getElementById(`delete_button_${i}`);
+            if (deleteButton) {
+                deleteButton.onclick = () => delete_cell(i);
+            }
+            const mergeNextButton = document.getElementById(`merge_next_button_${i}`);
+            if (mergeNextButton) {
+                mergeNextButton.onclick = () => merge_cell(i, i + 1);
+            }
+            const mergePrevButton = document.getElementById(`merge_prev_button_${i}`);
+            if (mergePrevButton) {
+                mergePrevButton.onclick = () => merge_cell(i - 1, i);
+            }
+            const splitButton = document.getElementById(`split_button_${i}`);
+            if (splitButton) {
+                splitButton.onclick = () => split_cell_view(cells, i, document.getElementById(`cell_container_${i}`));
+            }
+        }
         setArrows(cells);
     }
 
@@ -93,6 +137,14 @@
             case 'set_candidates':
                 const candidates = message.data;
                 set_rule_candidates(candidates);
+                break;
+            case 'set_loading':
+                if (!message.loading){
+                    document.getElementById('loadingscreen').style.display = 'none';
+                } else {
+                    document.getElementById('loadingscreen').style.display = 'block';
+                    document.getElementById('loadingmessage').value = message.data;
+                }
                 break;
         }
     });

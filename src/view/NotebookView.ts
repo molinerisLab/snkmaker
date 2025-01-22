@@ -6,6 +6,8 @@ import { CellDependencyGraph } from '../model/NotebookController';
 export interface NotebookViewCallbacks{
     setNotebookCells(cells: CellDependencyGraph): void;
     onError(error: string): void;
+    onSoftError(error: string): void;
+    setLoading(loadMessage: string): void;
 }
 
 export class NotebookView implements NotebookViewCallbacks{
@@ -13,11 +15,12 @@ export class NotebookView implements NotebookViewCallbacks{
     private readonly _panel: vscode.WebviewPanel;
     private readonly _extensionUri: vscode.Uri;
     private _disposables: vscode.Disposable[] = [];
+    private loading = true;
 
     public static create(extensionUri: vscode.Uri, viewModel: BashCommandViewModel, notebookUri: vscode.Uri) {
         const panel = vscode.window.createWebviewPanel(
             NotebookView.viewType,
-            'Custom Model Setup',
+            'Export notebook',
             (vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn: undefined) || vscode.ViewColumn.One,
             {enableScripts: true,localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')]}
         );
@@ -25,6 +28,7 @@ export class NotebookView implements NotebookViewCallbacks{
     }
 
     setNotebookCells(cells: CellDependencyGraph): void {
+        this.stopLoading();
         this._panel.webview.postMessage({ command: 'set_cells', data: cells });
     }
     onError(error: string): void {
@@ -32,26 +36,49 @@ export class NotebookView implements NotebookViewCallbacks{
         vscode.window.showErrorMessage(error);
         this.disposeDelayed();
     }
+    onSoftError(error: string): void {
+        this.stopLoading();
+        console.log(error);
+        vscode.window.showWarningMessage(error);
+    }
+    setLoading(loadMessage: string){
+        this.loading = true;
+        this._panel.webview.postMessage({ command: 'set_loading', data: loadMessage, loading: true });
+    }
+    private stopLoading(){
+        this.loading = false;
+        this._panel.webview.postMessage({ command: 'set_loading', loading: false });
+    }
 
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, viewModel: BashCommandViewModel, notebookUri: vscode.Uri) {
         this._panel = panel;
         this._extensionUri = extensionUri;
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+        const presenter = viewModel.openNotebook(notebookUri, this);
         this._panel.webview.onDidReceiveMessage(
             message => {
                 switch (message.command) {
-                    case 'submit':
-                        const data = message.data;
-                        viewModel.addModel(data.url, data.model_name, data.max_tokens, data.api_key);
-                        panel.dispose();
-                        return;
+                    case 'delete_cell':
+                        const index = message.data;
+                        presenter.deleteCell(index);
+                        break;
+                    case 'merge_cell':
+                        const index_top = message.index_top;
+                        const index_bottom = message.index_bottom;
+                        presenter.mergeCells(index_top, index_bottom);
+                        break;
+                    case 'split_cell':
+                        const cell_index = message.index;
+                        const code1 = message.code1;
+                        const code2 = message.code2;
+                        presenter.splitCell(cell_index, code1, code2);
+                        break;
                 }
             },
             null,
             this._disposables
         );
         this._panel.webview.html = this._getHtmlForWebview(this._panel.webview);
-        const presenter = viewModel.openNotebook(notebookUri, this);
     }
 
 
@@ -92,6 +119,10 @@ export class NotebookView implements NotebookViewCallbacks{
                 <title>Export Notebook</title>
             </head>
             <body>
+                <div id="loadingscreen">
+                    <div class="spinner"></div>
+                    <h2 id="loadingmessage">Loading...</h2>
+                </div>
                 <div id="mainContainer">
                 </div>
                 <script nonce="${nonce}" src="${scriptUri}"></script>

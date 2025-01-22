@@ -12,6 +12,10 @@ export interface CellDependencyGraph{
     cells: Cell[];
 }
 
+export class DependencyError{
+    constructor(public message: string, public reader_cell: number, public variable: string){}
+}
+
 class CellDependencyGraphImpl implements CellDependencyGraph{
     cells: Cell[];
     constructor(cells: string[][]){
@@ -121,7 +125,11 @@ class CellDependencyGraphImpl implements CellDependencyGraph{
         this.cells.forEach((cell, index) => {
             if (index > 0){
                 cell.reads.forEach((read) => {
-                    cell.dependsOn[read] = lastChanged[index-1][read];
+                    if (lastChanged[index-1][read] !== undefined) {
+                        cell.dependsOn[read] = lastChanged[index-1][read];
+                    } else {
+                        throw new DependencyError(`Variable ${read} is not defined in previous cells`, index, read);
+                    }
                 });
                 Object.keys(lastChanged[index - 1]).forEach((key) => {
                     lastChanged[index][key] = lastChanged[index - 1][key];
@@ -194,6 +202,95 @@ export class NotebookController{
             response = response.substring(start, end + 1);
         }
         return JSON.parse(response);
+    }
+
+    deleteCell(cell_index: number): CellDependencyGraph | undefined{
+        if (this.cells){
+            const removed = this.cells.cells.splice(cell_index, 1);
+            try{
+                this.cells.buildDependencyGraph();
+                return this.cells;
+            } catch (e: any){
+                //If removing this cell breaks the dependencies, notify the user and undo the change
+                this.cells.cells.splice(cell_index, 0, ...removed);
+                throw e;
+            }
+        }
+    }
+
+    async splitCell(index: number, code1: string, code2: string){
+        if (!this.cells){return;}
+        const oldCell = this.cells.cells[index];
+        try{
+            const cell_a: Cell = {
+                code: code1, reads: [], reads_file: [], writes: [], imports: [],
+                isFunctions: false, declares: [], dependsOn: {}, calls: []
+            };
+            const cell_b: Cell = {
+                code: code2, reads: [], reads_file: [], writes: [], imports: [],
+                isFunctions: false, declares: [], dependsOn: {}, calls: []
+            };
+            this.cells.cells.splice(index, 2, cell_a, cell_b);
+            let prompt = "I have a jupyter notebook that is being processed into a snakemake pipeline. This process involves " +
+            "decomposition of the notebook into smaller pieces of python code, and linking them together in a snakemake pipeline.\n" +
+            "The most important thing is define how each cell changes the global state.\nFor each cell, " +
+            "I need the set of non-local variables that the code inside the cell WRITES (either define first time or modify) and READS. I also need the list of files that the cell might read.\n"+
+            "The READS variables must contain only GLOBAL variables readed. If a cell declares a function that receives an argument, the argument is NOT in the READS list. Contrarily, if the cell calls the function and valorize the argument with a global variable then the variables goes in the READS. If a function reads a global variable inside its body, it goes into the READS list of the cell that declares this function.\n"+
+            "Regarding the WRITES list, notice that only variables and data goes there, not function declaration. For example MY_VAR+=1: MY_VAR goes in the list. def my_func(..): my_func does not go in the list.\n" +
+            "Note that the cells provided are only part of the notebook. Readed variables that are not defined in these cells are likely defined by previous ones.\n"+
+            "Consider the following notebook cells:\n\n" +
+            [cell_a,cell_b].map((cell, index) => "Cell. " + index + "\n" + cell.code).join("\n\n") + "\n\n" +
+            "Please provide to me the list of READED variables, WRITTEN variables and READED file for each cell. For each variable use the same name used in the code without changing it.\n"+
+            "\n\nPlease write the output in JSON format following this schema:\n"+
+            `{ "cells": [ {"cell_index": <number>, "reads": [<strings>], "writes": [<indexes>], "reads_file": [<indexes>]}  for each rule... ] }`;
+            const response = await this.llm.runQuery(prompt);
+            const formatted: any = this.parseJsonFromResponse(response);
+            if (!formatted.cells || !Array.isArray(formatted.cells)) {
+                throw new Error("Invalid response format: 'rules' is missing or not an array");
+            }
+            cell_a.reads = formatted.cells[0].reads;
+            cell_a.reads_file = formatted.cells[0].reads_file;
+            cell_a.writes = formatted.cells[0].writes;
+            cell_b.reads = formatted.cells[1].reads;
+            cell_b.reads_file = formatted.cells[1].reads_file;
+            cell_b.writes = formatted.cells[1].writes;
+            this.cells.buildDependencyGraph();
+        } catch (e: any){
+            this.cells.cells.splice(index, 2, oldCell);
+            throw e;
+        }
+        return this.cells;
+    }
+
+    mergeCells(index_a: number, index_b: number){
+        if (index_b < index_a){
+            const temp = index_a;
+            index_a = index_b;
+            index_b = temp;
+        }
+        if (!this.cells){return;}
+        //What A reads, goes in new cell reads
+        //What B reads, goes in new cell reads IF A does not write it
+        //Rest of fields are merged between the two
+        const new_cell: Cell = {
+            code: this.cells?.cells[index_a].code + this.cells?.cells[index_b].code,
+            reads: [...new Set([
+                ...this.cells?.cells[index_a].reads || [],
+                ...this.cells?.cells[index_b].reads.filter(
+                    (read) => !this.cells?.cells[index_a].writes.includes(read)
+                ) || []
+            ])],
+            reads_file: [...this.cells.cells[index_a].reads_file, ...this.cells.cells[index_b].reads_file],
+            writes: [...new Set([...this.cells?.cells[index_a].writes || [], ...this.cells?.cells[index_b].writes || []])],
+            imports: [...new Set([...this.cells?.cells[index_a].imports || [], ...this.cells?.cells[index_b].imports || []])],
+            isFunctions: false,
+            declares: [],
+            dependsOn: {},
+            calls: [...new Set([...this.cells?.cells[index_a].calls || [], ...this.cells?.cells[index_b].calls || []])]
+        };
+        this.cells.cells.splice(index_a, 2, new_cell);
+        this.cells.buildDependencyGraph();
+        return this.cells;
     }
 
 }
