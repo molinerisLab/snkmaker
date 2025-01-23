@@ -9,6 +9,7 @@ export interface NotebookViewCallbacks{
     onSoftError(error: string): void;
     setLoading(loadMessage: string): void;
     setRulesNodes(nodes: RulesNode[]): void;
+    stopLoading(): void;
 }
 
 export class NotebookView implements NotebookViewCallbacks{
@@ -50,7 +51,7 @@ export class NotebookView implements NotebookViewCallbacks{
         this.loading = true;
         this._panel.webview.postMessage({ command: 'set_loading', data: loadMessage, loading: true });
     }
-    private stopLoading(){
+    stopLoading(){
         this.loading = false;
         this._panel.webview.postMessage({ command: 'set_loading', loading: false });
     }

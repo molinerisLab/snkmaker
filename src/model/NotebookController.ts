@@ -240,6 +240,9 @@ class RulesDependencyGraph{
     }
     buildFromDependencyGraph(cells: CellDependencyGraph, startFrom=0){
         let nodes = this.nodes;
+        if (startFrom > 0 && startFrom < this.nodes.length){
+            nodes = this.nodes.slice(0, startFrom);
+        }
         for (let i=startFrom; i<cells.cells.length; i++){
             const cell = cells.cells[i];
             if (cell.isFunctions){
@@ -333,7 +336,8 @@ export class NotebookController{
         "When deciding if changing an undecided cell state consider this: small pieces of code that do not produce significant data are good candidates for scripts. Pieces of code that produce meaningful data, or that produce data that is readed by many other cells are good candidates to be rules. If you are undecided, let it undecided and the user will choose himself.\n"+
         "Please output your response in the following JSON schema:\n"+
         `{"rules": [ {"cell_index": <number>, "rule_name": <string>, "type": <string>} for each cell... ] } \n`+
-        "Plase provide at least a name for every cell, even if you don't want to change the state.";
+        (changeFrom===0 ? "Please provide at least a name for every cell, even if you don't want to change the state." : 
+            "You can change the state of the cells from " + changeFrom + " onward. For those, please provide at least a name for every cell, even if you don't want to change the state.");
         const response = await this.llm.runQuery(prompt);
         const formatted: any = this.parseJsonFromResponse(response);
         this.rulesGraph.guessGraphTypesAndNames(formatted, changeFrom);
@@ -345,7 +349,12 @@ export class NotebookController{
         "decomposition of the notebook into smaller pieces of python code, and linking them together in a snakemake pipeline.\n" +
         "The most important thing is define how each cell changes the global state.\nFor each cell, " +
         "I need the set of non-local variables that the code inside the cell WRITES (either define first time or modify) and READS. I also need the list of files that the cell might read.\n"+
-        "The READS variables must contain only GLOBAL variables readed. If a cell declares a function that receives an argument, the argument is NOT in the READS list. Contrarily, if the cell calls the function and valorize the argument with a global variable then the variables goes in the READS. If a function reads a global variable inside its body, it goes into the READS list of the cell that declares this function.\n"+
+        "The READS variables must contain only GLOBAL variables readed. If a cell declares a function that receives an argument,"+
+        " the argument is NOT in the READS list - it will be the cell who call the function who provide it. " +
+        "Contrarily, if the cell calls the function and valorize the argument with a global variable then the variables goes in the READS. "+
+        "If a function reads a global variable inside its body, it goes into the READS list of the cell that declares this function.\n"+
+        "Finally, the READS and WRITES lists regard only variables. If a cell calls a function EXAMPLE_FUNCTION(..params..) do not put EXAMPLE_FUNCTION in the READS list, " +
+        "and if a cell defines it def EXAMPLE_FUNCTION(..): .. do not put it in the  WRITES list. \n" +
         "Regarding the WRITES list, notice that only variables and data goes there, not function declaration. For example MY_VAR+=1: MY_VAR goes in the list. def my_func(..): my_func does not go in the list.\n" +
         "Consider the following notebook cells:\n\n" +
         this.cells?.cells.map((cell, index) => "Cell. " + index + "\n" + cell.code).join("\n\n") + "\n\n" +
@@ -398,11 +407,12 @@ export class NotebookController{
         return undefined;
     }
 
-    async splitCell(index: number, code1: string, code2: string){
+    async splitCell(index: number, code1: string, code2: string): Promise<[CellDependencyGraph, RulesNode[]]|undefined>{
         if (!this.cells){return;}
-        if (code1.length === 0 || code2.length === 0){ return this.cells;}
+        if (code1.length === 0 || code2.length === 0){ return [this.cells, this.rulesGraph?.nodes||[]];}
         const oldCell = this.cells.cells[index];
         try{
+            let calls = oldCell.calls;
             const cell_a: Cell = {
                 code: code1, reads: [], reads_file: [], writes: [], imports: [],
                 isFunctions: false, declares: [], dependsOn: {}, calls: []
@@ -411,12 +421,17 @@ export class NotebookController{
                 code: code2, reads: [], reads_file: [], writes: [], imports: [],
                 isFunctions: false, declares: [], dependsOn: {}, calls: []
             };
-            this.cells.cells.splice(index, 2, cell_a, cell_b);
+            this.cells.cells.splice(index, 1, cell_a, cell_b);
             let prompt = "I have a jupyter notebook that is being processed into a snakemake pipeline. This process involves " +
             "decomposition of the notebook into smaller pieces of python code, and linking them together in a snakemake pipeline.\n" +
             "The most important thing is define how each cell changes the global state.\nFor each cell, " +
             "I need the set of non-local variables that the code inside the cell WRITES (either define first time or modify) and READS. I also need the list of files that the cell might read.\n"+
-            "The READS variables must contain only GLOBAL variables readed. If a cell declares a function that receives an argument, the argument is NOT in the READS list. Contrarily, if the cell calls the function and valorize the argument with a global variable then the variables goes in the READS. If a function reads a global variable inside its body, it goes into the READS list of the cell that declares this function.\n"+
+            "The READS variables must contain only GLOBAL variables readed. If a cell declares a function that receives an argument,"+
+            " the argument is NOT in the READS list - it will be the cell who call the function who provide it. " +
+            "Contrarily, if the cell calls the function and valorize the argument with a global variable then the variables goes in the READS. "+
+            "If a function reads a global variable inside its body, it goes into the READS list of the cell that declares this function.\n"+
+            "Finally, the READS and WRITES lists regard only variables. If a cell calls a function EXAMPLE_FUNCTION(..params..) do not put EXAMPLE_FUNCTION in the READS list, " +
+            "and if a cell defines it def EXAMPLE_FUNCTION(..): .. do not put it in the  WRITES list. \n" +
             "Regarding the WRITES list, notice that only variables and data goes there, not function declaration. For example MY_VAR+=1: MY_VAR goes in the list. def my_func(..): my_func does not go in the list.\n" +
             "Note that the cells provided are only part of the notebook. Readed variables that are not defined in these cells are likely defined by previous ones.\n"+
             "Consider the following notebook cells:\n\n" +
@@ -435,15 +450,30 @@ export class NotebookController{
             cell_b.reads = formatted.cells[1].reads;
             cell_b.reads_file = formatted.cells[1].reads_file;
             cell_b.writes = formatted.cells[1].writes;
+            if (calls.length > 0){
+                cell_a.reads = cell_a.reads.filter((read) => !calls.includes(read));
+                cell_b.reads = cell_b.reads.filter((read) => !calls.includes(read));
+                calls.forEach((call) => {
+                    if (cell_a.code.includes(call)) {
+                        cell_a.calls.push(call);
+                    }
+                    if (cell_b.code.includes(call)) {
+                        cell_b.calls.push(call);
+                    }
+                });
+            }
             this.cells.buildDependencyGraph();
         } catch (e: any){
             this.cells.cells.splice(index, 2, oldCell);
             throw e;
         }
-        return this.cells;
+        //Update rule graph
+        this.rulesGraph?.buildFromDependencyGraph(this.cells, index);
+        const update = await this.updateRulesGraph(index);
+        return [this.cells, update];
     }
 
-    mergeCells(index_a: number, index_b: number){
+    mergeCells(index_a: number, index_b: number): [CellDependencyGraph, Promise<RulesNode[]>]|undefined{
         if (index_b < index_a){
             const temp = index_a;
             index_a = index_b;
@@ -471,7 +501,10 @@ export class NotebookController{
         };
         this.cells.cells.splice(index_a, 2, new_cell);
         this.cells.buildDependencyGraph();
-        return this.cells;
+        //Update rule graph
+        this.rulesGraph?.buildFromDependencyGraph(this.cells, index_a);
+        const update = this.updateRulesGraph(index_a);
+        return [this.cells, update];
     }
 
 }

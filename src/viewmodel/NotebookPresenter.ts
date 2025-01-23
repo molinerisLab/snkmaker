@@ -48,17 +48,29 @@ export class NotebookPresenter{
         }
     }
     public mergeCells(cell_index_top: number, cell_index_bottom: number){
+        this.view.setLoading("Updating cell depenency graph...");
         const result = this.model.mergeCells(cell_index_top, cell_index_bottom);
         if (result){
-            this.view.setNotebookCells(result);
+            const cells = result[0]; const rules = result[1];
+            this.view.setNotebookCells(cells);
+            this.view.setLoading("Updating rules graph...");
+            rules.then((nodes: RulesNode[]) => this.view.setRulesNodes(nodes));
         }
     }
 
     public splitCell(index: number, code1: string, code2: string){
         this.view.setLoading("Reconstructing dependency graph...");
         this.model.splitCell(index, code1, code2).then(
-            (cellD: CellDependencyGraph|undefined) => {
-                if (cellD) {this.view.setNotebookCells(cellD);}
+            (result:[CellDependencyGraph, RulesNode[]]|undefined) => {
+                if (result){
+                    const cellD: CellDependencyGraph = result[0];
+                    const rules: RulesNode[] = result[1];
+                    if (cellD) {this.view.setNotebookCells(cellD);}
+                    this.view.setRulesNodes(rules);
+                } else {
+                    this.view.onSoftError(`Could not complete operation`);
+                    this.view.stopLoading();
+                }
             }
         ).catch(
             (error: any) => {
