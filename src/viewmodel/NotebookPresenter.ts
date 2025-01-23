@@ -30,6 +30,73 @@ export class NotebookPresenter{
         }
     }
 
+    public addDependency(cell_index: number, variable: string){
+        try{
+            this.view.setLoading("Updating cell depenency graph...");
+            const res = this.model.addCellDependency(cell_index, variable);
+            if (res) {this.view.setNotebookCells(res[0]);}
+            this.view.setLoading("Updating rules graph...");
+            if (res) {
+                res[1].then((nodes: RulesNode[]) => this.view.setRulesNodes(nodes));
+            }
+        } catch (error) {
+            if (error instanceof DependencyError) {
+                this.view.onSoftError(`Cannot add this dependency, as no cell writes the variable ${error.variable}`);
+            } else {
+                this.view.onError(String(error));
+            }
+        }
+    }
+
+    public addWrite(cell_index: number, variable: string){
+        try{
+            this.view.setLoading("Updating cell depenency graph...");
+            const res = this.model.addCellWrite(cell_index, variable);
+            if (res) {this.view.setNotebookCells(res[0]);}
+            this.view.setLoading("Updating rules graph...");
+            if (res) {
+                res[1].then((nodes: RulesNode[]) => this.view.setRulesNodes(nodes));
+            }
+        } catch (error) {
+            this.view.onError(String(error));
+        }
+    }
+
+    public removeDependency(cell_index: number, variable: string){
+        try{
+            this.view.setLoading("Updating cell depenency graph...");
+            const res = this.model.removeCellDependency(cell_index, variable);
+            if (res) {this.view.setNotebookCells(res[0]);}
+            this.view.setLoading("Updating rules graph...");
+            if (res) {
+                res[1].then((nodes: RulesNode[]) => this.view.setRulesNodes(nodes));
+            }
+        } catch (error) {
+            if (error instanceof DependencyError) {
+                this.view.onSoftError(`Cannot delete cell, as it defines variable ${error.variable}, readed by cell ${error.reader_cell}`);
+            } else {
+                this.view.onError(String(error));
+            }
+        }
+    }
+    public removeWrite(cell_index: number, variable: string){
+        try{
+            this.view.setLoading("Updating cell depenency graph...");
+            const res = this.model.removeCellWrite(cell_index, variable);
+            if (res) {this.view.setNotebookCells(res[0]);}
+            this.view.setLoading("Updating rules graph...");
+            if (res) {
+                res[1].then((nodes: RulesNode[]) => this.view.setRulesNodes(nodes));
+            }
+        } catch (error) {
+            if (error instanceof DependencyError) {
+                this.view.onSoftError(`Cannot remove the write "${error.variable}", it is a dependency of cell ${error.reader_cell}. Remove the dependency first.`);
+            } else {
+                this.view.onError(String(error));
+            }
+        }
+    }
+
     public deleteCell(cell_index: number){
         try{
             this.view.setLoading("Updating cell depenency graph...");

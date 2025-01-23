@@ -123,6 +123,7 @@ class CellDependencyGraphImpl implements CellDependencyGraph{
     buildDependencyGraph(){
         const lastChanged: { [key: string]: number }[] = this.cells.map(() => ({}));
         this.cells.forEach((cell, index) => {
+            cell.dependsOn = {};
             if (index > 0){
                 cell.reads.forEach((read) => {
                     if (lastChanged[index-1][read] !== undefined) {
@@ -388,6 +389,57 @@ export class NotebookController{
             response = response.substring(start, end + 1);
         }
         return JSON.parse(response);
+    }
+
+    addCellWrite(cell_index: number, write: string): [CellDependencyGraph, Promise<RulesNode[]>]|undefined{
+        if (!this.cells){return;}
+        //Remove write from cell
+        if (this.cells.cells[cell_index].writes.includes(write)){
+            return [this.cells, new Promise((resolve) => resolve(this.rulesGraph?.nodes||[]))];
+        }
+        this.cells.cells[cell_index].writes.push(write);
+        //re-build graph
+        this.cells.buildDependencyGraph();
+        //Re-build rules graph from cell_index 
+        this.rulesGraph?.buildFromDependencyGraph(this.cells, cell_index);
+        const update = this.updateRulesGraph(cell_index);
+        return [this.cells, update];
+    }
+    addCellDependency(cell_index: number, dependency: string): [CellDependencyGraph, Promise<RulesNode[]>]|undefined{
+        if (!this.cells){return;}
+        //Remove dependency from cell
+        if (this.cells.cells[cell_index].reads.includes(dependency)){
+            return [this.cells, new Promise((resolve) => resolve(this.rulesGraph?.nodes||[]))];
+        }
+        this.cells.cells[cell_index].reads.push(dependency);
+        //re-build graph
+        this.cells.buildDependencyGraph();
+        //Re-build rules graph from cell_index 
+        this.rulesGraph?.buildFromDependencyGraph(this.cells, cell_index);
+        const update = this.updateRulesGraph(cell_index);
+        return [this.cells, update];
+    }
+    removeCellDependency(cell_index: number, dependency: string): [CellDependencyGraph, Promise<RulesNode[]>]|undefined{
+        if (!this.cells){return;}
+        //Remove dependency from cell
+        this.cells.cells[cell_index].reads = this.cells.cells[cell_index].reads.filter((read) => read !== dependency);
+        //re-build graph
+        this.cells.buildDependencyGraph();
+        //Re-build rules graph from cell_index 
+        this.rulesGraph?.buildFromDependencyGraph(this.cells, cell_index);
+        const update = this.updateRulesGraph(cell_index);
+        return [this.cells, update];
+    }
+    removeCellWrite(cell_index: number, write: string): [CellDependencyGraph, Promise<RulesNode[]>]|undefined{
+        if (!this.cells){return;}
+        //Remove write from cell
+        this.cells.cells[cell_index].writes = this.cells.cells[cell_index].writes.filter((w) => w !== write);
+        //re-build graph
+        this.cells.buildDependencyGraph();
+        //Re-build rules graph from cell_index 
+        this.rulesGraph?.buildFromDependencyGraph(this.cells, cell_index);
+        const update = this.updateRulesGraph(cell_index);
+        return [this.cells, update];
     }
 
     deleteCell(cell_index: number): [CellDependencyGraph, Promise<RulesNode[]>]|undefined{

@@ -91,19 +91,19 @@
             if (element.isFunctions){
                 html += `<p><strong>Declares:</strong> ${element.declares}</p>`;
             } else {
-                const dependencies = Object.entries(element.dependsOn).map(([key, value]) => `${key} (cell [${value}])`);
+                const dependencies = Object.entries(element.dependsOn).map(([key, value]) => [`${key} (cell [${value}])`, key]);
                 if (dependencies.length === 0){
                     html += `<p><strong>No dependencies</strong></p>\n`;
                 } else {
                     html += `<p><strong>Depends on:</strong></p>\n`;
                     html += "<div class='dependency_container'>\n";
                     dependencies.forEach((dep) => {
-                        html += `<p>${dep}</p><button class="smallbutton" id="rem_dip_${index}_${dep}" title="remove">&times;</button>\n`;
-                        removeDependencyCallbacks.push([`rem_dip_${index}_${dep}`, ()=>{
+                        html += `<p>${dep[0]}</p><button class="smallbutton" id="rem_dip_${index}_${dep[0]}" title="remove">&times;</button>\n`;
+                        removeDependencyCallbacks.push([`rem_dip_${index}_${dep[0]}`, ()=>{
                             vscode.postMessage({
                                 command: 'remove_dependency',
                                 index: index,
-                                keyword: dep
+                                keyword: dep[1]
                             });
                         }]);
                     });

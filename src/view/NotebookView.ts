@@ -80,17 +80,16 @@ export class NotebookView implements NotebookViewCallbacks{
                         presenter.splitCell(cell_index, code1, code2);
                         break;
                     case 'add_to_writes':
-                        const cell_index_ = message.index;
-                        const keyword_ = message.keyword;
+                        presenter.addWrite(message.index, message.keyword);
                         break;
                     case 'add_to_dependencies':
-                        const cell_index__ = message.index;
-                        const keyword__ = message.keyword;
+                        presenter.addDependency(message.index, message.keyword);
                         break;
                     case 'remove_write':
-                        //index, keyword
+                        presenter.removeWrite(message.index, message.keyword);
                         break;
                     case 'remove_dependency':
+                        presenter.removeDependency(message.index, message.keyword);
                         break;
                     //become_rule become_script become_undecided all with message.index
                 }
