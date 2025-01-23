@@ -91,6 +91,12 @@ export class NotebookView implements NotebookViewCallbacks{
                     case 'remove_dependency':
                         presenter.removeDependency(message.index, message.keyword);
                         break;
+                    case 'become_rule':
+                    case 'become_script':
+                    case 'become_undecided':
+                        const state = message.command.split('_')[1];
+                        presenter.changeRuleState(message.index, state);
+                        break;
                     //become_rule become_script become_undecided all with message.index
                 }
             },

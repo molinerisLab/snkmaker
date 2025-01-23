@@ -352,7 +352,6 @@ input[type="number"] {
 .cell_rule_buttons button:hover{
 	background-color: var(--vscode-notebook-editorBackground);
 	border: 1px solid var(--vscode-notebook-cellBorderColor);
-	border-radius: 12px;
 }
 #addWrite{
 	margin-bottom: 4px;

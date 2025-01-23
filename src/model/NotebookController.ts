@@ -15,6 +15,9 @@ export interface CellDependencyGraph{
 export class DependencyError{
     constructor(public message: string, public reader_cell: number, public variable: string){}
 }
+export class IllegalTypeChangeError{
+    constructor(public oldState: string, public newState: string, public error: string){}
+}
 
 class CellDependencyGraphImpl implements CellDependencyGraph{
     cells: Cell[];
@@ -227,7 +230,7 @@ export class RulesNodeImpl implements RulesNode{
     }
     setType(type: "rule" | "script" | "undecided"){
         if (this.can_become[type] === false){
-            throw new Error("Cannot change type to " + type);
+            throw new IllegalTypeChangeError(this.type, type, "This node can't become this type");
         }
         this.type = type;
     }
@@ -307,6 +310,19 @@ export class NotebookController{
         }
         this.rulesGraph = new RulesDependencyGraph(this.cells);
         await this.updateRulesGraph();
+        return this.rulesGraph.nodes;
+    }
+
+    changeRuleState(index: number, newState: string):RulesNode[]{
+        if (!this.rulesGraph){
+            return [];
+        }
+        const node = this.rulesGraph.nodes[index];
+        node.setType(newState as "rule" | "script" | "undecided");
+        this.rulesGraph.nodes[index] = node;
+        for (let i=index+1; i<this.rulesGraph.nodes.length; i++){
+            this.rulesGraph.nodes[i].updateDependencies();
+        }
         return this.rulesGraph.nodes;
     }
 

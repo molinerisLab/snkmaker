@@ -1,6 +1,6 @@
 import { mock } from "node:test";
 import { LLM } from "../model/ModelComms";
-import { NotebookController, CellDependencyGraph, Cell, DependencyError, RulesNode } from "../model/NotebookController";
+import { NotebookController, CellDependencyGraph, Cell, DependencyError, RulesNode, IllegalTypeChangeError } from "../model/NotebookController";
 import { NotebookViewCallbacks } from "../view/NotebookView";
 const vscode = require('vscode');
 
@@ -27,6 +27,20 @@ export class NotebookPresenter{
             this.view.setRulesNodes(nodes||[]);
         } catch(error: any){
             this.view.onError(error);
+        }
+    }
+
+    public changeRuleState(cell_index: number, state: string){
+        this.view.setLoading("Updating rules graph...");
+        try{
+            const nodes = this.model.changeRuleState(cell_index, state);
+            this.view.setRulesNodes(nodes);
+        } catch(error: any){
+            if (error instanceof IllegalTypeChangeError) {
+                this.view.onSoftError(`Cannot change state from ${error.oldState} to ${error.newState}`);
+            } else {
+                this.view.onError(String(error));
+            }
         }
     }
 
