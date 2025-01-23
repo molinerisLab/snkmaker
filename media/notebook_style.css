@@ -165,6 +165,7 @@ input[type="number"] {
 	padding-top: 32px;
 	width: 100%;
 	display: flex;
+	margin-right: 0px; padding-right: 0px;
 	flex-direction: row;
 }
 #lines{
@@ -202,6 +203,7 @@ input[type="number"] {
 	margin-top: 0px;
 	margin-bottom: 0px;
 	padding: 0px;
+	font-family: monospace;
 	white-space: pre;
 }
 .cell{
@@ -226,6 +228,8 @@ input[type="number"] {
 	margin-top: 0px;
 	margin-bottom: 0px;
 	padding: 0px;
+	white-space: pre-wrap;
+    font-family: monospace;
 }
 .cell_details{
 	padding-bottom: 0px;
