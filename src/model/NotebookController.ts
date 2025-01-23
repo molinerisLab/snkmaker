@@ -150,19 +150,21 @@ export interface RulesNode{
     name: string;
     can_become: { [key: string]: boolean };
     type: "rule" | "script" | "undecided";
-    output: string[];
-    input: string[];
+    import_dependencies: { [key: string]: RulesNodeImpl };
+    rule_dependencies: { [key: string]: RulesNodeImpl };
+    undecided_dependencies: { [key: string]: RulesNodeImpl };
 }
 
 export class RulesNodeImpl implements RulesNode{
     can_become = {"rule": true, "script": true, "undecided": true};
-    private import_dependencies: { [key: string]: RulesNodeImpl } = {};
-    private rule_dependencies: { [key: string]: RulesNodeImpl } = {};
-    private undecided_dependencies: { [key: string]: RulesNodeImpl } = {};
-    output: string[]=[];
-    input: string[]=[];
+    import_dependencies: { [key: string]: RulesNodeImpl } = {};
+    rule_dependencies: { [key: string]: RulesNodeImpl } = {};
+    undecided_dependencies: { [key: string]: RulesNodeImpl } = {};
 
     constructor(public isLoading: boolean, public cell: Cell, public type: "rule" | "script" | "undecided", public name: string){
+        if (this.cell.isFunctions){
+            this.can_become = {"rule": false, "script": true, "undecided": false};
+        }
     }
     getType(): 'rule' | 'script' | 'undecided' {
         return this.type;
@@ -233,11 +235,12 @@ export class RulesNodeImpl implements RulesNode{
 class RulesDependencyGraph{
     nodes: RulesNodeImpl[];
     constructor(cells: CellDependencyGraph){
-        this.nodes = this.buildFromDependencyGraph(cells);
+        this.nodes = [];
+        this.buildFromDependencyGraph(cells);
     }
-    buildFromDependencyGraph(cells: CellDependencyGraph): RulesNodeImpl[]{
-        let nodes: RulesNodeImpl[] = [];
-        for (let i=0; i<cells.cells.length; i++){
+    buildFromDependencyGraph(cells: CellDependencyGraph, startFrom=0){
+        let nodes = this.nodes;
+        for (let i=startFrom; i<cells.cells.length; i++){
             const cell = cells.cells[i];
             if (cell.isFunctions){
                 nodes.push(new RulesNodeImpl(true, cell, "script", ""));
@@ -249,7 +252,6 @@ class RulesDependencyGraph{
             });
             nodes.push(rule);
         }
-        return nodes;
     }
 
     setNodeDetails(index: number, name: string, type: "rule" | "script" | "undecided"){
@@ -259,13 +261,15 @@ class RulesDependencyGraph{
             this.nodes[i].updateDependencies();
         }
     }
-    async guessGraphTypesAndNames(response:any){
-        response.rules.forEach((rule: any) => {
+    async guessGraphTypesAndNames(response:any, changeFrom=0){
+        for (let i=changeFrom; i<response.rules.length; i++){
+            const rule = response.rules[i];
             //"cell_index": <number>, "rule_name": <string>, "type": <string>} for each cell... ]
             try{
-                this.setNodeDetails(rule.cell_index, rule.rule_name, rule.type);
+                const name = rule.rule_name || this.nodes[rule.cell_index].name;
+                this.setNodeDetails(rule.cell_index, name, rule.type);
             } catch (e:any){}
-        });
+        };
     }
 }
 
@@ -297,6 +301,14 @@ export class NotebookController{
             return;
         }
         this.rulesGraph = new RulesDependencyGraph(this.cells);
+        await this.updateRulesGraph();
+        return this.rulesGraph.nodes;
+    }
+
+    private async updateRulesGraph(changeFrom: number = 0): Promise<RulesNode[]>{
+        if (!this.rulesGraph){
+            return [];
+        }
         let prompt = "I have a jupyter notebook that is being processed into a snakemake pipeline. This process is complex and involves " +
         "decomposition of the notebook into smaller pieces of python code, and linking them together in a snakemake pipeline.\n" +
         "In this step, I have a list of cells. Each cell can have three states: \n"+
@@ -310,18 +322,21 @@ export class NotebookController{
         "This implies that turning an undecided cell into a rule will force its undecided dependencies to become rules too.\n\n"+
         "Consider the following notebook cells:\n\n" +
         this.rulesGraph.nodes.map((node, index) => {
-            return "Cell. " + index + "\n" + node.cell.code + 
-            " depends on cells: " + Object.values(node.cell.dependsOn).join(", ");
+            return "Cell. " + index + "\nCode:\n" + node.cell.code + 
+            "\n depends on cells: <" + Object.values(node.cell.dependsOn).join(", ")+">" +
+            " current type: " + node.type + " current name (can be empty): <" + node.name + ">" +
+            (node.type==="undecided" ?( " can become rule: <" + node.can_become.rule + "> can become script: <" + node.can_become.script) + ">" : "");
         }).join("\n\n") + "\n\n" +
         "For every cell I need you to provide:\n"+
-        "1- A suggestion for the cell state, only if the cell is undecided.\n"+
+        "1- A suggestion for the cell state, ONLY IF the cell is undecided, you can't change decided cells.\n"+
         "2- A possible short name for the rule or the script of the cell\n"+
         "When deciding if changing an undecided cell state consider this: small pieces of code that do not produce significant data are good candidates for scripts. Pieces of code that produce meaningful data, or that produce data that is readed by many other cells are good candidates to be rules. If you are undecided, let it undecided and the user will choose himself.\n"+
         "Please output your response in the following JSON schema:\n"+
-        `{"rules": [ {"cell_index": <number>, "rule_name": <string>, "type": <string>} for each cell... ] }`;
+        `{"rules": [ {"cell_index": <number>, "rule_name": <string>, "type": <string>} for each cell... ] } \n`+
+        "Plase provide at least a name for every cell, even if you don't want to change the state.";
         const response = await this.llm.runQuery(prompt);
         const formatted: any = this.parseJsonFromResponse(response);
-        this.rulesGraph.guessGraphTypesAndNames(formatted);
+        this.rulesGraph.guessGraphTypesAndNames(formatted, changeFrom);
         return this.rulesGraph.nodes;
     }
 
@@ -365,18 +380,22 @@ export class NotebookController{
         return JSON.parse(response);
     }
 
-    deleteCell(cell_index: number): CellDependencyGraph | undefined{
-        if (this.cells){
+    deleteCell(cell_index: number): [CellDependencyGraph, Promise<RulesNode[]>]|undefined{
+        if (this.cells && this.rulesGraph){
             const removed = this.cells.cells.splice(cell_index, 1);
             try{
                 this.cells.buildDependencyGraph();
-                return this.cells;
             } catch (e: any){
                 //If removing this cell breaks the dependencies, notify the user and undo the change
                 this.cells.cells.splice(cell_index, 0, ...removed);
                 throw e;
             }
+            //Update rule graph
+            this.rulesGraph.buildFromDependencyGraph(this.cells, cell_index);
+            const update = this.updateRulesGraph(cell_index);
+            return [this.cells, update];
         }
+        return undefined;
     }
 
     async splitCell(index: number, code1: string, code2: string){

@@ -15,11 +15,16 @@ export class LLM{
     }
 
     async runQuery(query: string): Promise<string>{
+        let tries = 0;
         if (this.isCopilotWaiting){
             while (this.current_model === -1){
-                await new Promise(r => setTimeout(r, 5000));
+                await new Promise(r => setTimeout(r, 3000));
                 SnkmakerLogger.instance()?.log("User tried running query but copilot still unactive and no model selected - sleeping");
             }
+        }
+        while(this.current_model === -1 && tries < 15){
+            await new Promise(r => setTimeout(r, 1000));
+            tries += 1;
         }
         if (this.current_model === -1){
             SnkmakerLogger.instance()?.log("User tried running query but no model selected:\n"+query);

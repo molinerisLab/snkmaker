@@ -17,7 +17,7 @@ export class NotebookPresenter{
     }
 
     private async buildNotebook(){
-        mockData(this.view); return;
+        //mockData(this.view); return;
         try{
             this.view.setLoading("Building dependency graph...");
             const cellD: CellDependencyGraph = await this.model.openNotebook();
@@ -32,8 +32,13 @@ export class NotebookPresenter{
 
     public deleteCell(cell_index: number){
         try{
-            const cellD = this.model.deleteCell(cell_index);
-            if (cellD) {this.view.setNotebookCells(cellD);}
+            this.view.setLoading("Updating cell depenency graph...");
+            const res = this.model.deleteCell(cell_index);
+            if (res) {this.view.setNotebookCells(res[0]);}
+            this.view.setLoading("Updating rules graph...");
+            if (res) {
+                res[1].then((nodes: RulesNode[]) => this.view.setRulesNodes(nodes));
+            }
         } catch (error) {
             if (error instanceof DependencyError) {
                 this.view.onSoftError(`Cannot delete cell, as it defines variable ${error.variable}, readed by cell ${error.reader_cell}`);

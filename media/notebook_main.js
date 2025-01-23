@@ -228,15 +228,20 @@
                     html += "<div class='cell_rule_preview'>\n";
                     html += `<p>rule ${element.name}:</p>\n`;
                     html += `<p>    input:</p>\n`;
-                    element.input = ["file1","file2"];//TODO temp
-                    element.input.forEach((inp) => {
+                    let inputs = new Set();
+                    Object.keys(element.rule_dependencies).forEach((key) => {
+                        console.log(element.rule_dependencies[key]);
+                        console.log(element.rule_dependencies[key].name);
+                        inputs.add(`output of \<${element.rule_dependencies[key].name}\>`);
+                    });
+                    inputs.forEach((inp) => {
                         html += `<p>        ${inp}</p>\n`;
                     });
+                    if (inputs.size === 0){
+                        html += `<p>        - </p>\n`;
+                    }
                     html += `<p>    output:</p>\n`;
-                    element.output = ["file3","file4"];//TODO temp
-                    element.output.forEach((out) => {
-                        html += `<p>        ${out}</p>\n`;
-                    });
+                    html += `<p>        --filename to be defined--</p>\n`;
                     html += `</div>\n`;
 
                 } else if (element.type==="script"){
@@ -328,7 +333,7 @@
                 while (offsets.has(minOffset)) {
                     minOffset += 1;
                 }
-                for (let k=value; k<=i; k++){
+                for (let k=value; k<i; k++){
                     h_offset[k].add(minOffset);
                 }
                 const text = `Cell ${i} depends on ${key} of cell ${value}`;
@@ -339,7 +344,6 @@
 
     function drawArrows(id_a, id_b, distance, toolTipText) {
         //id_a is upper element
-        console.log(id_a, id_b, distance, toolTipText);
         const obj1 = document.getElementById(id_a);
         const rect1 = obj1.getBoundingClientRect();
         const obj2 = document.getElementById(id_b);
@@ -351,7 +355,6 @@
 
         const Y1 = rect1.top + rect1.height * 0.75;
         const Y2 = rect2.top + rect2.height * 0.25;
-        console.log(Y1, Y2);
         const svgNS = "http://www.w3.org/2000/svg";
         let line = document.createElementNS(svgNS, "line");
         line.setAttribute("x1", `${xrect.right - distance}px`);
@@ -437,9 +440,13 @@
             const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
             return rect.left + scrollLeft;
         }
+        const existingSvg = document.querySelector('#lines svg');
+        if (existingSvg) {
+            existingSvg.remove();
+        }
+        window.scrollTo(0, 0);
         const height_px = document.getElementById('mainContainer').getBoundingClientRect().height;
         const width_px = getAbsolutePosition(document.getElementById('mainContainer')) - 8;
-        console.log(width_px, height_px);
         const svgNS = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(svgNS, "svg");
         svg.setAttribute("width", width_px+"px");
