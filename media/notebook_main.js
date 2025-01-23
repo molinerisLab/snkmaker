@@ -16,22 +16,21 @@
 
     function split_cell_view(cells, cell_index, container){
         code = cells.cells[cell_index].code;
-
-        //const container = document.getElementById('mainContainer');
-        const oldHtml = container.innerHTML;
+        const overlay = document.getElementById('userinputoverlay');
         let html = "";
-        html += `<div class="cell_container" id="cell_container_${cell_index}">\n`;
+        html += `<div class="userinput" id="cell_container_${cell_index}">\n`;
         html += "<h2>Split cell code</h2>\n";
         html += "<p>First part of split</p>\n";
         html += `<textarea id="area_1" class="cell" rows="10" cols="50">\n${code}\n</textarea>\n`;
         html += "<p>Second part of split</p>\n";
         html += `<textarea id="area_2" class="cell" rows="10" cols="50"></textarea>\n`;
-        html += "<div class='cell_buttons'>\n";
+        html += "<div class='buttons_split'>\n";
         html += `<button id="cancel_button_${cell_index}">Cancel</button>\n`;
         html += `<button id="split_button_${cell_index}">Split</button>\n`;
         html += "</div>\n";
         html += "</div>\n";
-        container.innerHTML = html;
+        overlay.innerHTML = html;
+        overlay.style.display = 'flex';
         const splitButton = document.getElementById(`split_button_${cell_index}`);
         if (splitButton) {
             splitButton.onclick = () => {
@@ -41,12 +40,15 @@
                     code1: document.getElementById('area_1').value,
                     code2: document.getElementById('area_2').value
                 });
+                overlay.innerHTML = "";
+                overlay.style.display = 'none';
             };
         }
         const cancelButton = document.getElementById(`cancel_button_${cell_index}`);
         if (cancelButton) {
             cancelButton.onclick = () => {
-                container.innerHTML = oldHtml;
+                overlay.innerHTML = "";
+                overlay.style.display = 'none';
             };
         }
     }
@@ -55,42 +57,108 @@
     function set_cells(cells) {
         const container = document.getElementById('mainContainer');
         let html = "";
+        let removeDependencyCallbacks = [];
+        let removeWriteCallbacks = [];
         cells.cells.forEach((element, index) => {
-            html += `<label for="cell_container_${index}" class="biglabel">Cell n. ${index}</label>\n`;
             html += `<div class="cell_container" id="cell_container_${index}">\n`;
             html += `<div class="cell_code_container">\n`;
-            html += `<label for="cell${index}">Code: </label>\n`;
+
+            //Title and buttons
+            html += `<div class='cell_title_and_buttons'>\n`;
+            html += `<div class="biglabel">Cell [${index}]</div>`;
+            html += "<div class='cell_buttons'>\n";
+            if (!element.isFunctions){
+                html += `<button id="delete_button_${index}" title="Delete cell">&times;</button>\n`;
+                if (index < cells.cells.length-1 && !cells.cells[index+1].isFunctions){
+                    html += `<button id="merge_next_button_${index}" title="Merge with next cell">&darr;</button>\n`;
+                }
+                if (index > 0 && !cells.cells[index-1].isFunctions){
+                    html += `<button id="merge_prev_button_${index}" title="Merge with previous cell">&uarr;</button>\n`;
+                }
+                //TODO split
+                html += `<button id="split_button_${index}" title="Split cell">&#247;</button>\n`;
+            }
+            html += "</div>\n";
+            html += "</div>\n";
+            
+            //Code
             html += `<div id="cell${index}" class="cell">\n`;
             html += `<p>${element.code}</p>\n`;
             html += "</div>\n";
+
+            //Details
             html += `<div id="cell${index}_details" class="cell_details">\n`;
             if (element.isFunctions){
-                html += `<p>Declares: ${element.declares}</p>`;
+                html += `<p><strong>Declares:</strong> ${element.declares}</p>`;
             } else {
-                html += `<p>Depends on: ${ Object.entries(element.dependsOn).map(([key, value]) => `(${key}: ${value})`).join(', ')}</p>\n`;
-                //html += `<p>Depends on2: ${element.reads}</p>\n`;//Should have same entries as keys of dependsOn
-                html += `<p>Writes: ${element.writes}</p>`;
-            }
-            html += "</div>\n";
-            if (!element.isFunctions){
-                html += "<div class='cell_buttons'>\n";
-                html += `<button id="delete_button_${index}">Delete</button>\n`;
-                if (index < cells.cells.length-1 && !cells.cells[index+1].isFunctions){
-                    html += `<button id="merge_next_button_${index}">Merge with next</button>\n`;
+                const dependencies = Object.entries(element.dependsOn).map(([key, value]) => `${key} (cell [${value}])`);
+                if (dependencies.length === 0){
+                    html += `<p><strong>No dependencies</strong></p>\n`;
+                } else {
+                    html += `<p><strong>Depends on:</strong></p>\n`;
+                    html += "<div class='dependency_container'>\n";
+                    dependencies.forEach((dep) => {
+                        html += `<p>${dep}</p><button class="smallbutton" id="rem_dip_${index}_${dep}" title="remove">&times;</button>\n`;
+                        removeDependencyCallbacks.push([`rem_dip_${index}_${dep}`, ()=>{
+                            vscode.postMessage({
+                                command: 'remove_dependency',
+                                index: index,
+                                keyword: dep
+                            });
+                        }]);
+                    });
+                    html += "</div>\n";
                 }
-                if (index > 0 && !cells.cells[index-1].isFunctions){
-                    html += `<button id="merge_prev_button_${index}">Merge with previous</button>\n`;
-                }
-                //TODO split
-                html += `<button id="split_button_${index}">Split cell</button>\n`;
+                html += `<p><strong>Writes:</strong></p>\n`;
+                html += "<div class='dependency_container'>\n";
+                element.writes.forEach((write) => {
+                    html += `<p>${write}</p><button class="smallbutton" id="rem_wip_${index}_${write}" title="remove">&times;</button>\n`;
+                    removeWriteCallbacks.push([`rem_wip_${index}_${write}`, ()=>{
+                        vscode.postMessage({
+                            command: 'remove_write',
+                            index: index,
+                            keyword: write
+                        });
+                    }]);
+                });
                 html += "</div>\n";
             }
             html += "</div>\n";
-            html += `<div class="cell_rule_container" id="cell_rule_${index}"></div>\n`;
+            html += "</div>\n";
+            html += `<div class="cell_rule_container" id="cell_rule_${index}_container"></div>\n`;
             html += "</div>\n";
         });
         container.innerHTML = html;
+        //Set callbacks
+        let selectedText = ""; let selectedCell = "";
+        const actionButton = document.getElementById('actionButton');
+        actionButton.addEventListener('click', (event) => {
+            console.log(selectedText, selectedCell);
+        });
+        const parapgraphs = [];
         for (let i=0; i<cells.cells.length; i++){
+
+            const paragraph = document.getElementById('cell'+i);
+            parapgraphs.push(paragraph);
+            paragraph.addEventListener('mouseup', () => {
+                let selection = window.getSelection();
+                if (selection.toString().length > 0) {
+                    if (/\s/.test(selection.toString().trim())) {
+                        actionButton.style.display = 'none';
+                        return;
+                    }
+                    const range = selection.getRangeAt(0);
+                    const rect = range.getBoundingClientRect();
+                    actionButton.style.top = `${rect.bottom + window.scrollY}px`;
+                    actionButton.style.left = `${rect.left + window.scrollX}px`;
+                    actionButton.style.display = 'flex';
+                    selectedCell = i;
+                    selectedText = selection.toString().trim();
+                } else {
+                    actionButton.style.display = 'none';
+                }
+            });
+
             const deleteButton = document.getElementById(`delete_button_${i}`);
             if (deleteButton) {
                 deleteButton.onclick = () => delete_cell(i);
@@ -107,27 +175,116 @@
             if (splitButton) {
                 splitButton.onclick = () => split_cell_view(cells, i, document.getElementById(`cell_container_${i}`));
             }
+            removeDependencyCallbacks.forEach(([id, callback]) => {
+                const button = document.getElementById(id);
+                if (button) {
+                    button.onclick = callback;
+                }
+            });
+            removeWriteCallbacks.forEach(([id, callback]) => {
+                const button = document.getElementById(id);
+                if (button) {
+                    button.onclick = callback;
+                }
+            });
+            
         }
+        document.addEventListener('click', (event) => {
+            if (actionButton.contains(event.target)) {return;}
+            let contains = false;
+            parapgraphs.forEach((element) => { if (element.contains(event.target)) {contains = true;}});
+            if (!contains){actionButton.style.display = 'none';}
+        });
+        document.getElementById('addDependency').addEventListener('click', () => {
+            vscode.postMessage({
+                command: 'add_to_dependencies',
+                index: selectedCell,
+                keyword: selectedText
+            });
+        });
+        document.getElementById('addWrite').addEventListener('click', () => {
+            vscode.postMessage({
+                command: 'add_to_writes',
+                index: selectedCell,
+                keyword: selectedText
+            });
+        });
+        
+
+        initializeArrows();
+        buildDependencyLines(cells);
     }
 
     function set_rules(rules){
         rules.forEach((element, index) => {
-            const container = document.getElementById(`cell_rule_${index}`);
+            const container = document.getElementById(`cell_rule_${index}_container`);
             let html = "";
-            html += `<div class="cell_rule" id="cell_rule_${index}">\n`;
-            if (element.type==="rule"){
-                html += `<p>Export as: <strong>Snakemake Rule</strong></p>\n`;
-            } else if (element.type==="script"){
-                html += `<p>Export as: <strong>Script</strong></p>\n`;
-            } else {
-                html += `<p><strong>Undecided</strong>: can be either a script or a rule.</p>\n`;
-            }
-            html += `<p>Name: <strong>${element.name}</strong></p>\n`;
-            if (element.isLoading){
+            let actions = [];
+            if (false && element.isLoading){
                 html += '<div class="smallSpinner"></div>';
+            } else {
+                if (element.type==="rule"){
+                    html += `<p>Export as: <strong>Snakemake Rule</strong></p>\n`;
+                    html += "<div class='cell_rule_preview'>\n";
+                    html += `<p>rule ${element.name}:</p>\n`;
+                    html += `<p>    input:</p>\n`;
+                    element.input = ["file1","file2"];//TODO temp
+                    element.input.forEach((inp) => {
+                        html += `<p>        ${inp}</p>\n`;
+                    });
+                    html += `<p>    output:</p>\n`;
+                    element.output = ["file3","file4"];//TODO temp
+                    element.output.forEach((out) => {
+                        html += `<p>        ${out}</p>\n`;
+                    });
+                    html += `</div>\n`;
+
+                } else if (element.type==="script"){
+                    html += `<p>Export as: <strong>Script</strong></p>\n`;
+                    html += "<div class='cell_rule_preview'>\n";
+                    html += `<p>${element.name}.py</p>\n`;
+                    html += `</div>\n`;
+
+                } else {
+                    html += `<p><strong>Undecided</strong>: can be either a script or a rule.</p>\n`;
+                }
+                html += "<div class='cell_rule_buttons'>\n";
+                if (element.type!=="rule" && element.can_become["rule"]){
+                    html += `<button id="become_rule_${index}">Become Rule</button>\n`;
+                    actions.push([`become_rule_${index}`, () => {
+                        vscode.postMessage({
+                            command: 'become_rule',
+                            index: index
+                        });
+                    }]);
+                }
+                if (element.type!=="script" && element.can_become["script"]){
+                    html += `<button id="become_script_${index}">Become Script</button>\n`;
+                    actions.push([`become_script_${index}`, () => {
+                        vscode.postMessage({
+                            command: 'become_script',
+                            index: index
+                        });
+                    }]);
+                }
+                if (element.type!=="undecided" && element.can_become["undecided"]){
+                    html += `<button id="become_undecided_${index}">Become Undecided</button>\n`;
+                    actions.push([`become_undecided_${index}`, () => {
+                        vscode.postMessage({
+                            command: 'become_undecided',
+                            index: index
+                        });
+                    }]);
+                }
+                html += "</div>\n";
             }
-            html += "</div>\n";
             container.innerHTML = html;
+            actions.forEach(([id, callback]) => {
+                const button = document.getElementById(id);
+                if (button) {
+                    button.onclick = callback;
+                }
+            });
         });
         
     }
@@ -153,4 +310,143 @@
                 break;
         }
     });
+
+    function buildDependencyLines(cells){
+        /**For each line must decide: horizontal offset, vertical offset for start and end 
+         * Horizontal: data structure for each cell, computing the min. available offset
+        */
+       const OFFSET_DELTA = 10; const OFFSET_START = 20;
+       let h_offset = cells.cells.map(() => new Set());
+        for (let i = 1; i < cells.cells.length; i++) {
+            const cell = cells.cells[i];
+            let offsets = new Set();
+            Object.entries(cell.dependsOn).forEach(([key, value]) => {
+                for (let k=value; k<=i; k++){
+                    offsets = new Set([...offsets, ...h_offset[k]]);
+                }
+                let minOffset = 0;
+                while (offsets.has(minOffset)) {
+                    minOffset += 1;
+                }
+                for (let k=value; k<=i; k++){
+                    h_offset[k].add(minOffset);
+                }
+                const text = `Cell ${i} depends on ${key} of cell ${value}`;
+                drawArrows(`cell${value}`, `cell${i}`, OFFSET_START + minOffset * OFFSET_DELTA, text);
+            });
+        }
+    }
+
+    function drawArrows(id_a, id_b, distance, toolTipText) {
+        //id_a is upper element
+        console.log(id_a, id_b, distance, toolTipText);
+        const obj1 = document.getElementById(id_a);
+        const rect1 = obj1.getBoundingClientRect();
+        const obj2 = document.getElementById(id_b);
+        const rect2 = obj2.getBoundingClientRect();
+        const xrect = (document.getElementById('lines')).getBoundingClientRect();
+        const svg = document.querySelector('svg');
+
+        const arrowColor = getRandomColor();
+
+        const Y1 = rect1.top + rect1.height * 0.75;
+        const Y2 = rect2.top + rect2.height * 0.25;
+        console.log(Y1, Y2);
+        const svgNS = "http://www.w3.org/2000/svg";
+        let line = document.createElementNS(svgNS, "line");
+        line.setAttribute("x1", `${xrect.right - distance}px`);
+        line.setAttribute("y1", `${Y1}px`);
+        line.setAttribute("x2", `${xrect.right}px`);
+        line.setAttribute("y2", `${Y1}px`);
+        line.setAttribute("stroke", arrowColor);
+        line.setAttribute("stroke-width", "2");
+        line.addEventListener('mouseover', () => showTooltip(line, toolTipText));
+        line.addEventListener('mouseout', hideTooltip);
+        svg.appendChild(line);
+        
+        line = document.createElementNS(svgNS, "line");
+        line.setAttribute("x1", `${xrect.right - distance}px`);
+        line.setAttribute("y1", `${Y2}px`);
+        line.setAttribute("x2", `${xrect.right}px`);
+        line.setAttribute("y2", `${Y2}px`);
+        line.setAttribute("stroke", arrowColor);
+        line.setAttribute("stroke-width", "2");
+        line.addEventListener('mouseover', () => showTooltip(line, toolTipText));
+        line.addEventListener('mouseout', hideTooltip);
+        svg.appendChild(line);
+    
+        line = document.createElementNS(svgNS, "line");
+        line.setAttribute("x1", `${xrect.right - distance}px`);
+        line.setAttribute("y1", `${Y2}px`);
+        line.setAttribute("x2", `${xrect.right - distance}px`);
+        line.setAttribute("y2", `${Y1}px`);
+        line.setAttribute("stroke", arrowColor);
+        line.setAttribute("stroke-width", "2");
+        line.addEventListener('mouseover', () => showTooltip(line, toolTipText));
+        line.addEventListener('mouseout', hideTooltip);
+        svg.appendChild(line);
+    }
+
+    function getRandomColor() {
+        const colors = ["#24DFE2", "#B4FF2B", "#FFEE00","#FF9400", "#04E762","#008BF8","#ff0000"];
+        return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    function showTooltip(line, text) {
+        let tooltip = document.getElementById('tooltip');
+        if (!tooltip) {
+            tooltip = document.createElement('div');
+            tooltip.id = 'tooltip';
+            tooltip.style.position = 'absolute';
+            tooltip.style.backgroundColor = 'black';
+            tooltip.style.border = '1px solid black';
+            tooltip.style.padding = '5px';
+            document.body.appendChild(tooltip);
+        }
+        tooltip.textContent = text;
+        tooltip.style.display = 'block';
+        tooltip.style.left = `${event.pageX + 5}px`;
+        tooltip.style.top = `${event.pageY + 5}px`;
+        const svg = document.querySelector('svg');
+        const lines = svg.querySelectorAll('line');
+        lines.forEach(line_ => {
+            if (line !== line_) {
+                line_.setAttribute('stroke-opacity', '0.5');
+            }
+        });
+    }
+    
+    function hideTooltip() {
+        const tooltip = document.getElementById('tooltip');
+        if (tooltip) {
+            tooltip.style.display = 'none';
+        }
+        const svg = document.querySelector('svg');
+        const lines = svg.querySelectorAll('line');
+        lines.forEach(line_ => {
+            line_.setAttribute('stroke-opacity', '1');
+        });
+    }
+    
+    
+
+    function initializeArrows(){
+        function getAbsolutePosition(element) {
+            const rect = element.getBoundingClientRect();
+            const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            return rect.left + scrollLeft;
+        }
+        const height_px = document.getElementById('mainContainer').getBoundingClientRect().height;
+        const width_px = getAbsolutePosition(document.getElementById('mainContainer')) - 8;
+        console.log(width_px, height_px);
+        const svgNS = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNS, "svg");
+        svg.setAttribute("width", width_px+"px");
+        svg.setAttribute("height", height_px+"px");
+        svg.style.position = 'absolute';
+        svg.style.top = '0';
+        svg.style.left = '0';
+        document.getElementById('lines').appendChild(svg);
+    }
 }());

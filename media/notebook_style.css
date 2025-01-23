@@ -32,11 +32,6 @@ form > * {
     margin-left: 12px;
 }
 
-.biglabel {
-    padding-right: 10px;
-    max-width: 300px;
-	font-size: x-large;
-}
 label{
 	font-size: medium;
 }
@@ -113,7 +108,28 @@ input[type="number"] {
 	width: 100%;
 	height: 100%;
 	background-color: rgba(0, 0, 0, 0.5);
+	z-index: 1000;margin: 0px; padding:0px;
+}
+#loadingmessage{
+	position: absolute;
+	top: 65%;
+	left: 46%;
+	transform: translate(-50%, -50%);
+}
+
+#userinputoverlay{
+	position:fixed;
+	width: 100%;
+	height: 100%;
+	background-color: rgba(0, 0, 0, 0.8);
 	z-index: 1000;
+	display: none;
+	flex-direction: column;
+	align-items: center;
+}
+.userinput{
+	width:70%;
+	min-width: 400px;
 }
 
 .spinner {
@@ -124,16 +140,16 @@ input[type="number"] {
 	height: 120px;
 	animation: spin 2s linear infinite;
 	position: absolute;
-	top: 50%;
-	left: 50%;
+	top: 40%;
+	left: 40%;
 	transform: translate(-50%, -50%);
 }
 .smallSpinner {
 	border: 16px solid #f3f3f3;
 	border-top: 16px solid #3498db;
 	border-radius: 50%;
-	width: 40px;
-	height: 40px;
+	width: 24px;
+	height: 24px;
 	animation: spin 2s linear infinite;
 	top: 50%;
 	left: 50%;
@@ -145,11 +161,17 @@ input[type="number"] {
 	100% { transform: rotate(360deg); }
 }
 
-#mainContainer {
-    border-left: 16px;
-    border-top: 32px;
+#supercontainer{
 	padding-top: 32px;
+	width: 100%;
+	display: flex;
+	flex-direction: row;
 }
+#lines{
+	width: 100px;
+}
+/*#mainContainer {
+}*/
 
 .cell_container{
 	width: 95%;
@@ -159,21 +181,46 @@ input[type="number"] {
 	margin-bottom: 32px;
 }
 .cell_code_container{
-	width: 52%;
+	width: 60%;
 }
 .cell_rule_container{
-	width: 42%;
+	width: 40%;
+	padding-top: 0px;
+	padding-left: 32px;
+}
+.cell_rule_preview{
+	background-color: var(--vscode-notebook-cellEditorBackground);
+	border: 1px solid var(--vscode-notebook-cellBorderColor);
+	max-height: 100px;
+	overflow-y: scroll;
+	overflow-x: scroll;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+	padding-left: 16px; padding-top: 8px; padding-bottom: 8px;
+}
+.cell_rule_preview p{
+	margin-top: 0px;
+	margin-bottom: 0px;
+	padding: 0px;
+	white-space: pre;
 }
 .cell{
-	background-color: var(--vscode-input-background);
-	padding-bottom: 8px;
-	padding-top: 8px;
-	padding-left: 8px;
-	margin-bottom: 16px;
+	background-color: var(--vscode-notebook-cellEditorBackground);
+	border: 1px solid var(--vscode-notebook-cellBorderColor);
+	padding-bottom: 10px;
+	padding-top: 10px;
+	padding-left: 24px;
+	margin-bottom: 6px;
 	margin-top: 9px;
 	max-height: 370px;
-	overflow-y:scroll;
+	overflow-y: scroll;
 	overflow-x: scroll;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+	min-height: 100px;
+}
+.cell::-webkit-scrollbar { 
+	display: none;
 }
 .cell p{
 	margin-top: 0px;
@@ -181,18 +228,26 @@ input[type="number"] {
 	padding: 0px;
 }
 .cell_details{
-	background-color: var(--vscode-input-background);
 	padding-bottom: 0px;
 	padding-top: 0px;
 	padding-left: 2px;
 	margin-bottom: 4px;
 	margin-top: 0px;
 	max-height: 370px;
+	margin-bottom: 6px;
 	overflow-y:scroll;
 	overflow-x: scroll;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
 }
+.cell_details::-webkit-scrollbar { 
+	display: none;
+}
+
 .cell_details p{
 	font-size: small;
+	margin-top: 0px;
+	margin-bottom: 0px;
 }
 .cell_rule{
 	padding-bottom: 8px;
@@ -214,9 +269,91 @@ input[type="number"] {
 }
 .cell_buttons{
 	display: flex;
-	justify-content: space-between;
+	justify-content:end;
 }
 .cell_buttons button{
-	margin-left: 4px;
-	margin-right: 4px;
+	background-color: var(--vscode-notebook-cellEditorBackground);
+	border: 1px solid var(--vscode-notebook-cellBorderColor);
+	font-size: medium;
+	border-radius: 12px;
+	height: 32px; width: 32px;
+	margin-left: 4px; margin-right: 4px;
+}
+.cell_buttons button:hover{
+	background-color: var(--vscode-notebook-editorBackground);
+	border: 1px solid var(--vscode-notebook-cellBorderColor);
+	border-radius: 12px;
+}
+.cell_title_and_buttons{
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+.buttons_split{
+	display: flex;
+	justify-content: space-between;
+}
+.buttons_split button{
+	margin-left: 6px; margin-right: 6px;
+}
+.biglabel {
+    padding-right: 10px;
+    max-width: 300px;
+	font-size: large;
+}
+#actionButton {
+	display: none;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	position: absolute;
+	transform: translate(-50%, 0%);
+}
+#actionButton button {
+	background-color: var(--vscode-notebook-cellEditorBackground);
+	border: 1px solid var(--vscode-notebook-cellBorderColor);
+	font-size: medium;
+	padding:4px;
+	border-radius: 8px;
+	margin-left: 4px; margin-right: 4px;
+}
+
+#actionButton button:hover{
+	background-color: var(--vscode-notebook-editorBackground);
+	border: 1px solid var(--vscode-notebook-cellBorderColor);
+	border-radius: 12px;
+}
+.dependency_container{
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+}
+.smallbutton{
+	background-color: var(--vscode-notebook-cellEditorBackground);
+	border: 1px solid var(--vscode-notebook-cellBorderColor);
+	font-size: xx-small;
+	border-radius: 3px;
+	height: 18px; width: 18px;
+	margin-left: 4px; margin-right: 4px;
+	padding: 0;
+}
+.cell_rule_buttons{
+	margin-top: 16px;
+	display: flex;
+	justify-content:end;
+}
+.cell_rule_buttons button{
+	background-color: var(--vscode-notebook-cellEditorBackground);
+	border: 1px solid var(--vscode-notebook-cellBorderColor);
+	font-size: medium;
+	height: 36px;
+	margin-left: 4px; margin-right: 4px;
+}
+.cell_rule_buttons button:hover{
+	background-color: var(--vscode-notebook-editorBackground);
+	border: 1px solid var(--vscode-notebook-cellBorderColor);
+	border-radius: 12px;
+}
+#addWrite{
+	margin-bottom: 4px;
 }

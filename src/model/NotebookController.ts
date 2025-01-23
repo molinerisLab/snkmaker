@@ -150,6 +150,8 @@ export interface RulesNode{
     name: string;
     can_become: { [key: string]: boolean };
     type: "rule" | "script" | "undecided";
+    output: string[];
+    input: string[];
 }
 
 export class RulesNodeImpl implements RulesNode{
@@ -157,6 +159,8 @@ export class RulesNodeImpl implements RulesNode{
     private import_dependencies: { [key: string]: RulesNodeImpl } = {};
     private rule_dependencies: { [key: string]: RulesNodeImpl } = {};
     private undecided_dependencies: { [key: string]: RulesNodeImpl } = {};
+    output: string[]=[];
+    input: string[]=[];
 
     constructor(public isLoading: boolean, public cell: Cell, public type: "rule" | "script" | "undecided", public name: string){
     }
@@ -377,6 +381,7 @@ export class NotebookController{
 
     async splitCell(index: number, code1: string, code2: string){
         if (!this.cells){return;}
+        if (code1.length === 0 || code2.length === 0){ return this.cells;}
         const oldCell = this.cells.cells[index];
         try{
             const cell_a: Cell = {

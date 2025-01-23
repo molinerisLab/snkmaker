@@ -78,6 +78,20 @@ export class NotebookView implements NotebookViewCallbacks{
                         const code2 = message.code2;
                         presenter.splitCell(cell_index, code1, code2);
                         break;
+                    case 'add_to_writes':
+                        const cell_index_ = message.index;
+                        const keyword_ = message.keyword;
+                        break;
+                    case 'add_to_dependencies':
+                        const cell_index__ = message.index;
+                        const keyword__ = message.keyword;
+                        break;
+                    case 'remove_write':
+                        //index, keyword
+                        break;
+                    case 'remove_dependency':
+                        break;
+                    //become_rule become_script become_undecided all with message.index
                 }
             },
             null,
@@ -124,11 +138,20 @@ export class NotebookView implements NotebookViewCallbacks{
                 <title>Export Notebook</title>
             </head>
             <body>
+                <div id="actionButton">
+                    <button id="addWrite">Add to cell Writes</button>
+                    <button id="addDependency">Add to cell dependencies</button>
+                </div>
                 <div id="loadingscreen">
                     <div class="spinner"></div>
                     <h2 id="loadingmessage">Loading...</h2>
                 </div>
-                <div id="mainContainer">
+                <div id="userinputoverlay">
+                </div>
+                <div id="supercontainer">
+                    <div id="lines"></div>
+                    <div id="mainContainer">
+                    </div>
                 </div>
                 <script nonce="${nonce}" src="${scriptUri}"></script>
             </body>
