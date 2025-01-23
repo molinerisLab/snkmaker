@@ -14,6 +14,8 @@
         });
     }
 
+    var OldEventListener = [];
+
     function split_cell_view(cells, cell_index, container){
         code = cells.cells[cell_index].code;
         const overlay = document.getElementById('userinputoverlay');
@@ -55,6 +57,12 @@
 
     //MainContainer( [(CellContainer(..,CellRuleContainer)) for each cell] )
     function set_cells(cells) {
+        //Remove old event listener
+        if (OldEventListener.length > 0){
+            OldEventListener.forEach((element) => {
+                element[0].removeEventListener(element[1], element[2]);
+            });
+        }
         const container = document.getElementById('mainContainer');
         let html = "";
         let removeDependencyCallbacks = [];
@@ -132,9 +140,6 @@
         //Set callbacks
         let selectedText = ""; let selectedCell = "";
         const actionButton = document.getElementById('actionButton');
-        actionButton.addEventListener('click', (event) => {
-            console.log(selectedText, selectedCell);
-        });
         const parapgraphs = [];
         for (let i=0; i<cells.cells.length; i++){
 
@@ -189,26 +194,34 @@
             });
             
         }
-        document.addEventListener('click', (event) => {
+        function DOM_EventListener(event){
             if (actionButton.contains(event.target)) {return;}
             let contains = false;
             parapgraphs.forEach((element) => { if (element.contains(event.target)) {contains = true;}});
             if (!contains){actionButton.style.display = 'none';}
-        });
-        document.getElementById('addDependency').addEventListener('click', () => {
+        }
+        document.addEventListener('click', DOM_EventListener);
+        OldEventListener.push([document, "click", DOM_EventListener]);
+        function addDependencyF(){
+            actionButton.style.display = 'none';
             vscode.postMessage({
                 command: 'add_to_dependencies',
                 index: selectedCell,
                 keyword: selectedText
             });
-        });
-        document.getElementById('addWrite').addEventListener('click', () => {
+        }
+        document.getElementById('addDependency').addEventListener('click', addDependencyF);
+        OldEventListener.push([document.getElementById('addDependency'), "click", addDependencyF]);
+        function addWritef(){
+            actionButton.style.display = 'none';
             vscode.postMessage({
                 command: 'add_to_writes',
                 index: selectedCell,
                 keyword: selectedText
             });
-        });
+        }
+        document.getElementById('addWrite').addEventListener('click', addWritef);
+        OldEventListener.push([document.getElementById('addWrite'), "click", addWritef]);
         
 
         initializeArrows();
