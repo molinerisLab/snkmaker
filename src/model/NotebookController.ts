@@ -255,6 +255,7 @@ class RulesDependencyGraph{
             });
             nodes.push(rule);
         }
+        this.nodes = nodes;
     }
 
     setNodeDetails(index: number, name: string, type: "rule" | "script" | "undecided"){
