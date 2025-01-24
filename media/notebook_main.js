@@ -67,6 +67,21 @@
         let html = "";
         let removeDependencyCallbacks = [];
         let removeWriteCallbacks = [];
+
+        //Check if there is any missing dependency
+        const missingDependencies = [...cells.cells.map((cell,index) => {return {i: index, d: cell.missingDependencies}}).filter(c => c.d.length>0)].flat();
+        if (missingDependencies.length > 0){
+            html += "<div class='cell_container'>\n";
+            html += `<div class="cell_code_container">\n`;
+            html += "<h2>The cells have some broken data dependencies:</h2>\n";
+            missingDependencies.forEach((element) => {
+                html += `<p>Cell ${element.i} is missing dependency: ${element.d}</p>\n`;
+            });
+            html += "<p>Please fix the dependencies by either removing them or adding writes manually</p>\n";
+            html += "</div>\n";
+            html += "</div>\n";
+        }
+
         cells.cells.forEach((element, index) => {
             html += `<div class="cell_container" id="cell_container_${index}">\n`;
             html += `<div class="cell_code_container">\n`;
@@ -108,11 +123,11 @@
                     dependencies.forEach((dep) => {
                         html += `<p>${dep[0]}</p><button class="smallbutton" id="rem_dip_${index}_${dep[0]}" title="remove">&times;</button>\n`;
                         removeDependencyCallbacks.push([`rem_dip_${index}_${dep[0]}`, ()=>{
-                            vscode.postMessage({
-                                command: 'remove_dependency',
-                                index: index,
-                                keyword: dep[1]
-                            });
+                        vscode.postMessage({
+                            command: 'remove_dependency',
+                            index: index,
+                            keyword: dep[1]
+                        });
                         }]);
                     });
                     html += "</div>\n";
@@ -130,6 +145,21 @@
                     }]);
                 });
                 html += "</div>\n";
+                if (element.missingDependencies.length > 0){
+                    html += `<p class="missingdip"><strong>Cell has missing dependencies:</strong></p>\n`;
+                    html += "<div class='dependency_container'>\n";
+                    element.missingDependencies.forEach((dep) => {
+                        html += `<p class="missingdip">${dep}</p><button class="smallbutton" id="rem_dip_${index}_${dep}" title="remove">&times;</button>\n`;
+                        removeDependencyCallbacks.push([`rem_dip_${index}_${dep}`, ()=>{
+                        vscode.postMessage({
+                            command: 'remove_dependency',
+                            index: index,
+                            keyword: dep
+                        });
+                        }]);
+                    });
+                    html += "</div>\n";
+                }
             }
             html += "</div>\n";
             html += "</div>\n";
@@ -333,24 +363,46 @@
         /**For each line must decide: horizontal offset, vertical offset for start and end 
          * Horizontal: data structure for each cell, computing the min. available offset
         */
-       const OFFSET_DELTA = 10; const OFFSET_START = 20;
-       let h_offset = cells.cells.map(() => new Set());
-        for (let i = 1; i < cells.cells.length; i++) {
-            const cell = cells.cells[i];
-            let offsets = new Set();
-            Object.entries(cell.dependsOn).forEach(([key, value]) => {
-                for (let k=value; k<=i; k++){
-                    offsets = new Set([...offsets, ...h_offset[k]]);
-                }
-                let minOffset = 0;
-                while (offsets.has(minOffset)) {
-                    minOffset += 1;
-                }
-                for (let k=value; k<i; k++){
+        const OFFSET_DELTA = 7; const OFFSET_START = 20;
+        const MAX_OFFSET = (220-20)/OFFSET_DELTA;
+        let offsets;
+        let h_offset = cells.cells.map(() => new Set());
+
+       function addDependencyArrow(VAR_NAME, CELL_IND, i, helper_text){
+            for (let k=CELL_IND; k<=i; k++){
+                offsets = new Set([...offsets, ...h_offset[k]]);
+            }
+            let minOffset = 0;
+            while (offsets.has(minOffset)) {
+                minOffset += 1;
+            }
+            if (minOffset > MAX_OFFSET){
+                minOffset = Math.random() * MAX_OFFSET;
+            } else {
+                for (let k=CELL_IND; k<i; k++){
                     h_offset[k].add(minOffset);
                 }
-                const text = `Cell ${i} depends on ${key} of cell ${value}`;
-                drawArrows(`cell${value}`, `cell${i}`, OFFSET_START + minOffset * OFFSET_DELTA, text);
+            }
+            const text = `Cell ${i} ${helper_text} ${VAR_NAME} of cell ${CELL_IND}`;
+            drawArrows(`cell${CELL_IND}`, `cell${i}`, OFFSET_START + minOffset * OFFSET_DELTA, text);
+       }
+        for (let i = 1; i < cells.cells.length; i++) {
+            const cell = cells.cells[i];
+            offsets = new Set();
+            const mergedDependencies = {}
+            Object.entries(cell.dependsOn).forEach(([var_name, target]) => {
+                if (mergedDependencies[target] !== undefined){
+                    mergedDependencies[target] = [...mergedDependencies[target], var_name];
+                } else {
+                    mergedDependencies[target] = [var_name];
+                }
+            });
+
+            Object.entries(mergedDependencies).forEach(([target, variables]) => {
+                addDependencyArrow(variables.join(", "), target, i, "depends on");
+            });
+            Object.entries(cell.dependsOnFunction).forEach(([var_name, target]) => {
+                addDependencyArrow(var_name, target, i, "depends on function");
             });
         }
     }
@@ -366,8 +418,8 @@
 
         const arrowColor = getRandomColor();
 
-        const Y1 = rect1.top + rect1.height * 0.75;
-        const Y2 = rect2.top + rect2.height * 0.25;
+        const Y1 = rect1.top + rect1.height * (0.75 + (Math.random() - 0.5)*0.2);
+        const Y2 = rect2.top + rect2.height * (0.25 + (Math.random() - 0.5)*0.2);
         const svgNS = "http://www.w3.org/2000/svg";
         let line = document.createElementNS(svgNS, "line");
         line.setAttribute("x1", `${xrect.right - distance}px`);

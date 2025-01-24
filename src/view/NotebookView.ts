@@ -19,14 +19,14 @@ export class NotebookView implements NotebookViewCallbacks{
     private _disposables: vscode.Disposable[] = [];
     private loading = true;
 
-    public static create(extensionUri: vscode.Uri, viewModel: BashCommandViewModel, notebookUri: vscode.Uri) {
+    public static create(extensionUri: vscode.Uri, viewModel: BashCommandViewModel, notebookUri: vscode.Uri, context: vscode.ExtensionContext) {
         const panel = vscode.window.createWebviewPanel(
             NotebookView.viewType,
             'Export notebook',
             (vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn: undefined) || vscode.ViewColumn.One,
             {enableScripts: true,localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')]}
         );
-        return new NotebookView(panel, extensionUri, viewModel, notebookUri);
+        return new NotebookView(panel, extensionUri, viewModel, notebookUri, context);
     }
 
     setNotebookCells(cells: CellDependencyGraph): void {
@@ -56,7 +56,7 @@ export class NotebookView implements NotebookViewCallbacks{
         this._panel.webview.postMessage({ command: 'set_loading', loading: false });
     }
 
-    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, viewModel: BashCommandViewModel, notebookUri: vscode.Uri) {
+    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, viewModel: BashCommandViewModel, notebookUri: vscode.Uri, context: vscode.ExtensionContext) {
         this._panel = panel;
         this._extensionUri = extensionUri;
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
@@ -104,6 +104,12 @@ export class NotebookView implements NotebookViewCallbacks{
             this._disposables
         );
         this._panel.webview.html = this._getHtmlForWebview(this._panel.webview);
+        panel.onDidChangeViewState(e => {
+                this.setNotebookCells(presenter.getCells());
+                this.setRulesNodes(presenter.getRules());
+            },
+            null,
+            context.subscriptions);
     }
 
 

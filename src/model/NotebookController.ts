@@ -7,6 +7,8 @@ export interface Cell{
     code: string; reads: string[]; reads_file: string[], writes: string[], imports: string[];
     isFunctions: boolean; declares: string[]; calls: string[];
     dependsOn: { [key: string]: number };
+    dependsOnFunction: { [key: string]: number };
+    missingDependencies: string[];
 }
 export interface CellDependencyGraph{
     cells: Cell[];
@@ -23,7 +25,7 @@ class CellDependencyGraphImpl implements CellDependencyGraph{
     cells: Cell[];
     constructor(cells: string[][]){
         this.cells = cells.map((cell) => {
-            return {code: cell.join(""), reads: [], reads_file: [], writes: [], imports: [], isFunctions:false, declares:[], dependsOn:{}, calls:[]};
+            return {code: cell.join(""), reads: [], reads_file: [], writes: [], imports: [], isFunctions:false, declares:[], dependsOn:{}, calls:[], dependsOnFunction:{}, missingDependencies:[]};
         });
     }
     public setDependency(index: number, reads: string[], reads_file: string[], writes: string[], imports: string[]){
@@ -32,6 +34,25 @@ class CellDependencyGraphImpl implements CellDependencyGraph{
         this.cells[index].writes = writes;
         this.cells[index].imports = imports;
     }
+
+    public parseImports(){
+        const importRegex = /^(import\s+[^\s]+(?:\s+as\s+[^\s]+)?|from\s+[^\s]+\s+import\s+[^\s]+(?:\s+as\s+[^\s]+)?)/;
+        const importSet = new Set<string>();
+        for (let i=0; i<this.cells.length; i++){
+            const cell = this.cells[i];
+            const lines = cell.code.split(/[\n;]/);
+            const filteredLines = lines.filter((line) => {
+                if(importRegex.test(line.trim())){
+                    importSet.add(line.trim());
+                    return false;
+                }
+                return true;
+            });
+            cell.code = filteredLines.join("\n");
+        }
+        return Array.from(importSet);
+    }
+
     private findGlobalFunctions(code: string): Array<{ name: string; content: string }> {
         const lines = code.split("\n");
         const functions: Array<{ name: string; content: string }> = [];
@@ -76,7 +97,7 @@ class CellDependencyGraphImpl implements CellDependencyGraph{
                 cell.code = cell.code.replace(f.content, "");
             });
             //Append new cell with only function declarations
-            this.cells.splice(ci, 0, {code: fun.map((f) => f.content).join(""), reads: [], reads_file: [], writes: [], imports: [], isFunctions: true, declares: fun.map((f) => f.name), dependsOn:{}, calls:[]});
+            this.cells.splice(ci, 0, {code: fun.map((f) => f.content).join(""), reads: [], reads_file: [], writes: [], imports: [], isFunctions: true, declares: fun.map((f) => f.name), dependsOn:{}, calls:[], dependsOnFunction:{}, missingDependencies:[]});
             ci+=2;
             fi++;
         }
@@ -109,6 +130,7 @@ class CellDependencyGraphImpl implements CellDependencyGraph{
                     const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
                     if (cell.code.match(regex)){
                         cell.calls.push(decl);
+                        cell.dependsOnFunction[decl] = i;
                         cell.reads.push(...reads);
                         cell.reads = [...new Set(cell.reads)];
                         cell.code = cell.code.replace(regex, (match, p1) => {
@@ -127,6 +149,7 @@ class CellDependencyGraphImpl implements CellDependencyGraph{
         const lastChanged: { [key: string]: number }[] = this.cells.map(() => ({}));
         this.cells.forEach((cell, index) => {
             cell.dependsOn = {};
+            cell.missingDependencies = [];
             if (index > 0){
                 cell.reads.forEach((read) => {
                     if (lastChanged[index-1][read] !== undefined) {
@@ -134,7 +157,8 @@ class CellDependencyGraphImpl implements CellDependencyGraph{
                     } else if (cell.writes.includes(read)){
 
                     } else {
-                        throw new DependencyError(`Variable ${read} is not defined in previous cells`, index, read);
+                        cell.missingDependencies.push(read);
+                        //throw new DependencyError(`Variable ${read} is not defined in previous cells`, index, read);
                     }
                 });
                 Object.keys(lastChanged[index - 1]).forEach((key) => {
@@ -295,6 +319,8 @@ export class NotebookController{
         this.cells = new CellDependencyGraphImpl(result);
         //Parse function declarations
         this.cells.parseFunctions();
+        //Parse imports
+        await this.parseInputsFromCells();
         //Get dependencies
         await this.setDependenciesForCells();
         //Use parsed info to make functions independent from context
@@ -302,6 +328,42 @@ export class NotebookController{
         //Build dependency indexes:
         this.cells.buildDependencyGraph();
         return this.cells;
+    }
+
+    private async parseInputsFromCells(){
+        const imports = this.cells?.parseImports();
+        let prompt = "I have a jupyter notebook that is being processed. The notebook is made of a list of cells, each containing python code.\n" +
+        "I want to re-organize the imports. I already removed all import statement for every cell's code.\n"+
+        "I will now provide you: a list of all the import statements found in the cells, and the code of each cell.\n"+
+        "I want you to provide me the list of the imports that each cell needs.\n"+
+        "For each cell, provide a list of the imports that are needed by the code of the cell.\n"+
+        "\n\nThese are the import statements:\n"+
+        imports?.map((imp, index) => "Import num " + index + ": " + imp).join("\n") + "\n\n" +
+        "These are the cells:\n" +
+        this.cells?.cells.map((cell, index) => "Cell num " + index + ": " + cell.code).join("\n") + "\n\n" +
+        "For each cell, I'd like a list of the imports that are needed. "+
+        "Please write the needed imports as a list of indexes (example: import 0, 1, 5).\n"+
+        "Please write the output in JSON format following this schema:\n"+
+        "{'cells': [cell_index: number, imports: [index of import for each import needed]]}";
+        const response = await this.llm.runQuery(prompt);
+        const formatted: any = this.parseJsonFromResponse(response);
+        if (!formatted.cells || !Array.isArray(formatted.cells)) {
+            throw new Error("Invalid response format: 'rules' is missing or not an array");
+        }
+        if (!this.cells){return;}
+        for (let i=0; i<formatted.cells.length; i++){
+            const p = formatted.cells[i];
+            const newImports = p.imports.map((index: number) => imports?.[index]).filter((imp: string) => imp !== undefined);
+            this.cells.cells[p.cell_index].code = newImports.join("\n") + "\n" +
+            this.cells.cells[p.cell_index].code;
+        }
+    }
+
+    getCells(): CellDependencyGraph | undefined{
+        return this.cells;
+    }
+    getRules(){
+        return this.rulesGraph?.nodes;
     }
 
     async getRulesGraph(): Promise<RulesNode[] | undefined>{
@@ -367,7 +429,9 @@ export class NotebookController{
         "decomposition of the notebook into smaller pieces of python code, and linking them together in a snakemake pipeline.\n" +
         "The most important thing is define how each cell changes the global state.\nFor each cell, " +
         "I need the set of non-local variables that the code inside the cell WRITES (either define first time or modify) and READS. I also need the list of files that the cell might read.\n"+
-        "The READS variables must contain only GLOBAL variables readed. If a cell declares a function that receives an argument,"+
+        "The READS variables must contain only GLOBAL variables readed. " +
+        "Modules or things that are already in the cell 'import' statements do not go in the READ list. " +
+        "If a cell declares a function that receives an argument,"+
         " the argument is NOT in the READS list - it will be the cell who call the function who provide it. " +
         "Contrarily, if the cell calls the function and valorize the argument with a global variable then the variables goes in the READS. "+
         "If a function reads a global variable inside its body, it goes into the READS list of the cell that declares this function.\n"+
@@ -484,18 +548,22 @@ export class NotebookController{
             let calls = oldCell.calls;
             const cell_a: Cell = {
                 code: code1, reads: [], reads_file: [], writes: [], imports: [],
-                isFunctions: false, declares: [], dependsOn: {}, calls: []
+                isFunctions: false, declares: [], dependsOn: {}, calls: [], dependsOnFunction:{},
+                missingDependencies:[]
             };
             const cell_b: Cell = {
                 code: code2, reads: [], reads_file: [], writes: [], imports: [],
-                isFunctions: false, declares: [], dependsOn: {}, calls: []
+                isFunctions: false, declares: [], dependsOn: {}, calls: [], dependsOnFunction:{},
+                missingDependencies:[]
             };
             this.cells.cells.splice(index, 1, cell_a, cell_b);
             let prompt = "I have a jupyter notebook that is being processed into a snakemake pipeline. This process involves " +
             "decomposition of the notebook into smaller pieces of python code, and linking them together in a snakemake pipeline.\n" +
             "The most important thing is define how each cell changes the global state.\nFor each cell, " +
             "I need the set of non-local variables that the code inside the cell WRITES (either define first time or modify) and READS. I also need the list of files that the cell might read.\n"+
-            "The READS variables must contain only GLOBAL variables readed. If a cell declares a function that receives an argument,"+
+            "The READS variables must contain only GLOBAL variables readed. " +
+            "Modules or things that are already in the cell 'import' statements do not go in the READ list. " +
+            "If a cell declares a function that receives an argument,"+
             " the argument is NOT in the READS list - it will be the cell who call the function who provide it. " +
             "Contrarily, if the cell calls the function and valorize the argument with a global variable then the variables goes in the READS. "+
             "If a function reads a global variable inside its body, it goes into the READS list of the cell that declares this function.\n"+
@@ -525,9 +593,11 @@ export class NotebookController{
                 calls.forEach((call) => {
                     if (cell_a.code.includes(call)) {
                         cell_a.calls.push(call);
+                        cell_a.dependsOnFunction[call] = oldCell.dependsOnFunction[call];
                     }
                     if (cell_b.code.includes(call)) {
                         cell_b.calls.push(call);
+                        cell_b.dependsOnFunction[call] = oldCell.dependsOnFunction[call];
                     }
                 });
             }
@@ -566,7 +636,9 @@ export class NotebookController{
             isFunctions: false,
             declares: [],
             dependsOn: {},
-            calls: [...new Set([...this.cells?.cells[index_a].calls || [], ...this.cells?.cells[index_b].calls || []])]
+            calls: [...new Set([...this.cells?.cells[index_a].calls || [], ...this.cells?.cells[index_b].calls || []])],
+            dependsOnFunction: { ...this.cells?.cells[index_a].dependsOnFunction, ...this.cells?.cells[index_b].dependsOnFunction },
+            missingDependencies:[]
         };
         this.cells.cells.splice(index_a, 2, new_cell);
         this.cells.buildDependencyGraph();

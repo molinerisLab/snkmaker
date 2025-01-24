@@ -169,7 +169,7 @@ input[type="number"] {
 	flex-direction: row;
 }
 #lines{
-	width: 100px;
+	width: 230px;
 }
 /*#mainContainer {
 }*/
@@ -359,4 +359,7 @@ input[type="number"] {
 }
 #addWrite{
 	margin-bottom: 4px;
+}
+.missingdip{
+	color: rgb(182, 0, 0);
 }

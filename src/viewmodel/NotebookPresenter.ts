@@ -30,6 +30,15 @@ export class NotebookPresenter{
         }
     }
 
+    public getCells(): CellDependencyGraph{
+        const cells = this.model.getCells();
+        if (!cells) {throw new Error("Cells not loaded");}
+        return cells;
+    }
+    public getRules(): RulesNode[]{
+        return this.model.getRules()||[];
+    }
+
     public changeRuleState(cell_index: number, state: string){
         this.view.setLoading("Updating rules graph...");
         try{

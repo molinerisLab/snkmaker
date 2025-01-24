@@ -238,7 +238,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(deleteModel);
 	const processNotebook = vscode.commands.registerCommand("process-notebook", (notebook) => {
 		if (notebook){
-			const view = NotebookView.create(context.extensionUri, viewModel, notebook.notebookEditor.notebookUri);
+			const view = NotebookView.create(context.extensionUri, viewModel, notebook.notebookEditor.notebookUri, context);
 		}
 	});
 
