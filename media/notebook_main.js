@@ -55,6 +55,76 @@
         }
     }
 
+    function set_output(rules){
+        document.getElementById('mainContainer').innerHTML = "";
+        const existingSvg = document.querySelector('#lines svg');
+        if (existingSvg) {
+            existingSvg.remove();
+        }
+
+        const container = document.getElementById('built_rules');
+        let html = "";
+        rules.forEach((element, index) => {
+            html += `<div class="cell_container" id="cell_container_${index}">\n`;
+            html += `<div class="cell_output_container">\n`;
+            
+            html += `<div class="biglabel">Cell [${index}]</div>`;
+
+            if (element.type==="rule"){
+                html += `<p>Export as: <strong>Snakemake Rule</strong></p>\n`;
+                html += "<div class='cell_rule_preview'>\n";
+                html += `<p>rule ${element.name}:</p>\n`;
+                html += `<p>    input:</p>\n`;
+                let inputs = element.ruleAdditionalInfo.readFiles;
+                inputs.forEach((inp) => {
+                    html += `<p>        ${inp}</p>\n`;
+                });
+                if (inputs.size === 0){
+                    html += `<p>        - </p>\n`;
+                }
+                html += `<p>    output:</p>\n`;
+                let output = element.ruleAdditionalInfo.saveFiles;
+                output.forEach((inp) => {
+                    html += `<p>        ${inp}</p>\n`;
+                });
+                if (output.size === 0){
+                    html += `<p>        - </p>\n`;
+                }
+                html += `</div>\n`;
+
+            } else if (element.type==="script"){
+                html += `<p>Export as: <strong>Script</strong></p>\n`;
+                html += "<div class='cell_rule_preview'>\n";
+                html += `<p>${element.name}.py</p>\n`;
+                html += `</div>\n`;
+            }
+
+            
+            if (element.ruleAdditionalInfo.prefixCode.length > 0){
+                html += `<label for="code_prefix_${index}">Prefix code:</label>\n`;
+                html += `<div id="code_prefix_${index}" class="cell">\n`;
+                html += `<pre><code>${hljs.highlight('python', element.ruleAdditionalInfo.prefixCode).value}</code></pre>\n`;
+                html += "</div>\n";
+            }
+
+            html += `<label for="code_core_${index}">Code:</label>\n`;
+            html += `<div id="code_core_${index}" class="cell">\n`;
+            html += `<pre><code>${hljs.highlight('python', element.cell.code).value}</code></pre>\n`;
+            html += "</div>\n";
+
+            if (element.ruleAdditionalInfo.postfixCode.length > 0){
+                html += `<label for="code_postfix_${index}">Postfix code:</label>\n`;
+                html += `<div id="code_postfix_${index}" class="cell">\n`;
+                html += `<pre><code>${hljs.highlight('python', element.ruleAdditionalInfo.postfixCode).value}</code></pre>\n`;
+                html += "</div>\n";
+            }
+            
+            html += "</div>\n";
+            html += "</div>\n";
+        });
+        container.innerHTML = html;
+    }
+
     //MainContainer( [(CellContainer(..,CellRuleContainer)) for each cell] )
     function set_cells(cells) {
         //Remove old event listener
@@ -260,6 +330,24 @@
     }
 
     function set_rules(rules){
+        //Button to proceed
+        const container = document.getElementById('send_button');
+        let html = "";
+        const hasMissingDependency = rules.filter((rule) => rule.cell.missingDependencies.length > 0).length > 0;
+        const hasUndecidedRules = rules.filter((rule) => rule.type === "undecided").length > 0;
+        html += "<div class='cell_container'>\n";
+        html += `<div class="cell_code_container">\n`;
+        if (hasMissingDependency){
+            html += "<p>To proceed, fix the missing dependencies</p>\n";
+        }
+        if (hasUndecidedRules){
+            html += "<p>To proceed, decide on the type of the rules</p>\n";
+        }
+        html += `<button id="produce_snakefile_button" ${hasMissingDependency || hasUndecidedRules ? 'disabled' : ''}>Produce Snakefile</button>\n`;
+        html += "</div>\n";
+        html += "</div>\n";
+        container.innerHTML = html;
+
         rules.forEach((element, index) => {
             const container = document.getElementById(`cell_rule_${index}_container`);
             let html = "";
@@ -333,9 +421,13 @@
                 if (button) {
                     button.onclick = callback;
                 }
+            }); 
+        });
+        document.getElementById('produce_snakefile_button').addEventListener('click', () => {
+            vscode.postMessage({
+                command: 'produce_snakefile'
             });
         });
-        
     }
 
     window.addEventListener('message', event => {
@@ -356,6 +448,9 @@
                     document.getElementById('loadingscreen').style.display = 'block';
                     document.getElementById('loadingmessage').innerText = message.data;
                 }
+                break;
+            case 'set_output':
+                set_output(message.data);
                 break;
         }
     });

@@ -184,6 +184,9 @@ input[type="number"] {
 .cell_code_container{
 	width: 60%;
 }
+.cell_output_container{
+	width: 90%;
+}
 .cell_rule_container{
 	width: 40%;
 	padding-top: 0px;
@@ -237,7 +240,19 @@ input[type="number"] {
 	-ms-overflow-style: none;
 	min-height: 100px;
 }
+.cell_no_heigh_limit{
+	background-color: var(--vscode-notebook-cellEditorBackground);
+	border: 1px solid var(--vscode-notebook-cellBorderColor);
+	padding-bottom: 10px;
+	padding-top: 10px;
+	padding-left: 24px;
+	margin-bottom: 6px;
+	margin-top: 9px;
+}
 .cell code{
+	background-color: var(--vscode-notebook-cellEditorBackground) !important;
+}
+.cell_no_heigh_limit code{
 	background-color: var(--vscode-notebook-cellEditorBackground) !important;
 }
 .cell::-webkit-scrollbar { 

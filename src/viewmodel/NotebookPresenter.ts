@@ -30,6 +30,21 @@ export class NotebookPresenter{
         }
     }
 
+    public produceSnakefile(){
+        this.view.setLoading("Building Snakemake rules...");
+        this.model.buildAdditionalInfo().then(
+            (res: any) => {
+                this.view.stopLoading();
+                res.forEach((r: any) => console.log(r.ruleAdditionalInfo.prefixCode + r.cell.code + r.ruleAdditionalInfo.postfixCode));
+                this.view.setOutput(res);
+            }
+        ).catch(
+            (error: any) => {
+                this.view.onError(error);
+            }
+        );
+    }
+
     public getCells(): CellDependencyGraph{
         const cells = this.model.getCells();
         if (!cells) {throw new Error("Cells not loaded");}

@@ -181,6 +181,16 @@ export interface RulesNode{
     import_dependencies: { [key: string]: RulesNodeImpl };
     rule_dependencies: { [key: string]: RulesNodeImpl };
     undecided_dependencies: { [key: string]: RulesNodeImpl };
+    ruleAdditionalInfo: RuleAdditionalInfo;
+}
+
+class RuleAdditionalInfo{
+    prefixCode: string = "";
+    postfixCode: string = "";
+    exportsTo: { [key: string]: RulesNode[] } = {};
+    saveFiles: string[] = [];
+    readFiles: string[] = [];
+    constructor(public code:string){}
 }
 
 export class RulesNodeImpl implements RulesNode{
@@ -188,11 +198,13 @@ export class RulesNodeImpl implements RulesNode{
     import_dependencies: { [key: string]: RulesNodeImpl } = {};
     rule_dependencies: { [key: string]: RulesNodeImpl } = {};
     undecided_dependencies: { [key: string]: RulesNodeImpl } = {};
+    ruleAdditionalInfo: RuleAdditionalInfo;
 
     constructor(public isLoading: boolean, public cell: Cell, public type: "rule" | "script" | "undecided", public name: string){
         if (this.cell.isFunctions){
             this.can_become = {"rule": false, "script": true, "undecided": false};
         }
+        this.ruleAdditionalInfo = new RuleAdditionalInfo(cell.code);
     }
     getType(): 'rule' | 'script' | 'undecided' {
         return this.type;
@@ -266,6 +278,17 @@ class RulesDependencyGraph{
         this.nodes = [];
         this.buildFromDependencyGraph(cells);
     }
+    buildAdditionalInfo(){
+        this.nodes.forEach((node, index) => {
+            Object.entries(node.rule_dependencies).forEach(([variable, target]: [string, RulesNodeImpl]) => {
+                if (target.ruleAdditionalInfo.exportsTo[variable] === undefined){
+                    target.ruleAdditionalInfo.exportsTo[variable] = [this.nodes[index]];
+                } else {
+                    target.ruleAdditionalInfo.exportsTo[variable].push(this.nodes[index]);
+                }
+            });
+        });
+    }
     buildFromDependencyGraph(cells: CellDependencyGraph, startFrom=0){
         let nodes = this.nodes;
         if (startFrom > 0 && startFrom < this.nodes.length){
@@ -274,10 +297,10 @@ class RulesDependencyGraph{
         for (let i=startFrom; i<cells.cells.length; i++){
             const cell = cells.cells[i];
             if (cell.isFunctions){
-                nodes.push(new RulesNodeImpl(true, cell, "script", ""));
+                nodes.push(new RulesNodeImpl(false, cell, "script", ""));
                 continue;
             }
-            const rule = new RulesNodeImpl(true, cell, "undecided", "");
+            const rule = new RulesNodeImpl(false, cell, "undecided", "");
             Object.keys(cell.dependsOn).forEach((dependency: string) => {
                 rule.addDependency(dependency, nodes[cell.dependsOn[dependency]]);
             });
@@ -328,6 +351,91 @@ export class NotebookController{
         //Build dependency indexes:
         this.cells.buildDependencyGraph();
         return this.cells;
+    }
+
+    async buildAdditionalInfo(startFrom=0){
+        if (!this.rulesGraph){return;}
+        this.rulesGraph.buildAdditionalInfo();
+
+        function getDependenciesFromScripts(node: RulesNodeImpl, nodes: RulesNodeImpl[]){
+            const dependencies: any = [];
+            Object.keys(node.import_dependencies).forEach((dep) => {
+                dependencies.push([dep, node.import_dependencies[dep]]);
+            });
+            Object.keys(node.cell.dependsOnFunction).forEach((dep) => {
+                dependencies.push([dep, nodes[node.cell.dependsOnFunction[dep]]]);
+            });
+            return dependencies;
+        }
+
+        for (let i=startFrom; i<this.rulesGraph.nodes.length; i++){
+            const node = this.rulesGraph.nodes[i];
+            if (node.type === "script"){
+                const dependencies = getDependenciesFromScripts(node, this.rulesGraph.nodes);
+                if (dependencies.length === 0){
+                    continue;
+                }
+                node.isLoading = true;
+                const prompt = "I have this Python script. The script uses imported data and/or functions from other scripts, "+
+                "but the import statements are missing. I'd like you to add the imoport statement for me. "+
+                "All the other scripts as in the same directory as this one.\n"+
+                "The script is:\n\n" + node.cell.code + "\n\n"+
+                "The dependencies are:\n" + 
+                dependencies.map((d:any) => d[0] + " from script " + d[1].name).join("\n") + "\n\n"+
+                "Please write for me the import statements of my script. Please write the output in JSON format following this schema:\n"+
+                `{"imports": ["import statement for each dependency"]}` +
+                "Please do not repeat the code already existing, only add the import statements";
+                console.log(prompt);
+                const response = await this.llm.runQuery(prompt);
+                console.log(response);
+                const formatted: any = this.parseJsonFromResponse(response);
+                if (!formatted.imports || !Array.isArray(formatted.imports)) {
+                    throw new Error("Invalid response format: 'imports' is missing or not an array");
+                }
+                node.isLoading = false;
+                node.ruleAdditionalInfo.prefixCode = formatted.imports.join("\n");
+            } else if (node.type==="rule"){
+                // [variable, node]
+                const importDependencies = getDependenciesFromScripts(node, this.rulesGraph.nodes);
+                const ruleDependencies = Object.entries(node.rule_dependencies);
+                const exportsTo = Object.entries(node.ruleAdditionalInfo.exportsTo);
+                node.isLoading = true;
+                const prompt = "I have this Python script, and I need you to add code to perform three operations: "+
+                "1- The scripts is missing some imports. I will provide you the list of the imports that are needed and the names "+
+                "of the scripts from which the imports are needed. You need to add the import statements to the script. "+
+                "Note, the scripts are in the same directory of this one.\n"+
+                "2- The script needs to read some file(s) and use their content to valorize some variables before starting. "+
+                " I will provide the name of the variables to valorize and the piece of code that produces the file that needs to be readed.\n"+
+                "3- The script produces some output files, that will be readed by other scripts. "+
+                " I will provide the name of the variables that needs to be saved."+
+                "My script is:\n\n" + node.cell.code + "\n\n"+
+                "The imports needed are:\n" +
+                ((importDependencies.length===0) ? " - no import actually needed -" :
+                importDependencies.map((d:any) => d[0] + " from script " + d[1].name).join("\n")) + "\n\n"+
+                "The variables it needs to valorize by reading files are: " +
+                ((ruleDependencies.length===0) ? " - no variable actually needed for reading -" :
+                ruleDependencies.map((d:any) => "Variable: " + d[0] + " produced by the script " + d[1].name).join("\n") + "\n\n"+
+                "I will provide the code that produces the files that you need: "+
+                ruleDependencies.map((d:any) => "Code that saves variable " + d[0] + " to a file:\n" + d[1].ruleAdditionalInfo.postfixCode).join("\n")) + "\n\n"+
+                "The variables that needs to be saved are: \n" +
+                ((exportsTo.length===0) ? " - no variable actually needed for saving -" :
+                exportsTo.map((d:any) => "Variable: " + d[0] + " must be saved and will be readed by the script(s) " + d[1].map((d:RulesNodeImpl)=>d.name).join(", ")).join("\n") + "\n\n"+
+                "When saving files, you can decide the name, format and number of files. Consider the number of scripts that will read them to make a good decision.\n") +
+                "\nPlease write the output in JSON format following this schema:\n"+
+                "{ 'imports': ['import statement for each dependency'], 'reads': ['code to read each file'], 'writes': ['code to save each file'], 'readed_filenames': ['list of filenames for readed files'], 'written_filenames': ['list of filenames for the saved files'] }\n"+
+                "Please do not repeat the code already existing, only valorize the three fields. If a field is empty, write an empty array.";
+                console.log(prompt);
+                const response = await this.llm.runQuery(prompt);
+                console.log(response);
+                const formatted: any = this.parseJsonFromResponse(response);
+                node.ruleAdditionalInfo.prefixCode = formatted.imports.join("\n") + "\n" + formatted.reads.join("\n");
+                node.ruleAdditionalInfo.postfixCode = formatted.writes.join("\n");
+                node.ruleAdditionalInfo.saveFiles = formatted.written_filenames;
+                node.ruleAdditionalInfo.readFiles = formatted.readed_filenames;
+                node.isLoading = false;
+            }
+        }
+        return this.rulesGraph.nodes;
     }
 
     private async parseInputsFromCells(){

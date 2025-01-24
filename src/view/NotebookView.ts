@@ -10,6 +10,7 @@ export interface NotebookViewCallbacks{
     setLoading(loadMessage: string): void;
     setRulesNodes(nodes: RulesNode[]): void;
     stopLoading(): void;
+    setOutput(nodes: RulesNode[]): void;
 }
 
 export class NotebookView implements NotebookViewCallbacks{
@@ -36,6 +37,11 @@ export class NotebookView implements NotebookViewCallbacks{
     setRulesNodes(nodes: RulesNode[]){
         this.stopLoading();
         this._panel.webview.postMessage({ command: 'set_rules', data: nodes });
+    }
+    setOutput(nodes: RulesNode[]){
+        this.stopLoading();
+        nodes.forEach(node => { node.ruleAdditionalInfo.exportsTo = {} });
+        this._panel.webview.postMessage({ command: 'set_output', data: nodes });
     }
     onError(error: string): void {
         console.log(error);
@@ -96,6 +102,9 @@ export class NotebookView implements NotebookViewCallbacks{
                     case 'become_undecided':
                         const state = message.command.split('_')[1];
                         presenter.changeRuleState(message.index, state);
+                        break;
+                    case 'produce_snakefile':
+                        presenter.produceSnakefile();
                         break;
                     //become_rule become_script become_undecided all with message.index
                 }
@@ -165,6 +174,9 @@ export class NotebookView implements NotebookViewCallbacks{
                     <div id="lines"></div>
                     <div id="mainContainer">
                     </div>
+                </div>
+                <div id="built_rules">
+                <div id="send_button">
                 </div>
                 <link rel="stylesheet" href="${highlightjsStyle}">
                 <script nonce="${nonce}" src="${highlightjs}"></script>
