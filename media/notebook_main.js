@@ -106,7 +106,8 @@
             
             //Code
             html += `<div id="cell${index}" class="cell">\n`;
-            html += `<p>${element.code}</p>\n`;
+            html += `<pre><code>${hljs.highlight('python', element.code).value}</code></pre>\n`;
+            //html += `<p>${element.code}</p>\n`;
             html += "</div>\n";
 
             //Details

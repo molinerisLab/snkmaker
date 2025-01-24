@@ -205,7 +205,23 @@ input[type="number"] {
 	padding: 0px;
 	font-family: monospace;
 	white-space: pre;
+	color: rgb(255, 195, 122);
 }
+/*.cell{
+	background-color: var(--vscode-notebook-cellEditorBackground);
+	border: 1px solid var(--vscode-notebook-cellBorderColor);
+	padding-bottom: 10px;
+	padding-top: 10px;
+	padding-left: 24px;
+	margin-bottom: 6px;
+	margin-top: 9px;
+	max-height: 370px;
+	overflow-y: scroll;
+	overflow-x: scroll;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+	min-height: 100px;
+}*/
 .cell{
 	background-color: var(--vscode-notebook-cellEditorBackground);
 	border: 1px solid var(--vscode-notebook-cellBorderColor);
@@ -220,6 +236,9 @@ input[type="number"] {
 	scrollbar-width: none;
 	-ms-overflow-style: none;
 	min-height: 100px;
+}
+.cell code{
+	background-color: var(--vscode-notebook-cellEditorBackground) !important;
 }
 .cell::-webkit-scrollbar { 
 	display: none;

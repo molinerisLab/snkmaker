@@ -132,8 +132,9 @@ export class NotebookView implements NotebookViewCallbacks{
     private _getHtmlForWebview(webview: vscode.Webview) {
         const scriptPathOnDisk = vscode.Uri.joinPath(this._extensionUri, 'media', 'notebook_main.js');
         const scriptUri = webview.asWebviewUri(scriptPathOnDisk);
+        const highlightjs = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'highlight.min.js'));
+        const highlightjsStyle = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'github-dark.min.css'));
 
-        //const styleResetPath = vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css');
         const stylesPathMainPath = vscode.Uri.joinPath(this._extensionUri, 'media', 'notebook_style.css');
         //const stylesResetUri = webview.asWebviewUri(styleResetPath);
         const stylesMainUri = webview.asWebviewUri(stylesPathMainPath);
@@ -165,6 +166,8 @@ export class NotebookView implements NotebookViewCallbacks{
                     <div id="mainContainer">
                     </div>
                 </div>
+                <link rel="stylesheet" href="${highlightjsStyle}">
+                <script nonce="${nonce}" src="${highlightjs}"></script>
                 <script nonce="${nonce}" src="${scriptUri}"></script>
             </body>
             </html>`;
