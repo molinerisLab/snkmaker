@@ -365,6 +365,23 @@ export class NotebookController{
         return this.cells;
     }
 
+    async updateRule(rule: RulesNodeImpl, position: number){
+        if (rule.ruleAdditionalInfo.saveFiles.length > 0){
+            const prompt = "I have this Python script:\n"+
+            rule.ruleAdditionalInfo.postfixCode + "\n\n"+
+            "Can you tell me the list of files that this script writes? If it writes none, then return an empty list."+
+            "Plase return it in JSON format following this schema:\n" +
+            "{ 'written_filenames': ['list of filenames for the saved files'] }";
+            const response = await this.llm.runQuery(prompt);
+            const formatted: any = this.parseJsonFromResponse(response);
+            rule.ruleAdditionalInfo.saveFiles = formatted.written_filenames;
+        }
+        if (this.rulesGraph){
+            this.rulesGraph.nodes[position].cell.code = rule.cell.code;
+            this.rulesGraph.nodes[position].ruleAdditionalInfo = rule.ruleAdditionalInfo;
+        }
+    }
+
     async buildAdditionalInfo(startFrom=0){
         if (!this.rulesGraph){return;}
         this.rulesGraph.buildAdditionalInfo();
@@ -397,9 +414,7 @@ export class NotebookController{
                 "Please write for me the import statements of my script. Please write the output in JSON format following this schema:\n"+
                 `{"imports": ["import statement for each dependency"]}` +
                 "Please do not repeat the code already existing, only add the import statements";
-                console.log(prompt);
                 const response = await this.llm.runQuery(prompt);
-                console.log(response);
                 const formatted: any = this.parseJsonFromResponse(response);
                 if (!formatted.imports || !Array.isArray(formatted.imports)) {
                     throw new Error("Invalid response format: 'imports' is missing or not an array");
@@ -436,9 +451,7 @@ export class NotebookController{
                 "\nPlease write the output in JSON format following this schema:\n"+
                 "{ 'imports': ['import statement for each dependency'], 'reads': ['code to read each file'], 'writes': ['code to save each file'], 'readed_filenames': ['list of filenames for readed files'], 'written_filenames': ['list of filenames for the saved files'] }\n"+
                 "Please do not repeat the code already existing, only valorize the three fields. If a field is empty, write an empty array.";
-                console.log(prompt);
                 const response = await this.llm.runQuery(prompt);
-                console.log(response);
                 const formatted: any = this.parseJsonFromResponse(response);
                 node.ruleAdditionalInfo.prefixCode = formatted.imports.join("\n") + "\n" + formatted.reads.join("\n");
                 node.ruleAdditionalInfo.postfixCode = formatted.writes.join("\n");

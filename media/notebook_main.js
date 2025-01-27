@@ -103,28 +103,55 @@
             if (element.ruleAdditionalInfo.prefixCode.length > 0){
                 html += `<label for="code_prefix_${index}">Prefix code:</label>\n`;
                 html += `<div id="code_prefix_${index}" class="cell">\n`;
-                html += `<pre><code contenteditable="true">${hljs.highlight('python', element.ruleAdditionalInfo.prefixCode).value}</code></pre>\n`;
+                html += `<pre><code id="prefix_content_${index}" contenteditable="true">${hljs.highlight('python', element.ruleAdditionalInfo.prefixCode).value}</code></pre>\n`;
                 html += "</div>\n";
             }
 
             html += `<label for="code_core_${index}">Code:</label>\n`;
             html += `<div id="code_core_${index}" class="cell">\n`;
-            html += `<pre><code contenteditable="true">${hljs.highlight('python', element.cell.code).value}</code></pre>\n`;
+            html += `<pre><code id="main_content_${index}" contenteditable="true">${hljs.highlight('python', element.cell.code).value}</code></pre>\n`;
             html += "</div>\n";
 
             if (element.ruleAdditionalInfo.postfixCode.length > 0){
                 html += `<label for="code_postfix_${index}">Postfix code:</label>\n`;
                 html += `<div id="code_postfix_${index}" class="cell">\n`;
-                html += `<pre><code contenteditable="true">${hljs.highlight('python', element.ruleAdditionalInfo.postfixCode).value}</code></pre>\n`;
+                html += `<pre><code id="postfix_content_${index}" contenteditable="true">${hljs.highlight('python', element.ruleAdditionalInfo.postfixCode).value}</code></pre>\n`;
                 html += "</div>\n";
             }
+            html += `<button id="propagate_${index}" style="display: none;">Save changes</button>\n`;
             
             html += "</div>\n";
             html += "</div>\n";
         });
         container.innerHTML = html;
-        initializeArrows();
-        buildDependencyLines({'cells': rules.map((r)=>r.cell)});
+        //Initialize event listeners
+        rules.forEach((element, index) => {
+            const prefix = document.getElementById(`prefix_content_${index}`);
+            const core = document.getElementById(`main_content_${index}`);
+            const postfix = document.getElementById(`postfix_content_${index}`);
+            prefix?.addEventListener('input', function() {
+                rules[index].ruleAdditionalInfo.prefixCode = prefix.innerText;
+                document.getElementById(`propagate_${index}`).style.display = 'block';
+            });
+            core?.addEventListener('input', function() {
+                rules[index].cell.code = core.innerText;
+                document.getElementById(`propagate_${index}`).style.display = 'block';
+            });
+            postfix?.addEventListener('input', function() {
+                rules[index].ruleAdditionalInfo.postfixCode = postfix.innerText;
+                document.getElementById(`propagate_${index}`).style.display = 'block';
+            });
+            document.getElementById(`propagate_${index}`).addEventListener('click', () => {
+                vscode.postMessage({
+                    command: 'propagate_changes',
+                    index: index,
+                    rules: rules
+                });
+            });
+        });
+
+        //initializeArrows();
+        //buildDependencyLines({'cells': rules.map((r)=>r.cell)});
     }
 
     //MainContainer( [(CellContainer(..,CellRuleContainer)) for each cell] )

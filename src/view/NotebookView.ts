@@ -106,6 +106,9 @@ export class NotebookView implements NotebookViewCallbacks{
                     case 'produce_snakefile':
                         presenter.produceSnakefile();
                         break;
+                    case 'propagate_changes':
+                        presenter.propagateChanges(message.index, message.rules);
+                        break;
                     //become_rule become_script become_undecided all with message.index
                 }
             },
