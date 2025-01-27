@@ -184,9 +184,6 @@ input[type="number"] {
 .cell_code_container{
 	width: 60%;
 }
-.cell_output_container{
-	width: 90%;
-}
 .cell_rule_container{
 	width: 40%;
 	padding-top: 0px;
@@ -252,7 +249,7 @@ input[type="number"] {
 .cell code{
 	background-color: var(--vscode-notebook-cellEditorBackground) !important;
 }
-.cell_no_heigh_limit code{
+.cell code{
 	background-color: var(--vscode-notebook-cellEditorBackground) !important;
 }
 .cell::-webkit-scrollbar { 

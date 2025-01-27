@@ -62,11 +62,11 @@
             existingSvg.remove();
         }
 
-        const container = document.getElementById('built_rules');
+        const container = document.getElementById('mainContainer');
         let html = "";
         rules.forEach((element, index) => {
             html += `<div class="cell_container" id="cell_container_${index}">\n`;
-            html += `<div class="cell_output_container">\n`;
+            html += `<div class="cell_output_container" id="cell${index}">\n`;
             
             html += `<div class="biglabel">Cell [${index}]</div>`;
 
@@ -103,19 +103,19 @@
             if (element.ruleAdditionalInfo.prefixCode.length > 0){
                 html += `<label for="code_prefix_${index}">Prefix code:</label>\n`;
                 html += `<div id="code_prefix_${index}" class="cell">\n`;
-                html += `<pre><code>${hljs.highlight('python', element.ruleAdditionalInfo.prefixCode).value}</code></pre>\n`;
+                html += `<pre><code contenteditable="true">${hljs.highlight('python', element.ruleAdditionalInfo.prefixCode).value}</code></pre>\n`;
                 html += "</div>\n";
             }
 
             html += `<label for="code_core_${index}">Code:</label>\n`;
             html += `<div id="code_core_${index}" class="cell">\n`;
-            html += `<pre><code>${hljs.highlight('python', element.cell.code).value}</code></pre>\n`;
+            html += `<pre><code contenteditable="true">${hljs.highlight('python', element.cell.code).value}</code></pre>\n`;
             html += "</div>\n";
 
             if (element.ruleAdditionalInfo.postfixCode.length > 0){
                 html += `<label for="code_postfix_${index}">Postfix code:</label>\n`;
                 html += `<div id="code_postfix_${index}" class="cell">\n`;
-                html += `<pre><code>${hljs.highlight('python', element.ruleAdditionalInfo.postfixCode).value}</code></pre>\n`;
+                html += `<pre><code contenteditable="true">${hljs.highlight('python', element.ruleAdditionalInfo.postfixCode).value}</code></pre>\n`;
                 html += "</div>\n";
             }
             
@@ -123,6 +123,8 @@
             html += "</div>\n";
         });
         container.innerHTML = html;
+        initializeArrows();
+        buildDependencyLines({'cells': rules.map((r)=>r.cell)});
     }
 
     //MainContainer( [(CellContainer(..,CellRuleContainer)) for each cell] )
@@ -485,7 +487,7 @@
         for (let i = 1; i < cells.cells.length; i++) {
             const cell = cells.cells[i];
             offsets = new Set();
-            const mergedDependencies = {}
+            const mergedDependencies = {};
             Object.entries(cell.dependsOn).forEach(([var_name, target]) => {
                 if (mergedDependencies[target] !== undefined){
                     mergedDependencies[target] = [...mergedDependencies[target], var_name];

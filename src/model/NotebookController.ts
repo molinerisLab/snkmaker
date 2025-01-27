@@ -110,36 +110,48 @@ class CellDependencyGraphImpl implements CellDependencyGraph{
             const fcell = this.cells[i];
             const reads = fcell.reads;
             const replaced = reads.map((read) => `__${read.toLowerCase()}__` );
+            fcell.declares.forEach((decl, index) => {
+                if (fcell.writes.includes(decl)) {
+                    fcell.writes = fcell.writes.filter((read) => read !== decl);
+                }
+                for (let j=i+1; j<this.cells.length; j++){
+                    if (this.cells[j].reads.includes(decl)) {
+                        this.cells[j].reads = this.cells[j].reads.filter((read) => read !== decl);
+                    }
+                }
+            });
             //Replace all reads with replaced keyword inside code
             for (let j=0; j<reads.length; j++){
                 fcell.code = fcell.code.replace(reads[j], replaced[j]);
             }
-            fcell.declares.forEach((decl, index) => {
-                const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
-                fcell.code = fcell.code.replace(regex, (match, p1) => {
-                    return match.replace(p1, p1 + ", " + replaced.join(", "));
-                });
-            });
-            //Find cells that call one of these functions - replace call and add dependencies
-            for (let j=i+1; j<this.cells.length; j++){
-                const cell = this.cells[j];
-                if (cell.isFunctions){
-                    continue;
-                }
+            if (replaced.length > 0){
                 fcell.declares.forEach((decl, index) => {
                     const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
-                    if (cell.code.match(regex)){
-                        cell.calls.push(decl);
-                        cell.dependsOnFunction[decl] = i;
-                        cell.reads.push(...reads);
-                        cell.reads = [...new Set(cell.reads)];
-                        cell.code = cell.code.replace(regex, (match, p1) => {
-                            return match.replace(p1, p1 + ", " + reads.join(", "));
-                        });
-                    }
+                    fcell.code = fcell.code.replace(regex, (match, p1) => {
+                        return match.replace(p1, p1 + ", " + replaced.join(", "));
+                    });
                 });
+                //Find cells that call one of these functions - replace call and add dependencies
+                for (let j=i+1; j<this.cells.length; j++){
+                    const cell = this.cells[j];
+                    if (cell.isFunctions){
+                        continue;
+                    }
+                    fcell.declares.forEach((decl, index) => {
+                        const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
+                        if (cell.code.match(regex)){
+                            cell.calls.push(decl);
+                            cell.dependsOnFunction[decl] = i;
+                            cell.reads.push(...reads);
+                            cell.reads = [...new Set(cell.reads)];
+                            cell.code = cell.code.replace(regex, (match, p1) => {
+                                return match.replace(p1, p1 + ", " + reads.join(", "));
+                            });
+                        }
+                    });
+                }
+                fcell.reads = [];
             }
-            fcell.reads = [];
         }
         //Remove eventually empty cells
         this.cells = this.cells.filter((cell) => cell.code.length>1);
@@ -343,7 +355,7 @@ export class NotebookController{
         //Parse function declarations
         this.cells.parseFunctions();
         //Parse imports
-        await this.parseInputsFromCells();
+        await this.parseImportsFromCells();
         //Get dependencies
         await this.setDependenciesForCells();
         //Use parsed info to make functions independent from context
@@ -438,7 +450,7 @@ export class NotebookController{
         return this.rulesGraph.nodes;
     }
 
-    private async parseInputsFromCells(){
+    private async parseImportsFromCells(){
         const imports = this.cells?.parseImports();
         let prompt = "I have a jupyter notebook that is being processed. The notebook is made of a list of cells, each containing python code.\n" +
         "I want to re-organize the imports. I already removed all import statement for every cell's code.\n"+
@@ -535,17 +547,25 @@ export class NotebookController{
     private async setDependenciesForCells(){
         let prompt = "I have a jupyter notebook that is being processed into a snakemake pipeline. This process involves " +
         "decomposition of the notebook into smaller pieces of python code, and linking them together in a snakemake pipeline.\n" +
-        "The most important thing is define how each cell changes the global state.\nFor each cell, " +
-        "I need the set of non-local variables that the code inside the cell WRITES (either define first time or modify) and READS. I also need the list of files that the cell might read.\n"+
-        "The READS variables must contain only GLOBAL variables readed. " +
-        "Modules or things that are already in the cell 'import' statements do not go in the READ list. " +
-        "If a cell declares a function that receives an argument,"+
-        " the argument is NOT in the READS list - it will be the cell who call the function who provide it. " +
-        "Contrarily, if the cell calls the function and valorize the argument with a global variable then the variables goes in the READS. "+
-        "If a function reads a global variable inside its body, it goes into the READS list of the cell that declares this function.\n"+
-        "Finally, the READS and WRITES lists regard only variables. If a cell calls a function EXAMPLE_FUNCTION(..params..) do not put EXAMPLE_FUNCTION in the READS list, " +
-        "and if a cell defines it def EXAMPLE_FUNCTION(..): .. do not put it in the  WRITES list. \n" +
-        "Regarding the WRITES list, notice that only variables and data goes there, not function declaration. For example MY_VAR+=1: MY_VAR goes in the list. def my_func(..): my_func does not go in the list.\n" +
+        "The main issue is managing the state. Jupyter notebooks have a global state. I can define or modify a variable in a cell, and refer to this variable in another. "+
+        "After the decomposition, every cell will be executed indipendently, so I must manage the dependencies between the cells.\n"+
+        "In this step I'm interested in data dependencies, so variables that are defined, modified or readed by the code inside the cells.\n"+
+        +"\nFor each cell, I need the set of variables that the code inside WRITES (either define for the first time or modify) and READS. " +
+        "I also need the list of files that the cell might read.\n"+
+        "The READS variable must contain all the variables that the code might read. The only variables that you can skip are the ones that are defined in a local context, "+
+        "for example if the code defines a function, and inside the function a local variable is defined and then readed (or a function argument is readed), this can be skipped. But if the code inside the function " +
+        "reads a variable that might be defined outside of the function, the variable definitely goes in the READS list.\n"+
+        "Also, modules or things that are already in the cell 'import' statements do not go in the READ list.\n" +
+        "Regarding the WRITES list, peration that modify mutable objects, as appending to a list, count as WRITE operations. " +
+        "As I'm interested only in data dependencies, if the cell defines a function, the name of the function that is defined do not go in the WRITES list for now. \n" +
+        "I give you an example:\n"+
+        "VAR_1 = 5; LIST_1.append(1);\n"+
+        "print(VAR_2)\n"+
+        "def myFun(arg1):\n"+
+        "    print(arg1)\n"+
+        "    print(VAR_3)\n"+
+        "READS: VAR_2, LIST_1, VAR_3 (notice: VAR_3 is readed in the function body, but is defined outside, so it's a READ. arg1 is also readed in the function body but is an argument, valorized somewhere else, so it's not a dependency - when some cell calls the functions, it will valorize it and it will be a dependency of this cell)\n"+
+        "WRITES: VAR_1, LIST_1 (notice: LIST_1 is both in the READS and WRITES, as append() depends on the previous state of the list and changes it).\n"+
         "Consider the following notebook cells:\n\n" +
         this.cells?.cells.map((cell, index) => "Cell. " + index + "\n" + cell.code).join("\n\n") + "\n\n" +
         "Please provide to me the list of READED variables, WRITTEN variables and READED file for each cell. For each variable use the same name used in the code without changing it.\n"+

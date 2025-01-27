@@ -175,7 +175,6 @@ export class NotebookView implements NotebookViewCallbacks{
                     <div id="mainContainer">
                     </div>
                 </div>
-                <div id="built_rules">
                 <div id="send_button">
                 </div>
                 <link rel="stylesheet" href="${highlightjsStyle}">
