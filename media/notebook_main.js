@@ -389,7 +389,7 @@
                     html += `<p>    input:</p>\n`;
                     let inputs = new Set();
                     Object.keys(element.rule_dependencies).forEach((key) => {
-                        inputs.add(`output of \<${cells.cells[element.rule_dependencies[key]].rule.name}\>`);
+                        inputs.add(`output of ${cells.cells[element.rule_dependencies[key]].rule.name}`);
                     });
                     inputs.forEach((inp) => {
                         html += `<p>        ${inp}</p>\n`;

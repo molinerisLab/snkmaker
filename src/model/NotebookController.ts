@@ -407,7 +407,7 @@ export class NotebookController{
         "READS: VAR_2, LIST_1, VAR_3 (notice: VAR_3 is readed in the function body, but is defined outside, so it's a READ. arg1 is also readed in the function body but is an argument, valorized somewhere else, so it's not a dependency - when some cell calls the functions, it will valorize it and it will be a dependency of this cell)\n"+
         "WRITES: VAR_1, LIST_1 (notice: LIST_1 is both in the READS and WRITES, as append() depends on the previous state of the list and changes it).\n"+
         "Consider the following notebook cells:\n\n" +
-        this.cells?.cells.map((cell, index) => "Cell. " + index + "\n" + cell.code).join("\n\n") + "\n\n" +
+        this.cells?.cells.map((cell, index) => "Cell. " + index + "\nCode:\n" + cell.code + "\nThese are imports, the imported things do not go in the READS list: " + cell.imports.join(" - ")).join("\n\n") + "\n\n" +
         "Please provide to me the list of READED variables, WRITTEN variables and READED file for each cell. For each variable use the same name used in the code without changing it.\n"+
         "\n\nPlease write the output in JSON format following this schema:\n"+
         `{ "cells": [ {"cell_index": <number>, "reads": [<strings>], "writes": [<indexes>], "reads_file": [<indexes>]}  for each rule... ] }`;
@@ -430,7 +430,7 @@ export class NotebookController{
     }
 
     private async parseImportsFromCells(){
-        const imports = this.cells?.parseImports();
+        const imports = this.cells.parseImports();
         let prompt = "I have a jupyter notebook that is being processed. The notebook is made of a list of cells, each containing python code.\n" +
         "I want to re-organize the imports. I already removed all import statement for every cell's code.\n"+
         "I will now provide you: a list of all the import statements found in the cells, and the code of each cell.\n"+
@@ -453,8 +453,8 @@ export class NotebookController{
         for (let i=0; i<formatted.cells.length; i++){
             const p = formatted.cells[i];
             const newImports = p.imports.map((index: number) => imports?.[index]).filter((imp: string) => imp !== undefined);
-            this.cells.cells[p.cell_index].code = newImports.join("\n") + "\n" +
-            this.cells.cells[p.cell_index].code;
+            this.cells.cells[p.cell_index].code = newImports.join("\n") + "\n" + this.cells.cells[p.cell_index].code;
+            this.cells.cells[p.cell_index].imports = newImports;
         }
     }
 
