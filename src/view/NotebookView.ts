@@ -1,16 +1,16 @@
 
 import * as vscode from 'vscode';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
-import { CellDependencyGraph, RulesNode } from '../model/NotebookController';
+import { Cell, CellDependencyGraph, RulesNode } from '../model/NotebookController';
 
 export interface NotebookViewCallbacks{
     setNotebookCells(cells: CellDependencyGraph): void;
     onError(error: string): void;
     onSoftError(error: string): void;
     setLoading(loadMessage: string): void;
-    setRulesNodes(nodes: RulesNode[]): void;
+    setRulesNodes(nodes: CellDependencyGraph): void;
     stopLoading(): void;
-    setOutput(nodes: RulesNode[]): void;
+    setOutput(cells: CellDependencyGraph): void;
 }
 
 export class NotebookView implements NotebookViewCallbacks{
@@ -34,14 +34,13 @@ export class NotebookView implements NotebookViewCallbacks{
         this.stopLoading();
         this._panel.webview.postMessage({ command: 'set_cells', data: cells });
     }
-    setRulesNodes(nodes: RulesNode[]){
+    setRulesNodes(nodes: CellDependencyGraph){
         this.stopLoading();
         this._panel.webview.postMessage({ command: 'set_rules', data: nodes });
     }
-    setOutput(nodes: RulesNode[]){
+    setOutput(cells: CellDependencyGraph){
         this.stopLoading();
-        nodes.forEach(node => { node.ruleAdditionalInfo.exportsTo = {} });
-        this._panel.webview.postMessage({ command: 'set_output', data: nodes });
+        this._panel.webview.postMessage({ command: 'set_output', data: cells });
     }
     onError(error: string): void {
         console.log(error);
@@ -117,8 +116,9 @@ export class NotebookView implements NotebookViewCallbacks{
         );
         this._panel.webview.html = this._getHtmlForWebview(this._panel.webview);
         panel.onDidChangeViewState(e => {
-                this.setNotebookCells(presenter.getCells());
-                this.setRulesNodes(presenter.getRules());
+                const data = presenter.getCells();
+                this.setNotebookCells(data);
+                this.setRulesNodes(data);
             },
             null,
             context.subscriptions);

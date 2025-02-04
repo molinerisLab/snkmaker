@@ -1,6 +1,6 @@
 import { mock } from "node:test";
 import { LLM } from "../model/ModelComms";
-import { NotebookController, CellDependencyGraph, Cell, DependencyError, RulesNode, IllegalTypeChangeError, RulesNodeImpl } from "../model/NotebookController";
+import { NotebookController, CellDependencyGraph, DependencyError, IllegalTypeChangeError, RulesNode } from "../model/NotebookController";
 import { NotebookViewCallbacks } from "../view/NotebookView";
 const vscode = require('vscode');
 
@@ -23,8 +23,8 @@ export class NotebookPresenter{
             const cellD: CellDependencyGraph = await this.model.openNotebook();
             this.view.setNotebookCells(cellD);
             this.view.setLoading("Building rules graph...");
-            const nodes: RulesNode[]|undefined = await this.model.getRulesGraph();
-            this.view.setRulesNodes(nodes||[]);
+            const nodes: CellDependencyGraph = await this.model.makeRulesGraph();
+            this.view.setRulesNodes(nodes);
         } catch(error: any){
             this.view.onError(error);
         }
@@ -45,7 +45,7 @@ export class NotebookPresenter{
         );
     }
 
-    public async propagateChanges(index: number, rules: RulesNodeImpl[]){
+    public async propagateChanges(index: number, rules: RulesNode[]){
         this.view.setLoading("Propagating changes...");
         await this.model.updateRule(rules[index], index);
         this.model.buildRulesAdditionalCode(index+1).then(
@@ -62,12 +62,8 @@ export class NotebookPresenter{
     }
 
     public getCells(): CellDependencyGraph{
-        const cells = this.model.getCells();
-        if (!cells) {throw new Error("Cells not loaded");}
+        const cells = this.model.cells;
         return cells;
-    }
-    public getRules(): RulesNode[]{
-        return this.model.getRules()||[];
     }
 
     public changeRuleState(cell_index: number, state: string){
@@ -91,7 +87,7 @@ export class NotebookPresenter{
             if (res) {this.view.setNotebookCells(res[0]);}
             this.view.setLoading("Updating rules graph...");
             if (res) {
-                res[1].then((nodes: RulesNode[]) => this.view.setRulesNodes(nodes));
+                res[1].then((nodes: CellDependencyGraph) => this.view.setRulesNodes(nodes));
             }
         } catch (error) {
             if (error instanceof DependencyError) {
@@ -109,7 +105,7 @@ export class NotebookPresenter{
             if (res) {this.view.setNotebookCells(res[0]);}
             this.view.setLoading("Updating rules graph...");
             if (res) {
-                res[1].then((nodes: RulesNode[]) => this.view.setRulesNodes(nodes));
+                res[1].then((nodes: CellDependencyGraph) => this.view.setRulesNodes(nodes));
             }
         } catch (error) {
             this.view.onError(String(error));
@@ -123,7 +119,7 @@ export class NotebookPresenter{
             if (res) {this.view.setNotebookCells(res[0]);}
             this.view.setLoading("Updating rules graph...");
             if (res) {
-                res[1].then((nodes: RulesNode[]) => this.view.setRulesNodes(nodes));
+                res[1].then((nodes: CellDependencyGraph) => this.view.setRulesNodes(nodes));
             }
         } catch (error) {
             if (error instanceof DependencyError) {
@@ -140,7 +136,7 @@ export class NotebookPresenter{
             if (res) {this.view.setNotebookCells(res[0]);}
             this.view.setLoading("Updating rules graph...");
             if (res) {
-                res[1].then((nodes: RulesNode[]) => this.view.setRulesNodes(nodes));
+                res[1].then((nodes: CellDependencyGraph) => this.view.setRulesNodes(nodes));
             }
         } catch (error) {
             if (error instanceof DependencyError) {
@@ -158,7 +154,7 @@ export class NotebookPresenter{
             if (res) {this.view.setNotebookCells(res[0]);}
             this.view.setLoading("Updating rules graph...");
             if (res) {
-                res[1].then((nodes: RulesNode[]) => this.view.setRulesNodes(nodes));
+                res[1].then((nodes: CellDependencyGraph) => this.view.setRulesNodes(nodes));
             }
         } catch (error) {
             if (error instanceof DependencyError) {
@@ -175,23 +171,16 @@ export class NotebookPresenter{
             const cells = result[0]; const rules = result[1];
             this.view.setNotebookCells(cells);
             this.view.setLoading("Updating rules graph...");
-            rules.then((nodes: RulesNode[]) => this.view.setRulesNodes(nodes));
+            rules.then((nodes: CellDependencyGraph) => this.view.setRulesNodes(nodes));
         }
     }
 
     public splitCell(index: number, code1: string, code2: string){
         this.view.setLoading("Reconstructing dependency graph...");
         this.model.splitCell(index, code1, code2).then(
-            (result:[CellDependencyGraph, RulesNode[]]|undefined) => {
-                if (result){
-                    const cellD: CellDependencyGraph = result[0];
-                    const rules: RulesNode[] = result[1];
-                    if (cellD) {this.view.setNotebookCells(cellD);}
-                    this.view.setRulesNodes(rules);
-                } else {
-                    this.view.onSoftError(`Could not complete operation`);
-                    this.view.stopLoading();
-                }
+            (cellD:CellDependencyGraph) => {
+                if (cellD) {this.view.setNotebookCells(cellD);}
+                this.view.setRulesNodes(cellD);
             }
         ).catch(
             (error: any) => {
