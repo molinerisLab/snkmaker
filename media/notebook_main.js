@@ -389,9 +389,7 @@
                     html += `<p>    input:</p>\n`;
                     let inputs = new Set();
                     Object.keys(element.rule_dependencies).forEach((key) => {
-                        console.log(element.rule_dependencies[key]);
-                        console.log(element.rule_dependencies[key].name);
-                        inputs.add(`output of \<${element.rule_dependencies[key].name}\>`);
+                        inputs.add(`output of \<${cells.cells[element.rule_dependencies[key]].rule.name}\>`);
                     });
                     inputs.forEach((inp) => {
                         html += `<p>        ${inp}</p>\n`;
@@ -413,7 +411,7 @@
                     html += `<p><strong>Undecided</strong>: can be either a script or a rule.</p>\n`;
                 }
                 html += "<div class='cell_rule_buttons'>\n";
-                if (element.type!=="rule" && element.canBecome()["rule"]){
+                if (element.type!=="rule" && element.canBecomeStatic["rule"]){
                     html += `<button id="become_rule_${index}">Become Rule</button>\n`;
                     actions.push([`become_rule_${index}`, () => {
                         vscode.postMessage({
@@ -422,7 +420,7 @@
                         });
                     }]);
                 }
-                if (element.type!=="script" && element.canBecome()["script"]){
+                if (element.type!=="script" && element.canBecomeStatic["script"]){
                     html += `<button id="become_script_${index}">Become Script</button>\n`;
                     actions.push([`become_script_${index}`, () => {
                         vscode.postMessage({
@@ -431,7 +429,7 @@
                         });
                     }]);
                 }
-                if (element.type!=="undecided" && element.canBecome()["undecided"]){
+                if (element.type!=="undecided" && element.canBecomeStatic["undecided"]){
                     html += `<button id="become_undecided_${index}">Become Undecided</button>\n`;
                     actions.push([`become_undecided_${index}`, () => {
                         vscode.postMessage({

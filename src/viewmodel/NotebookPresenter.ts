@@ -1,6 +1,6 @@
 import { mock } from "node:test";
 import { LLM } from "../model/ModelComms";
-import { NotebookController, CellDependencyGraph, DependencyError, IllegalTypeChangeError, RulesNode } from "../model/NotebookController";
+import { NotebookController, CellDependencyGraph, DependencyError, IllegalTypeChangeError, RulesNode, Cell } from "../model/NotebookController";
 import { NotebookViewCallbacks } from "../view/NotebookView";
 const vscode = require('vscode');
 
@@ -33,9 +33,8 @@ export class NotebookPresenter{
     public produceSnakefile(){
         this.view.setLoading("Building Snakemake rules...");
         this.model.buildRulesAdditionalCode().then(
-            (res: any) => {
+            (res: CellDependencyGraph) => {
                 this.view.stopLoading();
-                res.forEach((r: any) => console.log(r.ruleAdditionalInfo.prefixCode + r.cell.code + r.ruleAdditionalInfo.postfixCode));
                 this.view.setOutput(res);
             }
         ).catch(
@@ -49,9 +48,8 @@ export class NotebookPresenter{
         this.view.setLoading("Propagating changes...");
         await this.model.updateRule(rules[index], index);
         this.model.buildRulesAdditionalCode(index+1).then(
-            (res: any) => {
+            (res: CellDependencyGraph) => {
                 this.view.stopLoading();
-                res.forEach((r: any) => console.log(r.ruleAdditionalInfo.prefixCode + r.cell.code + r.ruleAdditionalInfo.postfixCode));
                 this.view.setOutput(res);
             }
         ).catch(

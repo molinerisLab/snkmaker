@@ -1,7 +1,7 @@
 
 import * as vscode from 'vscode';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
-import { Cell, CellDependencyGraph, RulesNode } from '../model/NotebookController';
+import { CellDependencyGraph } from '../model/NotebookController';
 
 export interface NotebookViewCallbacks{
     setNotebookCells(cells: CellDependencyGraph): void;
@@ -36,6 +36,7 @@ export class NotebookView implements NotebookViewCallbacks{
     }
     setRulesNodes(nodes: CellDependencyGraph){
         this.stopLoading();
+        nodes.cells.forEach(cell => cell.rule.setCanBecome());
         this._panel.webview.postMessage({ command: 'set_rules', data: nodes });
     }
     setOutput(cells: CellDependencyGraph){

@@ -24,7 +24,8 @@ export class RulesNode{
         public prefixCode: string = "",
         public postfixCode: string = "",
         public saveFiles: string[] = [],
-        public readFiles: string[] = []
+        public readFiles: string[] = [],
+        public canBecomeStatic: {rule: boolean, script: boolean, undecided: boolean} = {"rule": true, "script": true, "undecided": true}
     ) {}
 
     updateRuleDependencies(cell: Cell, cells: Cell[]){
@@ -43,6 +44,10 @@ export class RulesNode{
             }
         });
         this.updateType();
+    }
+
+    setCanBecome(){
+        this.canBecomeStatic = this.canBecome();
     }
 
     canBecome(): {rule: boolean, script: boolean, undecided: boolean}{
@@ -99,7 +104,7 @@ export class Cell {
         public dependsOnFunction: { [key: string]: number } = {},
         
         public writesTo: { [key: string]: number[] } = {},
-        public rule: RulesNode = new RulesNode("", isFunctions ? "script" : "undecided", isFunctions, {}, {}, {})
+        public rule: RulesNode = new RulesNode(isFunctions ? declares[0] : "", isFunctions ? "script" : "undecided", isFunctions, {}, {}, {})
     ) {}
 
 
@@ -149,7 +154,8 @@ export class CellDependencyGraph{
 
     //Move function declarations to new cells, return list of name-content pairs.
     public parseFunctions(){
-        function findGlobalFunctions(code: string): Array<{ name: string; content: string }> {
+        function findGlobalFunctions(cell: Cell): Array<{ name: string; content: string }> {
+            const code = cell.code;
             const lines = code.split("\n");
             const functions: Array<{ name: string; content: string }> = [];
             let currentFunc: { name: string; content: string } | null = null;
@@ -159,7 +165,7 @@ export class CellDependencyGraph{
                 const defMatch = line.match(/^def\s+([A-Za-z_]\w*)\s*\(.*\)\s*:/);
                 if (defMatch) {
                     if (currentFunc) {functions.push(currentFunc)};
-                    currentFunc = { name: defMatch[1], content: line + "\n" };
+                    currentFunc = { name: defMatch[1], content: line };
                     currentIndent = line.search(/\S|$/);
                 } else if (currentFunc) {
                     const indent = line.search(/\S|$/);
@@ -167,17 +173,18 @@ export class CellDependencyGraph{
                         functions.push(currentFunc);
                         currentFunc = null;
                     } else if (currentFunc) {
-                        currentFunc.content += line + "\n";
+                        currentFunc.content += "\n"+line;
                     }
                 }
             }
             if (currentFunc) {functions.push(currentFunc);};
+            functions.forEach(f => cell.code = cell.code.replace(f.content, ""));
             return functions;
         }
 
         //Get list of functions defined by each cell
         const functions: Array<Array<{ name: string; content: string }>> = this.cells.map(
-            (cell) => findGlobalFunctions(cell.code)
+            (cell) => findGlobalFunctions(cell)
         );
         let fi=0; let ci=0;
         while(fi<functions.length){
@@ -187,17 +194,12 @@ export class CellDependencyGraph{
                 fi++; ci++;
                 continue;
             }
-            //Remove function declaration from cells
-            fun.forEach((f) => {
-                cell.code = cell.code.replace(f.content, "");
-            });
-            //Append new cell with only function declarations
-            //{code: , , reads_file: [], writes: [], imports: [], isFunctions: true, declares: fun.map((f) => f.name), dependsOn:{}, calls:[], dependsOnFunction:{}, missingDependencies:[]}
-            let newCell = new Cell(fun.map((f) => f.content).join(""), true, [], [], [], [], fun.map((f) => f.name)); 
+            let newCell = new Cell(fun.map((f) => f.content).join("\n"), true, [], [], [], [], fun.map((f) => f.name)); 
             this.cells.splice(ci, 0, newCell);
             ci+=2;
             fi++;
         }
+        this.cells = this.cells.filter((cell) => cell.code.length>1);
     }
 
     public makeFunctionsIndependent(){
@@ -316,7 +318,7 @@ export class NotebookController{
     constructor(private path: vscode.Uri, private llm: LLM){}
 
     private parseJsonFromResponse(response: string): any{
-        // If response is in form <some text>{ ..  }<some text>, remove surrounding text
+        console.log(response);
         let start = response.indexOf("{");
         let end = response.lastIndexOf("}");
         if (start !== -1 && end !== -1){
@@ -472,7 +474,7 @@ export class NotebookController{
         }
     }
 
-    async buildRulesAdditionalCode(startFrom=0){
+    async buildRulesAdditionalCode(startFrom=0): Promise<CellDependencyGraph>{
         function getImportStatementsFromScripts(node: Cell, cells: Cell[]): string{
             const dependencies: Set<string> = new Set();
             Object.keys(node.rule.import_dependencies).forEach((dep) => {
@@ -491,7 +493,7 @@ export class NotebookController{
                 node.prefixCode = getImportStatementsFromScripts(cell, this.cells.cells);
             } else if (node.type==="rule"){
                 // [variable, node]
-                const ruleDependencies = Object.entries(node.rule_dependencies);
+                const ruleDependencies: [string, number][] = Object.entries(node.rule_dependencies);
                 const exportsTo: [string, number[]][] = Object.entries(cell.writesTo);
                 const prompt = "I have this Python script, and I need you to add code to perform three operations: "+
                 "1- The script needs to read some file(s) and use their content to valorize some variables before starting. "+
@@ -501,9 +503,9 @@ export class NotebookController{
                 "My script is:\n\n" + cell.code + "\n\n"+
                 "The variables it needs to valorize by reading files are: " +
                 ((ruleDependencies.length===0) ? " - no variable actually needed for reading -" :
-                ruleDependencies.map((d:any) => "Variable: " + d[0] + " produced by the script " + d[1].name).join("\n") + "\n\n"+
-                "I will provide the code that produces the files that you need: "+
-                ruleDependencies.map((d:any) => "Code that saves variable " + d[0] + " to a file:\n" + d[1].ruleAdditionalInfo.postfixCode).join("\n")) + "\n\n"+
+                ruleDependencies.map((d:any) => "Variable: " + d[0] + " produced by the script " + this.cells.cells[d[1]].rule.name).join("\n") + "\n\n"+
+                "I will provide the code that produce the files that you need: "+
+                ruleDependencies.map((d:any) => "Code that saves variable " + d[0] + " to a file:\n" + this.cells.cells[d[1]].rule.postfixCode).join("\n")) + "\n\n"+
                 "The variables that needs to be saved are: \n" +
                 ((exportsTo.length===0) ? " - no variable actually needed for saving -" :
                 exportsTo.map((entry:[string,number[]]) => "Variable: " + entry[0] + " must be saved and will be readed by the script(s) " + entry[1].map((index:number)=>this.cells.cells[index].rule.name).join(", ")).join("\n") + "\n\n"+
