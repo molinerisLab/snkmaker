@@ -55,16 +55,16 @@
         }
     }
 
-    function set_output(rules){
+    function set_output(cells){
         document.getElementById('mainContainer').innerHTML = "";
         const existingSvg = document.querySelector('#lines svg');
         if (existingSvg) {
             existingSvg.remove();
         }
-
         const container = document.getElementById('mainContainer');
         let html = "";
-        rules.forEach((element, index) => {
+        cells.cells.forEach((cell, index) => {
+            const element = cell.rule;
             html += `<div class="cell_container" id="cell_container_${index}">\n`;
             html += `<div class="cell_output_container" id="cell${index}">\n`;
             
@@ -75,7 +75,7 @@
                 html += "<div class='cell_rule_preview'>\n";
                 html += `<p>rule ${element.name}:</p>\n`;
                 html += `<p>    input:</p>\n`;
-                let inputs = element.ruleAdditionalInfo.readFiles;
+                let inputs = element.readFiles;
                 inputs.forEach((inp) => {
                     html += `<p>        ${inp}</p>\n`;
                 });
@@ -83,7 +83,7 @@
                     html += `<p>        - </p>\n`;
                 }
                 html += `<p>    output:</p>\n`;
-                let output = element.ruleAdditionalInfo.saveFiles;
+                let output = element.saveFiles;
                 output.forEach((inp) => {
                     html += `<p>        ${inp}</p>\n`;
                 });
@@ -100,22 +100,22 @@
             }
 
             
-            if (element.ruleAdditionalInfo.prefixCode.length > 0){
+            if (element.prefixCode.length > 0){
                 html += `<label for="code_prefix_${index}">Prefix code:</label>\n`;
                 html += `<div id="code_prefix_${index}" class="cell">\n`;
-                html += `<pre><code id="prefix_content_${index}" contenteditable="true">${hljs.highlight('python', element.ruleAdditionalInfo.prefixCode).value}</code></pre>\n`;
+                html += `<pre><code id="prefix_content_${index}" contenteditable="true">${hljs.highlight('python', element.prefixCode).value}</code></pre>\n`;
                 html += "</div>\n";
             }
 
             html += `<label for="code_core_${index}">Code:</label>\n`;
             html += `<div id="code_core_${index}" class="cell">\n`;
-            html += `<pre><code id="main_content_${index}" contenteditable="false">${hljs.highlight('python', element.cell.code).value}</code></pre>\n`;
+            html += `<pre><code id="main_content_${index}" contenteditable="false">${hljs.highlight('python', cell.code).value}</code></pre>\n`;
             html += "</div>\n";
 
-            if (element.ruleAdditionalInfo.postfixCode.length > 0){
+            if (element.postfixCode.length > 0){
                 html += `<label for="code_postfix_${index}">Postfix code:</label>\n`;
                 html += `<div id="code_postfix_${index}" class="cell">\n`;
-                html += `<pre><code id="postfix_content_${index}" contenteditable="true">${hljs.highlight('python', element.ruleAdditionalInfo.postfixCode).value}</code></pre>\n`;
+                html += `<pre><code id="postfix_content_${index}" contenteditable="true">${hljs.highlight('python', element.postfixCode).value}</code></pre>\n`;
                 html += "</div>\n";
             }
             html += `<button id="propagate_${index}" style="display: none;">Save changes</button>\n`;
@@ -125,27 +125,24 @@
         });
         container.innerHTML = html;
         //Initialize event listeners
-        rules.forEach((element, index) => {
+        cells.cells.forEach((cell, index) => {
+            const element = cell.rule;
             const prefix = document.getElementById(`prefix_content_${index}`);
             const core = document.getElementById(`main_content_${index}`);
             const postfix = document.getElementById(`postfix_content_${index}`);
             prefix?.addEventListener('input', function() {
-                rules[index].ruleAdditionalInfo.prefixCode = prefix.innerText;
-                document.getElementById(`propagate_${index}`).style.display = 'block';
-            });
-            core?.addEventListener('input', function() {
-                rules[index].cell.code = core.innerText;
+                cells.cells[index].rule.prefixCode = prefix.innerText;
                 document.getElementById(`propagate_${index}`).style.display = 'block';
             });
             postfix?.addEventListener('input', function() {
-                rules[index].ruleAdditionalInfo.postfixCode = postfix.innerText;
+                cells.cells[index].rule.postfixCode = postfix.innerText;
                 document.getElementById(`propagate_${index}`).style.display = 'block';
             });
             document.getElementById(`propagate_${index}`).addEventListener('click', () => {
                 vscode.postMessage({
                     command: 'propagate_changes',
                     index: index,
-                    rules: rules
+                    rules: cells.cells.map(c => c.rule)
                 });
             });
         });
@@ -358,12 +355,12 @@
         buildDependencyLines(cells);
     }
 
-    function set_rules(rules){
+    function set_rules(cells){
         //Button to proceed
         const container = document.getElementById('send_button');
         let html = "";
-        const hasMissingDependency = rules.filter((rule) => rule.cell.missingDependencies.length > 0).length > 0;
-        const hasUndecidedRules = rules.filter((rule) => rule.type === "undecided").length > 0;
+        const hasMissingDependency = cells.cells.filter((cell) => cell.missingDependencies.length > 0).length > 0;
+        const hasUndecidedRules = cells.cells.filter((cell) => cell.rule.type === "undecided").length > 0;
         html += "<div class='cell_container'>\n";
         html += `<div class="cell_code_container">\n`;
         if (hasMissingDependency){
@@ -377,7 +374,8 @@
         html += "</div>\n";
         container.innerHTML = html;
 
-        rules.forEach((element, index) => {
+        cells.cells.forEach((cell, index) => {
+            const element =cell.rule;
             const container = document.getElementById(`cell_rule_${index}_container`);
             let html = "";
             let actions = [];
@@ -415,7 +413,7 @@
                     html += `<p><strong>Undecided</strong>: can be either a script or a rule.</p>\n`;
                 }
                 html += "<div class='cell_rule_buttons'>\n";
-                if (element.type!=="rule" && element.can_become["rule"]){
+                if (element.type!=="rule" && element.canBecome()["rule"]){
                     html += `<button id="become_rule_${index}">Become Rule</button>\n`;
                     actions.push([`become_rule_${index}`, () => {
                         vscode.postMessage({
@@ -424,7 +422,7 @@
                         });
                     }]);
                 }
-                if (element.type!=="script" && element.can_become["script"]){
+                if (element.type!=="script" && element.canBecome()["script"]){
                     html += `<button id="become_script_${index}">Become Script</button>\n`;
                     actions.push([`become_script_${index}`, () => {
                         vscode.postMessage({
@@ -433,7 +431,7 @@
                         });
                     }]);
                 }
-                if (element.type!=="undecided" && element.can_become["undecided"]){
+                if (element.type!=="undecided" && element.canBecome()["undecided"]){
                     html += `<button id="become_undecided_${index}">Become Undecided</button>\n`;
                     actions.push([`become_undecided_${index}`, () => {
                         vscode.postMessage({
