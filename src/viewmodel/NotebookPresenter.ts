@@ -10,14 +10,33 @@ const vscode = require('vscode');
  */
 
 export class NotebookPresenter{
-    constructor(private view: NotebookViewCallbacks, private model: NotebookController){
+    constructor(private view: NotebookViewCallbacks, private model: NotebookController, private memento: any){
         this.model = model;
         this.view = view;
         this.buildNotebook();
     }
 
+    private saveMockedData(key: string, value: any){
+        this.memento.update(key, JSON.stringify(value));
+    }
+    private mockOrLoadData(key: string){
+        const data = this.memento.get(key, undefined);
+        if (data){
+            const c = JSON.parse(data);
+            c.cells.forEach((cell:any) => {
+                cell.rule.setCanBecome= ()=>{};
+                cell.rule.canBecomeStatic={rule: true, script: true, undecided: true};});
+            this.view.setNotebookCells(c);
+            this.view.setRulesNodes(c);
+            return true;
+        }
+        return false;
+    }
+
     private async buildNotebook(){
-        //mockData(this.view); return;
+        if (this.mockOrLoadData('notebook')){
+            return;
+        }
         try{
             this.view.setLoading("Building dependency graph...");
             const cellD: CellDependencyGraph = await this.model.openNotebook();
@@ -25,6 +44,8 @@ export class NotebookPresenter{
             this.view.setLoading("Building rules graph...");
             const nodes: CellDependencyGraph = await this.model.makeRulesGraph();
             this.view.setRulesNodes(nodes);
+
+            this.saveMockedData('notebook', nodes);
         } catch(error: any){
             this.view.onError(error);
         }

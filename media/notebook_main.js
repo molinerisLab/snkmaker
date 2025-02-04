@@ -103,19 +103,19 @@
             if (element.prefixCode.length > 0){
                 html += `<label for="code_prefix_${index}">Prefix code:</label>\n`;
                 html += `<div id="code_prefix_${index}" class="cell">\n`;
-                html += `<pre><code id="prefix_content_${index}" contenteditable="true">${hljs.highlight('python', element.prefixCode).value}</code></pre>\n`;
+                html += `<pre><code id="prefix_content_${index}" contenteditable="true">${hljs.highlight(element.prefixCode, { language: 'python' }).value}</code></pre>\n`;
                 html += "</div>\n";
             }
 
             html += `<label for="code_core_${index}">Code:</label>\n`;
             html += `<div id="code_core_${index}" class="cell">\n`;
-            html += `<pre><code id="main_content_${index}" contenteditable="false">${hljs.highlight('python', cell.code).value}</code></pre>\n`;
+            html += `<pre><code id="main_content_${index}" contenteditable="false">${hljs.highlight(cell.code, { language: 'python' }).value}</code></pre>\n`;
             html += "</div>\n";
 
             if (element.postfixCode.length > 0){
                 html += `<label for="code_postfix_${index}">Postfix code:</label>\n`;
                 html += `<div id="code_postfix_${index}" class="cell">\n`;
-                html += `<pre><code id="postfix_content_${index}" contenteditable="true">${hljs.highlight('python', element.postfixCode).value}</code></pre>\n`;
+                html += `<pre><code id="postfix_content_${index}" contenteditable="true">${hljs.highlight(element.postfixCode, { language: 'python' }).value}</code></pre>\n`;
                 html += "</div>\n";
             }
             html += `<button id="propagate_${index}" style="display: none;">Save changes</button>\n`;
@@ -202,7 +202,7 @@
             
             //Code
             html += `<div id="cell${index}" class="cell">\n`;
-            html += `<pre><code>${hljs.highlight('python', element.code).value}</code></pre>\n`;
+            html += `<pre><code>${hljs.highlight(element.code, { language: 'python' }).value}</code></pre>\n`;
             //html += `<p>${element.code}</p>\n`;
             html += "</div>\n";
 

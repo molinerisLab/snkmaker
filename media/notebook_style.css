@@ -169,25 +169,30 @@ input[type="number"] {
 	flex-direction: row;
 }
 #lines{
-	width: 230px;
+	width: 20%;
 }
-/*#mainContainer {
-}*/
+#mainContainer {
+	width: 80%;
+}
 
 .cell_container{
-	width: 95%;
 	display: flex;
+	flex-direction: column;
 	justify-content: space-between;
 	margin-top: 8px;
 	margin-bottom: 32px;
+	padding:16px;
+	border: 0.5px solid transparent;
+}
+.cell_container:hover{
+	border: 0.5px solid rgb(160, 160, 160);
 }
 .cell_code_container{
-	width: 60%;
+	width: 100%;
 }
 .cell_rule_container{
 	width: 40%;
 	padding-top: 0px;
-	padding-left: 32px;
 }
 .cell_rule_preview{
 	background-color: var(--vscode-notebook-cellEditorBackground);
@@ -198,6 +203,7 @@ input[type="number"] {
 	scrollbar-width: none;
 	-ms-overflow-style: none;
 	padding-left: 16px; padding-top: 8px; padding-bottom: 8px;
+	font-size: small;
 }
 .cell_rule_preview p{
 	margin-top: 0px;
@@ -310,14 +316,12 @@ input[type="number"] {
 	background-color: var(--vscode-notebook-cellEditorBackground);
 	border: 1px solid var(--vscode-notebook-cellBorderColor);
 	font-size: medium;
-	border-radius: 12px;
 	height: 32px; width: 32px;
 	margin-left: 4px; margin-right: 4px;
 }
 .cell_buttons button:hover{
 	background-color: var(--vscode-notebook-editorBackground);
 	border: 1px solid var(--vscode-notebook-cellBorderColor);
-	border-radius: 12px;
 }
 .cell_title_and_buttons{
 	display: flex;
@@ -343,20 +347,22 @@ input[type="number"] {
 	align-items: center;
 	position: absolute;
 	transform: translate(-50%, 0%);
+	padding: 8px;
+	background-color: var(--vscode-notebook-cellEditorBackground);
+	border: 1px solid var(--vscode-notebook-cellBorderColor);
+	z-index: 2000;
 }
 #actionButton button {
 	background-color: var(--vscode-notebook-cellEditorBackground);
 	border: 1px solid var(--vscode-notebook-cellBorderColor);
 	font-size: medium;
-	padding:4px;
-	border-radius: 8px;
+	padding:8px;
 	margin-left: 4px; margin-right: 4px;
 }
 
 #actionButton button:hover{
 	background-color: var(--vscode-notebook-editorBackground);
 	border: 1px solid var(--vscode-notebook-cellBorderColor);
-	border-radius: 12px;
 }
 .dependency_container{
 	display: flex;

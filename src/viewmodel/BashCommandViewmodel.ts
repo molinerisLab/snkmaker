@@ -318,7 +318,7 @@ export class BashCommandViewModel{
     }
     
     openNotebook(notebookPath: vscode.Uri, view: NotebookViewCallbacks){
-        return new NotebookPresenter(view, new NotebookController(notebookPath, this.llm));
+        return new NotebookPresenter(view, new NotebookController(notebookPath, this.llm), this.memento);
     }
 
 }
