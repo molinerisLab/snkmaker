@@ -1,18 +1,9 @@
 import { json } from 'stream/consumers';
 import * as vscode from 'vscode';
 import { LLM, ModelComms } from './ModelComms';
+import { read } from 'fs';
+import { resolve } from 'path';
 
-
-export interface Cell{
-    code: string; reads: string[]; reads_file: string[], writes: string[], imports: string[];
-    isFunctions: boolean; declares: string[]; calls: string[];
-    dependsOn: { [key: string]: number };
-    dependsOnFunction: { [key: string]: number };
-    missingDependencies: string[];
-}
-export interface CellDependencyGraph{
-    cells: Cell[];
-}
 
 export class DependencyError{
     constructor(public message: string, public reader_cell: number, public variable: string){}
@@ -21,14 +12,117 @@ export class IllegalTypeChangeError{
     constructor(public oldState: string, public newState: string, public error: string){}
 }
 
-class CellDependencyGraphImpl implements CellDependencyGraph{
-    cells: Cell[];
-    constructor(cells: string[][]){
-        this.cells = cells.map((cell) => {
-            return {code: cell.join(""), reads: [], reads_file: [], writes: [], imports: [], isFunctions:false, declares:[], dependsOn:{}, calls:[], dependsOnFunction:{}, missingDependencies:[]};
+//Enrich cell's data with additional information
+export class RulesNode{
+    constructor(
+        public name: string,
+        public type: "rule" | "script" | "undecided",
+        public isFunction: boolean,
+        public import_dependencies: { [key: string]: number },
+        public rule_dependencies: { [key: string]: number },
+        public undecided_dependencies: { [key: string]: number },
+        public prefixCode: string = "",
+        public postfixCode: string = "",
+        public saveFiles: string[] = [],
+        public readFiles: string[] = []
+    ) {}
+
+    updateRuleDependencies(cell: Cell, cells: Cell[]){
+        this.rule_dependencies = {}; this.import_dependencies = {}; this.undecided_dependencies = {};
+        cell.reads.forEach((key: string, target: number) => {
+            switch(cells[target].rule.type){
+                case "rule":
+                    this.rule_dependencies[key] = target;
+                    break;
+                case "script":
+                    this.import_dependencies[key] = target;
+                    break;
+                case "undecided":
+                    this.undecided_dependencies[key] = target;
+                    break;
+            }
         });
+        this.updateType();
     }
-    public setDependency(index: number, reads: string[], reads_file: string[], writes: string[], imports: string[]){
+
+    canBecome(): {rule: boolean, script: boolean, undecided: boolean}{
+        if (this.isFunction){
+            return {"rule": false, "script": true, "undecided": false};
+        }
+        if (Object.keys(this.rule_dependencies).length > 0){
+            return {"rule": true, "script": false, "undecided": false};
+        } else if (Object.keys(this.undecided_dependencies).length > 0){
+            return {"rule": true, "script": false, "undecided": true};
+        }
+        return {"rule": true, "script": true, "undecided": true};
+    }
+
+    updateType(){
+        let canBecome = this.canBecome();
+        if (!canBecome[this.type]){
+            if (canBecome["undecided"]){
+                this.type = "undecided";
+            } else if (canBecome["rule"]){
+                this.type = "rule";
+            } else {
+                this.type = "script";
+            }
+        }
+    }
+
+    setType(type: "rule" | "script" | "undecided", noException=false){
+        let canBecome = this.canBecome();
+        if (canBecome[type] === false){
+            if (noException){
+                return;
+            }
+            throw new IllegalTypeChangeError(this.type, type, "This node can't become this type");
+        }
+        this.type = type;
+    }
+}
+
+//Cell represent a notebook's cell in the graph
+export class Cell {
+    constructor(
+        public code: string,
+        public isFunctions: boolean,
+        public reads: string[] = [],
+        public reads_file: string[] = [],
+        public writes: string[] = [],
+        public imports: string[] = [],
+        public declares: string[] = [],
+        public calls: string[] = [],
+        public missingDependencies: string[] = [],
+        //Links to other cells
+        public dependsOn: { [key: string]: number } = {},
+        public dependsOnFunction: { [key: string]: number } = {},
+        
+        public writesTo: { [key: string]: number[] } = {},
+        public rule: RulesNode = new RulesNode("", isFunctions ? "script" : "undecided", isFunctions, {}, {}, {})
+    ) {}
+
+
+    setWritesTo(index: number, variable: string){
+        if (this.writesTo[variable]){
+            this.writesTo[variable].push(index);
+        } else {
+            this.writesTo[variable] = [index];
+        }
+    }
+
+}
+
+
+export class CellDependencyGraph{
+
+    constructor(public cells: Cell[]){}
+
+    public static fromCode(codeCells: string[][]){
+        return new CellDependencyGraph(codeCells.map((cell) => new Cell(cell.join(""), false)));
+    }
+
+    public setCellDependency(index: number, reads: string[], reads_file: string[], writes: string[], imports: string[]){
         this.cells[index].reads = reads;
         this.cells[index].reads_file = reads_file;
         this.cells[index].writes = writes;
@@ -53,36 +147,37 @@ class CellDependencyGraphImpl implements CellDependencyGraph{
         return Array.from(importSet);
     }
 
-    private findGlobalFunctions(code: string): Array<{ name: string; content: string }> {
-        const lines = code.split("\n");
-        const functions: Array<{ name: string; content: string }> = [];
-        let currentFunc: { name: string; content: string } | null = null;
-        let currentIndent = 0;
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            const defMatch = line.match(/^def\s+([A-Za-z_]\w*)\s*\(.*\)\s*:/);
-            if (defMatch) {
-                if (currentFunc) {functions.push(currentFunc)};
-                currentFunc = { name: defMatch[1], content: line + "\n" };
-                currentIndent = line.search(/\S|$/);
-            } else if (currentFunc) {
-                const indent = line.search(/\S|$/);
-                if (indent <= currentIndent && line.trim() !== "") {
-                    functions.push(currentFunc);
-                    currentFunc = null;
+    //Move function declarations to new cells, return list of name-content pairs.
+    public parseFunctions(){
+        function findGlobalFunctions(code: string): Array<{ name: string; content: string }> {
+            const lines = code.split("\n");
+            const functions: Array<{ name: string; content: string }> = [];
+            let currentFunc: { name: string; content: string } | null = null;
+            let currentIndent = 0;
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const defMatch = line.match(/^def\s+([A-Za-z_]\w*)\s*\(.*\)\s*:/);
+                if (defMatch) {
+                    if (currentFunc) {functions.push(currentFunc)};
+                    currentFunc = { name: defMatch[1], content: line + "\n" };
+                    currentIndent = line.search(/\S|$/);
                 } else if (currentFunc) {
-                    currentFunc.content += line + "\n";
+                    const indent = line.search(/\S|$/);
+                    if (indent <= currentIndent && line.trim() !== "") {
+                        functions.push(currentFunc);
+                        currentFunc = null;
+                    } else if (currentFunc) {
+                        currentFunc.content += line + "\n";
+                    }
                 }
             }
+            if (currentFunc) {functions.push(currentFunc);};
+            return functions;
         }
-        if (currentFunc) {functions.push(currentFunc);};
-        return functions;
-    }
 
-    public parseFunctions(){
         //Get list of functions defined by each cell
         const functions: Array<Array<{ name: string; content: string }>> = this.cells.map(
-            (cell) => this.findGlobalFunctions(cell.code)
+            (cell) => findGlobalFunctions(cell.code)
         );
         let fi=0; let ci=0;
         while(fi<functions.length){
@@ -97,7 +192,9 @@ class CellDependencyGraphImpl implements CellDependencyGraph{
                 cell.code = cell.code.replace(f.content, "");
             });
             //Append new cell with only function declarations
-            this.cells.splice(ci, 0, {code: fun.map((f) => f.content).join(""), reads: [], reads_file: [], writes: [], imports: [], isFunctions: true, declares: fun.map((f) => f.name), dependsOn:{}, calls:[], dependsOnFunction:{}, missingDependencies:[]});
+            //{code: , , reads_file: [], writes: [], imports: [], isFunctions: true, declares: fun.map((f) => f.name), dependsOn:{}, calls:[], dependsOnFunction:{}, missingDependencies:[]}
+            let newCell = new Cell(fun.map((f) => f.content).join(""), true, [], [], [], [], fun.map((f) => f.name)); 
+            this.cells.splice(ci, 0, newCell);
             ci+=2;
             fi++;
         }
@@ -162,15 +259,16 @@ class CellDependencyGraphImpl implements CellDependencyGraph{
         this.cells.forEach((cell, index) => {
             cell.dependsOn = {};
             cell.missingDependencies = [];
+            cell.writesTo = {};
             if (index > 0){
                 cell.reads.forEach((read) => {
                     if (lastChanged[index-1][read] !== undefined) {
                         cell.dependsOn[read] = lastChanged[index-1][read];
+                        this.cells[lastChanged[index-1][read]].setWritesTo(index, read);
                     } else if (cell.writes.includes(read)){
 
                     } else {
                         cell.missingDependencies.push(read);
-                        //throw new DependencyError(`Variable ${read} is not defined in previous cells`, index, read);
                     }
                 });
                 Object.keys(lastChanged[index - 1]).forEach((key) => {
@@ -181,177 +279,59 @@ class CellDependencyGraphImpl implements CellDependencyGraph{
                 lastChanged[index][write] = index;
             });
         });
-    }
-}
-
-export interface RulesNode{
-    isLoading: boolean;
-    cell: Cell;
-    name: string;
-    can_become: { [key: string]: boolean };
-    type: "rule" | "script" | "undecided";
-    import_dependencies: { [key: string]: RulesNodeImpl };
-    rule_dependencies: { [key: string]: RulesNodeImpl };
-    undecided_dependencies: { [key: string]: RulesNodeImpl };
-    ruleAdditionalInfo: RuleAdditionalInfo;
-}
-
-class RuleAdditionalInfo{
-    prefixCode: string = "";
-    postfixCode: string = "";
-    exportsTo: { [key: string]: RulesNode[] } = {};
-    saveFiles: string[] = [];
-    readFiles: string[] = [];
-    constructor(public code:string){}
-}
-
-export class RulesNodeImpl implements RulesNode{
-    can_become = {"rule": true, "script": true, "undecided": true};
-    import_dependencies: { [key: string]: RulesNodeImpl } = {};
-    rule_dependencies: { [key: string]: RulesNodeImpl } = {};
-    undecided_dependencies: { [key: string]: RulesNodeImpl } = {};
-    ruleAdditionalInfo: RuleAdditionalInfo;
-
-    constructor(public isLoading: boolean, public cell: Cell, public type: "rule" | "script" | "undecided", public name: string){
-        if (this.cell.isFunctions){
-            this.can_become = {"rule": false, "script": true, "undecided": false};
-        }
-        this.ruleAdditionalInfo = new RuleAdditionalInfo(cell.code);
-    }
-    getType(): 'rule' | 'script' | 'undecided' {
-        return this.type;
-    }
-    addDependency(key: string, target: RulesNodeImpl): boolean{
-        const oldType = this.type;
-        if (target.type === "rule"){
-            this.rule_dependencies[key] = target;
-        } else if (target.type === "script"){
-            this.import_dependencies[key] = target;
-        } else {
-            this.undecided_dependencies[key] = target;
-        }
-        this.updateCanBecome();
-        this.updateType();
-        return this.type!==oldType;
-    }
-    updateDependencies(){
-        const allDependencies = [...Object.keys(this.import_dependencies), ...Object.keys(this.rule_dependencies), ...Object.keys(this.undecided_dependencies)];
-        const allDependencyNodes: RulesNodeImpl[] = [...Object.values(this.import_dependencies), ...Object.values(this.rule_dependencies), ...Object.values(this.undecided_dependencies)];
-        this.rule_dependencies = {}; this.import_dependencies = {}; this.undecided_dependencies = {};
-        allDependencies.forEach((key, target) => {
-            if (allDependencyNodes[target].type === "rule"){
-                this.rule_dependencies[key] = allDependencyNodes[target];
-            } else if (allDependencyNodes[target].type === "script"){
-                this.import_dependencies[key] = allDependencyNodes[target];
-            } else {
-                this.undecided_dependencies[key] = allDependencyNodes[target];
-            }
-        });
-        this.updateCanBecome();
-        this.updateType();
-    }
-    updateCanBecome(){
-        if (this.cell.isFunctions){
-            this.can_become = {"rule": false, "script": true, "undecided": false};
-            return;
-        }
-        this.can_become = {"rule": true, "script": true, "undecided": true};
-        if (Object.keys(this.rule_dependencies).length > 0){
-            this.can_become = {"rule": true, "script": false, "undecided": false};
-        } else if (Object.keys(this.undecided_dependencies).length > 0){
-            this.can_become = {"rule": true, "script": false, "undecided": true};
-        }
-    }
-    updateType(){
-        if (this.can_become[this.type]){
-            return;
-        }
-        if (this.can_become["undecided"]){
-            this.type = "undecided";
-            return;
-        }
-        if (this.can_become["rule"]){
-            this.type = "rule";
-            return;
-        }
-        this.type = "script";
-    }
-    setType(type: "rule" | "script" | "undecided"){
-        if (this.can_become[type] === false){
-            throw new IllegalTypeChangeError(this.type, type, "This node can't become this type");
-        }
-        this.type = type;
-    }
-}
-
-class RulesDependencyGraph{
-    nodes: RulesNodeImpl[];
-    constructor(cells: CellDependencyGraph){
-        this.nodes = [];
-        this.buildFromDependencyGraph(cells);
-    }
-    buildAdditionalInfo(){
-        this.nodes.forEach((node, index) => {
-            Object.entries(node.rule_dependencies).forEach(([variable, target]: [string, RulesNodeImpl]) => {
-                if (target.ruleAdditionalInfo.exportsTo[variable] === undefined){
-                    target.ruleAdditionalInfo.exportsTo[variable] = [this.nodes[index]];
-                } else {
-                    target.ruleAdditionalInfo.exportsTo[variable].push(this.nodes[index]);
-                }
-            });
-        });
-    }
-    buildFromDependencyGraph(cells: CellDependencyGraph, startFrom=0){
-        let nodes = this.nodes;
-        if (startFrom > 0 && startFrom < this.nodes.length){
-            nodes = this.nodes.slice(0, startFrom);
-        }
-        for (let i=startFrom; i<cells.cells.length; i++){
-            const cell = cells.cells[i];
-            if (cell.isFunctions){
-                nodes.push(new RulesNodeImpl(false, cell, "script", ""));
-                continue;
-            }
-            const rule = new RulesNodeImpl(false, cell, "undecided", "");
-            Object.keys(cell.dependsOn).forEach((dependency: string) => {
-                rule.addDependency(dependency, nodes[cell.dependsOn[dependency]]);
-            });
-            nodes.push(rule);
-        }
-        this.nodes = nodes;
+        this.updateRulesDependencies();
     }
 
-    setNodeDetails(index: number, name: string, type: "rule" | "script" | "undecided"){
-        this.nodes[index].name = name;
-        this.nodes[index].setType(type);
-        for (let i=index+1; i<this.nodes.length; i++){
-            this.nodes[i].updateDependencies();
+    updateRulesDependencies(startFrom=0){
+        for (let i=startFrom; i<this.cells.length; i++){
+            this.cells[i].rule.updateRuleDependencies(this.cells[i], this.cells);
         }
     }
-    async guessGraphTypesAndNames(response:any, changeFrom=0){
+
+    setRuleDetails(index: number, name: string|undefined, type: "rule" | "script" | "undecided"){
+        this.cells[index].rule.name = name || this.cells[index].rule.name;
+        this.cells[index].rule.setType(type);
+        this.updateRulesDependencies(index+1);
+    }
+
+    setRulesTypesAndNames(response:any, changeFrom=0){
         for (let i=changeFrom; i<response.rules.length; i++){
             const rule = response.rules[i];
-            //"cell_index": <number>, "rule_name": <string>, "type": <string>} for each cell... ]
             try{
-                const name = rule.rule_name || this.nodes[rule.cell_index].name;
-                this.setNodeDetails(rule.cell_index, name, rule.type);
+                const name = rule.rule_name || this.cells[rule.cell_index].rule.name;
+                this.cells[rule.cell_index].rule.name = name;
+                this.cells[rule.cell_index].rule.setType(rule.type, true);
             } catch (e:any){}
         };
+        this.updateRulesDependencies(changeFrom);
     }
+
+    
 }
 
+
+
 export class NotebookController{
-    cells: CellDependencyGraphImpl | undefined;
-    rulesGraph: RulesDependencyGraph | undefined;
-    constructor(private path: vscode.Uri, private llm: LLM){
+    cells: CellDependencyGraph = new CellDependencyGraph([]);
+    constructor(private path: vscode.Uri, private llm: LLM){}
+
+    private parseJsonFromResponse(response: string): any{
+        // If response is in form <some text>{ ..  }<some text>, remove surrounding text
+        let start = response.indexOf("{");
+        let end = response.lastIndexOf("}");
+        if (start !== -1 && end !== -1){
+            response = response.substring(start, end + 1);
+        }
+        return JSON.parse(response);
     }
 
+    //Opens notebook, create cell graph with read/write dependencies, parse imports and functions.
     async openNotebook(): Promise<CellDependencyGraph>{
         const opened = await vscode.workspace.openTextDocument(this.path);
         const json = await JSON.parse(opened.getText());  
         const result: string[][] = json.cells.filter((cell: any) => cell.cell_type === "code").map((cell: any) => cell.source);
         //Build data structure
-        this.cells = new CellDependencyGraphImpl(result);
+        this.cells = CellDependencyGraph.fromCode(result);
         //Parse function declarations
         this.cells.parseFunctions();
         //Parse imports
@@ -365,166 +345,12 @@ export class NotebookController{
         return this.cells;
     }
 
-    async updateRule(rule: RulesNodeImpl, position: number){
-        if (rule.ruleAdditionalInfo.saveFiles.length > 0){
-            const prompt = "I have this Python script:\n"+
-            rule.ruleAdditionalInfo.postfixCode + "\n\n"+
-            "Can you tell me the list of files that this script writes? If it writes none, then return an empty list."+
-            "Plase return it in JSON format following this schema:\n" +
-            "{ 'written_filenames': ['list of filenames for the saved files'] }";
-            const response = await this.llm.runQuery(prompt);
-            const formatted: any = this.parseJsonFromResponse(response);
-            rule.ruleAdditionalInfo.saveFiles = formatted.written_filenames;
-        }
-        if (this.rulesGraph){
-            this.rulesGraph.nodes[position].cell.code = rule.cell.code;
-            this.rulesGraph.nodes[position].ruleAdditionalInfo = rule.ruleAdditionalInfo;
-        }
-    }
-
-    async buildAdditionalInfo(startFrom=0){
-        if (!this.rulesGraph){return;}
-        this.rulesGraph.buildAdditionalInfo();
-
-        function getDependenciesFromScripts(node: RulesNodeImpl, nodes: RulesNodeImpl[]){
-            const dependencies: any = [];
-            Object.keys(node.import_dependencies).forEach((dep) => {
-                dependencies.push([dep, node.import_dependencies[dep]]);
-            });
-            Object.keys(node.cell.dependsOnFunction).forEach((dep) => {
-                dependencies.push([dep, nodes[node.cell.dependsOnFunction[dep]]]);
-            });
-            return dependencies;
-        }
-
-        for (let i=startFrom; i<this.rulesGraph.nodes.length; i++){
-            const node = this.rulesGraph.nodes[i];
-            if (node.type === "script"){
-                const dependencies = getDependenciesFromScripts(node, this.rulesGraph.nodes);
-                if (dependencies.length === 0){
-                    continue;
-                }
-                node.isLoading = true;
-                const prompt = "I have this Python script. The script uses imported data and/or functions from other scripts, "+
-                "but the import statements are missing. I'd like you to add the imoport statement for me. "+
-                "All the other scripts as in the same directory as this one.\n"+
-                "The script is:\n\n" + node.cell.code + "\n\n"+
-                "The dependencies are:\n" + 
-                dependencies.map((d:any) => d[0] + " from script " + d[1].name).join("\n") + "\n\n"+
-                "Please write for me the import statements of my script. Please write the output in JSON format following this schema:\n"+
-                `{"imports": ["import statement for each dependency"]}` +
-                "Please do not repeat the code already existing, only add the import statements";
-                const response = await this.llm.runQuery(prompt);
-                const formatted: any = this.parseJsonFromResponse(response);
-                if (!formatted.imports || !Array.isArray(formatted.imports)) {
-                    throw new Error("Invalid response format: 'imports' is missing or not an array");
-                }
-                node.isLoading = false;
-                node.ruleAdditionalInfo.prefixCode = formatted.imports.join("\n");
-            } else if (node.type==="rule"){
-                // [variable, node]
-                const importDependencies = getDependenciesFromScripts(node, this.rulesGraph.nodes);
-                const ruleDependencies = Object.entries(node.rule_dependencies);
-                const exportsTo = Object.entries(node.ruleAdditionalInfo.exportsTo);
-                node.isLoading = true;
-                const prompt = "I have this Python script, and I need you to add code to perform three operations: "+
-                "1- The scripts is missing some imports. I will provide you the list of the imports that are needed and the names "+
-                "of the scripts from which the imports are needed. You need to add the import statements to the script. "+
-                "Note, the scripts are in the same directory of this one.\n"+
-                "2- The script needs to read some file(s) and use their content to valorize some variables before starting. "+
-                " I will provide the name of the variables to valorize and the piece of code that produces the file that needs to be readed.\n"+
-                "3- The script produces some output files, that will be readed by other scripts. "+
-                " I will provide the name of the variables that needs to be saved."+
-                "My script is:\n\n" + node.cell.code + "\n\n"+
-                "The imports needed are:\n" +
-                ((importDependencies.length===0) ? " - no import actually needed -" :
-                importDependencies.map((d:any) => d[0] + " from script " + d[1].name).join("\n")) + "\n\n"+
-                "The variables it needs to valorize by reading files are: " +
-                ((ruleDependencies.length===0) ? " - no variable actually needed for reading -" :
-                ruleDependencies.map((d:any) => "Variable: " + d[0] + " produced by the script " + d[1].name).join("\n") + "\n\n"+
-                "I will provide the code that produces the files that you need: "+
-                ruleDependencies.map((d:any) => "Code that saves variable " + d[0] + " to a file:\n" + d[1].ruleAdditionalInfo.postfixCode).join("\n")) + "\n\n"+
-                "The variables that needs to be saved are: \n" +
-                ((exportsTo.length===0) ? " - no variable actually needed for saving -" :
-                exportsTo.map((d:any) => "Variable: " + d[0] + " must be saved and will be readed by the script(s) " + d[1].map((d:RulesNodeImpl)=>d.name).join(", ")).join("\n") + "\n\n"+
-                "When saving files, you can decide the name, format and number of files. Consider the number of scripts that will read them to make a good decision.\n") +
-                "\nPlease write the output in JSON format following this schema:\n"+
-                "{ 'imports': ['import statement for each dependency'], 'reads': ['code to read each file'], 'writes': ['code to save each file'], 'readed_filenames': ['list of filenames for readed files'], 'written_filenames': ['list of filenames for the saved files'] }\n"+
-                "Please do not repeat the code already existing, only valorize the three fields. If a field is empty, write an empty array.";
-                const response = await this.llm.runQuery(prompt);
-                const formatted: any = this.parseJsonFromResponse(response);
-                node.ruleAdditionalInfo.prefixCode = formatted.imports.join("\n") + "\n" + formatted.reads.join("\n");
-                node.ruleAdditionalInfo.postfixCode = formatted.writes.join("\n");
-                node.ruleAdditionalInfo.saveFiles = formatted.written_filenames;
-                node.ruleAdditionalInfo.readFiles = formatted.readed_filenames;
-                node.isLoading = false;
-            }
-        }
-        return this.rulesGraph.nodes;
-    }
-
-    private async parseImportsFromCells(){
-        const imports = this.cells?.parseImports();
-        let prompt = "I have a jupyter notebook that is being processed. The notebook is made of a list of cells, each containing python code.\n" +
-        "I want to re-organize the imports. I already removed all import statement for every cell's code.\n"+
-        "I will now provide you: a list of all the import statements found in the cells, and the code of each cell.\n"+
-        "I want you to provide me the list of the imports that each cell needs.\n"+
-        "For each cell, provide a list of the imports that are needed by the code of the cell.\n"+
-        "\n\nThese are the import statements:\n"+
-        imports?.map((imp, index) => "Import num " + index + ": " + imp).join("\n") + "\n\n" +
-        "These are the cells:\n" +
-        this.cells?.cells.map((cell, index) => "Cell num " + index + ": " + cell.code).join("\n") + "\n\n" +
-        "For each cell, I'd like a list of the imports that are needed. "+
-        "Please write the needed imports as a list of indexes (example: import 0, 1, 5).\n"+
-        "Please write the output in JSON format following this schema:\n"+
-        "{'cells': [cell_index: number, imports: [index of import for each import needed]]}";
-        const response = await this.llm.runQuery(prompt);
-        const formatted: any = this.parseJsonFromResponse(response);
-        if (!formatted.cells || !Array.isArray(formatted.cells)) {
-            throw new Error("Invalid response format: 'rules' is missing or not an array");
-        }
-        if (!this.cells){return;}
-        for (let i=0; i<formatted.cells.length; i++){
-            const p = formatted.cells[i];
-            const newImports = p.imports.map((index: number) => imports?.[index]).filter((imp: string) => imp !== undefined);
-            this.cells.cells[p.cell_index].code = newImports.join("\n") + "\n" +
-            this.cells.cells[p.cell_index].code;
-        }
-    }
-
-    getCells(): CellDependencyGraph | undefined{
+    async makeRulesGraph(): Promise<CellDependencyGraph>{
+        await this.rulesGuessNameAndState();
         return this.cells;
     }
-    getRules(){
-        return this.rulesGraph?.nodes;
-    }
 
-    async getRulesGraph(): Promise<RulesNode[] | undefined>{
-        if (!this.cells){
-            return;
-        }
-        this.rulesGraph = new RulesDependencyGraph(this.cells);
-        await this.updateRulesGraph();
-        return this.rulesGraph.nodes;
-    }
-
-    changeRuleState(index: number, newState: string):RulesNode[]{
-        if (!this.rulesGraph){
-            return [];
-        }
-        const node = this.rulesGraph.nodes[index];
-        node.setType(newState as "rule" | "script" | "undecided");
-        this.rulesGraph.nodes[index] = node;
-        for (let i=index+1; i<this.rulesGraph.nodes.length; i++){
-            this.rulesGraph.nodes[i].updateDependencies();
-        }
-        return this.rulesGraph.nodes;
-    }
-
-    private async updateRulesGraph(changeFrom: number = 0): Promise<RulesNode[]>{
-        if (!this.rulesGraph){
-            return [];
-        }
+    private async rulesGuessNameAndState(changeFrom: number = 0){
         let prompt = "I have a jupyter notebook that is being processed into a snakemake pipeline. This process is complex and involves " +
         "decomposition of the notebook into smaller pieces of python code, and linking them together in a snakemake pipeline.\n" +
         "In this step, I have a list of cells. Each cell can have three states: \n"+
@@ -537,11 +363,11 @@ export class NotebookController{
         "3- An undecided cell can depend from scripts and undecided cells\n"+
         "This implies that turning an undecided cell into a rule will force its undecided dependencies to become rules too.\n\n"+
         "Consider the following notebook cells:\n\n" +
-        this.rulesGraph.nodes.map((node, index) => {
-            return "Cell. " + index + "\nCode:\n" + node.cell.code + 
-            "\n depends on cells: <" + Object.values(node.cell.dependsOn).join(", ")+">" +
-            " current type: " + node.type + " current name (can be empty): <" + node.name + ">" +
-            (node.type==="undecided" ?( " can become rule: <" + node.can_become.rule + "> can become script: <" + node.can_become.script) + ">" : "");
+        this.cells.cells.map((cell, index) => {
+            return "Cell. " + index + "\nCode:\n" + cell.code + 
+            "\n depends on cells: <" + Object.values(cell.dependsOn).join(", ")+">" +
+            " current type: " + cell.rule.type + " current name (can be empty): <" + cell.rule.name + ">" +
+            (cell.rule.type==="undecided" ?( " can become rule: <" + cell.rule.canBecome().rule + "> can become script: <" + cell.rule.canBecome().script) + ">" : "");
         }).join("\n\n") + "\n\n" +
         "For every cell I need you to provide:\n"+
         "1- A suggestion for the cell state, ONLY IF the cell is undecided, you can't change decided cells.\n"+
@@ -553,8 +379,7 @@ export class NotebookController{
             "You can change the state of the cells from " + changeFrom + " onward. For those, please provide at least a name for every cell, even if you don't want to change the state.");
         const response = await this.llm.runQuery(prompt);
         const formatted: any = this.parseJsonFromResponse(response);
-        this.rulesGraph.guessGraphTypesAndNames(formatted, changeFrom);
-        return this.rulesGraph.nodes;
+        this.cells.setRulesTypesAndNames(formatted, changeFrom);
     }
 
     private async setDependenciesForCells(){
@@ -597,106 +422,176 @@ export class NotebookController{
                 !Array.isArray(cell.reads_file)) {
                 throw new Error("Invalid response format: One or more cell properties are missing or of incorrect type");
                 }
-                this.cells?.setDependency(cell.cell_index, cell.reads, cell.reads_file, cell.writes, []);
+                this.cells?.setCellDependency(cell.cell_index, cell.reads, cell.reads_file, cell.writes, []);
             }
         );
     }
 
-    private parseJsonFromResponse(response: string): any{
-        // If response is in form <some text>{ ..  }<some text>, remove surrounding text
-        let start = response.indexOf("{");
-        let end = response.lastIndexOf("}");
-        if (start !== -1 && end !== -1){
-            response = response.substring(start, end + 1);
+    private async parseImportsFromCells(){
+        const imports = this.cells?.parseImports();
+        let prompt = "I have a jupyter notebook that is being processed. The notebook is made of a list of cells, each containing python code.\n" +
+        "I want to re-organize the imports. I already removed all import statement for every cell's code.\n"+
+        "I will now provide you: a list of all the import statements found in the cells, and the code of each cell.\n"+
+        "I want you to provide me the list of the imports that each cell needs.\n"+
+        "For each cell, provide a list of the imports that are needed by the code of the cell.\n"+
+        "\n\nThese are the import statements:\n"+
+        imports?.map((imp, index) => "Import num " + index + ": " + imp).join("\n") + "\n\n" +
+        "These are the cells:\n" +
+        this.cells?.cells.map((cell, index) => "Cell num " + index + ": " + cell.code).join("\n") + "\n\n" +
+        "For each cell, I'd like a list of the imports that are needed. "+
+        "Please write the needed imports as a list of indexes (example: import 0, 1, 5).\n"+
+        "Please write the output in JSON format following this schema:\n"+
+        "{'cells': [cell_index: number, imports: [index of import for each import needed]]}";
+        const response = await this.llm.runQuery(prompt);
+        const formatted: any = this.parseJsonFromResponse(response);
+        if (!formatted.cells || !Array.isArray(formatted.cells)) {
+            throw new Error("Invalid response format: 'rules' is missing or not an array");
         }
-        return JSON.parse(response);
+        if (!this.cells){return;}
+        for (let i=0; i<formatted.cells.length; i++){
+            const p = formatted.cells[i];
+            const newImports = p.imports.map((index: number) => imports?.[index]).filter((imp: string) => imp !== undefined);
+            this.cells.cells[p.cell_index].code = newImports.join("\n") + "\n" +
+            this.cells.cells[p.cell_index].code;
+        }
     }
 
-    addCellWrite(cell_index: number, write: string): [CellDependencyGraph, Promise<RulesNode[]>]|undefined{
-        if (!this.cells){return;}
-        //Remove write from cell
+    async updateRule(rule: RulesNode, position: number){
+        if (rule.saveFiles.length > 0){
+            const prompt = "I have this Python script:\n"+
+            rule.postfixCode + "\n\n"+
+            "Can you tell me the list of files that this script writes? If it writes none, then return an empty list."+
+            "Plase return it in JSON format following this schema:\n" +
+            "{ 'written_filenames': ['list of filenames for the saved files'] }";
+            const response = await this.llm.runQuery(prompt);
+            const formatted: any = this.parseJsonFromResponse(response);
+            rule.saveFiles = formatted.written_filenames;
+        }
+        if (this.cells.cells.length > position){
+            this.cells.cells[position].rule = rule;
+        }
+    }
+
+    async buildRulesAdditionalCode(startFrom=0){
+        function getImportStatementsFromScripts(node: Cell, cells: Cell[]): string{
+            const dependencies: Set<string> = new Set();
+            Object.keys(node.rule.import_dependencies).forEach((dep) => {
+                dependencies.add("from " + cells[node.rule.import_dependencies[dep]].rule.name + " import " + dep);
+            });
+            Object.keys(node.dependsOnFunction).forEach((dep) => {
+                dependencies.add("from " + cells[node.dependsOnFunction[dep]].rule.name + " import " + dep);
+            });
+            return Array.from(dependencies).join("\n");
+        }
+
+        for (let i=startFrom; i<this.cells.cells.length; i++){
+            const cell = this.cells.cells[i];
+            const node = cell.rule;
+            if (node.type === "script"){
+                node.prefixCode = getImportStatementsFromScripts(cell, this.cells.cells);
+            } else if (node.type==="rule"){
+                // [variable, node]
+                const ruleDependencies = Object.entries(node.rule_dependencies);
+                const exportsTo: [string, number[]][] = Object.entries(cell.writesTo);
+                const prompt = "I have this Python script, and I need you to add code to perform three operations: "+
+                "1- The script needs to read some file(s) and use their content to valorize some variables before starting. "+
+                " I will provide the name of the variables to valorize and the piece of code that produces the file that needs to be readed.\n"+
+                "2- The script produces some output files, that will be readed by other scripts. "+
+                " I will provide the name of the variables that needs to be saved."+
+                "My script is:\n\n" + cell.code + "\n\n"+
+                "The variables it needs to valorize by reading files are: " +
+                ((ruleDependencies.length===0) ? " - no variable actually needed for reading -" :
+                ruleDependencies.map((d:any) => "Variable: " + d[0] + " produced by the script " + d[1].name).join("\n") + "\n\n"+
+                "I will provide the code that produces the files that you need: "+
+                ruleDependencies.map((d:any) => "Code that saves variable " + d[0] + " to a file:\n" + d[1].ruleAdditionalInfo.postfixCode).join("\n")) + "\n\n"+
+                "The variables that needs to be saved are: \n" +
+                ((exportsTo.length===0) ? " - no variable actually needed for saving -" :
+                exportsTo.map((entry:[string,number[]]) => "Variable: " + entry[0] + " must be saved and will be readed by the script(s) " + entry[1].map((index:number)=>this.cells.cells[index].rule.name).join(", ")).join("\n") + "\n\n"+
+                "When saving files, you can decide the name, format and number of files. Consider the number of scripts that will read them to make a good decision.\n") +
+                "\nPlease write the output in JSON format following this schema:\n"+
+                "{ 'reads': ['code to read each file'], 'writes': ['code to save each file'], 'readed_filenames': ['list of filenames for readed files'], 'written_filenames': ['list of filenames for the saved files'] }\n"+
+                "Please do not repeat the code already existing, only valorize the three fields. If a field is empty, write an empty array.";
+                const response = await this.llm.runQuery(prompt);
+                const formatted: any = this.parseJsonFromResponse(response);
+                node.prefixCode = getImportStatementsFromScripts(cell, this.cells.cells) + "\n" + formatted.reads.join("\n");
+                node.postfixCode = formatted.writes.join("\n");
+                node.saveFiles = formatted.written_filenames;
+                node.readFiles = formatted.readed_filenames;
+            }
+        }
+        return this.cells;
+    }
+
+    changeRuleState(index: number, newState: string): CellDependencyGraph{
+        this.cells.setRuleDetails(index, undefined, newState as "rule" | "script" | "undecided");
+        return this.cells;
+    }
+
+    addCellWrite(cell_index: number, write: string): [CellDependencyGraph, Promise<CellDependencyGraph>]{
         if (this.cells.cells[cell_index].writes.includes(write)){
-            return [this.cells, new Promise((resolve) => resolve(this.rulesGraph?.nodes||[]))];
+            return [this.cells, new Promise((resolve) => resolve(this.cells))];
         }
         this.cells.cells[cell_index].writes.push(write);
         //re-build graph
         this.cells.buildDependencyGraph();
         //Re-build rules graph from cell_index 
-        this.rulesGraph?.buildFromDependencyGraph(this.cells, cell_index);
-        const update = this.updateRulesGraph(cell_index);
+        const update = this.rulesGuessNameAndState(cell_index).then(()=>this.cells);
         return [this.cells, update];
     }
-    addCellDependency(cell_index: number, dependency: string): [CellDependencyGraph, Promise<RulesNode[]>]|undefined{
-        if (!this.cells){return;}
-        //Remove dependency from cell
+
+    addCellDependency(cell_index: number, dependency: string): [CellDependencyGraph, Promise<CellDependencyGraph>]{
         if (this.cells.cells[cell_index].reads.includes(dependency)){
-            return [this.cells, new Promise((resolve) => resolve(this.rulesGraph?.nodes||[]))];
+            return [this.cells, new Promise((resolve) => resolve(this.cells))];
         }
         this.cells.cells[cell_index].reads.push(dependency);
         //re-build graph
         this.cells.buildDependencyGraph();
-        //Re-build rules graph from cell_index 
-        this.rulesGraph?.buildFromDependencyGraph(this.cells, cell_index);
-        const update = this.updateRulesGraph(cell_index);
+        const update = this.rulesGuessNameAndState(cell_index).then(()=>this.cells);
         return [this.cells, update];
     }
-    removeCellDependency(cell_index: number, dependency: string): [CellDependencyGraph, Promise<RulesNode[]>]|undefined{
-        if (!this.cells){return;}
+    removeCellDependency(cell_index: number, dependency: string): [CellDependencyGraph, Promise<CellDependencyGraph>]{
         //Remove dependency from cell
+        if (!this.cells.cells[cell_index].reads.includes(dependency)){
+            return [this.cells, new Promise((resolve)=>resolve(this.cells))];
+        }
         this.cells.cells[cell_index].reads = this.cells.cells[cell_index].reads.filter((read) => read !== dependency);
-        //re-build graph
         this.cells.buildDependencyGraph();
-        //Re-build rules graph from cell_index 
-        this.rulesGraph?.buildFromDependencyGraph(this.cells, cell_index);
-        const update = this.updateRulesGraph(cell_index);
+        const update = this.rulesGuessNameAndState(cell_index).then(()=>this.cells);
         return [this.cells, update];
     }
-    removeCellWrite(cell_index: number, write: string): [CellDependencyGraph, Promise<RulesNode[]>]|undefined{
-        if (!this.cells){return;}
+    removeCellWrite(cell_index: number, write: string): [CellDependencyGraph, Promise<CellDependencyGraph>]{
+        if (!this.cells.cells[cell_index].writes.includes(write)){
+            return [this.cells, new Promise((resolve)=>resolve(this.cells))];
+        }
         //Remove write from cell
         this.cells.cells[cell_index].writes = this.cells.cells[cell_index].writes.filter((w) => w !== write);
         //re-build graph
         this.cells.buildDependencyGraph();
-        //Re-build rules graph from cell_index 
-        this.rulesGraph?.buildFromDependencyGraph(this.cells, cell_index);
-        const update = this.updateRulesGraph(cell_index);
+        const update = this.rulesGuessNameAndState(cell_index).then(()=>this.cells);
         return [this.cells, update];
     }
 
-    deleteCell(cell_index: number): [CellDependencyGraph, Promise<RulesNode[]>]|undefined{
-        if (this.cells && this.rulesGraph){
-            const removed = this.cells.cells.splice(cell_index, 1);
-            try{
-                this.cells.buildDependencyGraph();
-            } catch (e: any){
-                //If removing this cell breaks the dependencies, notify the user and undo the change
-                this.cells.cells.splice(cell_index, 0, ...removed);
-                throw e;
-            }
-            //Update rule graph
-            this.rulesGraph.buildFromDependencyGraph(this.cells, cell_index);
-            const update = this.updateRulesGraph(cell_index);
-            return [this.cells, update];
+    deleteCell(cell_index: number): [CellDependencyGraph, Promise<CellDependencyGraph>]{
+        const removed = this.cells.cells.splice(cell_index, 1);
+        try{
+            this.cells.buildDependencyGraph();
+        } catch (e: any){
+            //If removing this cell breaks the dependencies, notify the user and undo the change
+            this.cells.cells.splice(cell_index, 0, ...removed);
+            throw e;
         }
-        return undefined;
+        const update = this.rulesGuessNameAndState(cell_index).then(()=>this.cells);
+        return [this.cells, update];
     }
 
-    async splitCell(index: number, code1: string, code2: string): Promise<[CellDependencyGraph, RulesNode[]]|undefined>{
-        if (!this.cells){return;}
-        if (code1.length === 0 || code2.length === 0){ return [this.cells, this.rulesGraph?.nodes||[]];}
+    async splitCell(index: number, code1: string, code2: string): Promise<CellDependencyGraph>{
+        if (code1.length === 0 || code2.length === 0){ return this.cells; }
         const oldCell = this.cells.cells[index];
+        
         try{
             let calls = oldCell.calls;
-            const cell_a: Cell = {
-                code: code1, reads: [], reads_file: [], writes: [], imports: [],
-                isFunctions: false, declares: [], dependsOn: {}, calls: [], dependsOnFunction:{},
-                missingDependencies:[]
-            };
-            const cell_b: Cell = {
-                code: code2, reads: [], reads_file: [], writes: [], imports: [],
-                isFunctions: false, declares: [], dependsOn: {}, calls: [], dependsOnFunction:{},
-                missingDependencies:[]
-            };
+            const cell_a: Cell = new Cell(code1, false);
+            const cell_b: Cell = new Cell(code2, false);
             this.cells.cells.splice(index, 1, cell_a, cell_b);
             let prompt = "I have a jupyter notebook that is being processed into a snakemake pipeline. This process involves " +
             "decomposition of the notebook into smaller pieces of python code, and linking them together in a snakemake pipeline.\n" +
@@ -747,45 +642,40 @@ export class NotebookController{
             this.cells.cells.splice(index, 2, oldCell);
             throw e;
         }
-        //Update rule graph
-        this.rulesGraph?.buildFromDependencyGraph(this.cells, index);
-        const update = await this.updateRulesGraph(index);
-        return [this.cells, update];
+        await this.rulesGuessNameAndState(index);
+        return this.cells;
     }
 
-    mergeCells(index_a: number, index_b: number): [CellDependencyGraph, Promise<RulesNode[]>]|undefined{
+    mergeCells(index_a: number, index_b: number):[CellDependencyGraph, Promise<CellDependencyGraph>]{
         if (index_b < index_a){
             const temp = index_a;
             index_a = index_b;
             index_b = temp;
         }
-        if (!this.cells){return;}
         //What A reads, goes in new cell reads
         //What B reads, goes in new cell reads IF A does not write it
         //Rest of fields are merged between the two
-        const new_cell: Cell = {
-            code: this.cells?.cells[index_a].code + this.cells?.cells[index_b].code,
-            reads: [...new Set([
+        const new_cell = new Cell(
+            this.cells?.cells[index_a].code + this.cells?.cells[index_b].code,
+            false,
+            [...new Set([
                 ...this.cells?.cells[index_a].reads || [],
                 ...this.cells?.cells[index_b].reads.filter(
                     (read) => !this.cells?.cells[index_a].writes.includes(read)
                 ) || []
             ])],
-            reads_file: [...this.cells.cells[index_a].reads_file, ...this.cells.cells[index_b].reads_file],
-            writes: [...new Set([...this.cells?.cells[index_a].writes || [], ...this.cells?.cells[index_b].writes || []])],
-            imports: [...new Set([...this.cells?.cells[index_a].imports || [], ...this.cells?.cells[index_b].imports || []])],
-            isFunctions: false,
-            declares: [],
-            dependsOn: {},
-            calls: [...new Set([...this.cells?.cells[index_a].calls || [], ...this.cells?.cells[index_b].calls || []])],
-            dependsOnFunction: { ...this.cells?.cells[index_a].dependsOnFunction, ...this.cells?.cells[index_b].dependsOnFunction },
-            missingDependencies:[]
-        };
+            [...this.cells.cells[index_a].reads_file, ...this.cells.cells[index_b].reads_file],
+            [...new Set([...this.cells?.cells[index_a].writes || [], ...this.cells?.cells[index_b].writes || []])],
+            [...new Set([...this.cells?.cells[index_a].imports || [], ...this.cells?.cells[index_b].imports || []])],
+            [],
+            [...new Set([...this.cells?.cells[index_a].calls || [], ...this.cells?.cells[index_b].calls || []])],
+            [],
+            {},
+            { ...this.cells?.cells[index_a].dependsOnFunction, ...this.cells?.cells[index_b].dependsOnFunction }
+        )
         this.cells.cells.splice(index_a, 2, new_cell);
         this.cells.buildDependencyGraph();
-        //Update rule graph
-        this.rulesGraph?.buildFromDependencyGraph(this.cells, index_a);
-        const update = this.updateRulesGraph(index_a);
+        const update = this.rulesGuessNameAndState(index_a).then(()=>this.cells);
         return [this.cells, update];
     }
 

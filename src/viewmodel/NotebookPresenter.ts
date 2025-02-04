@@ -32,7 +32,7 @@ export class NotebookPresenter{
 
     public produceSnakefile(){
         this.view.setLoading("Building Snakemake rules...");
-        this.model.buildAdditionalInfo().then(
+        this.model.buildRulesAdditionalCode().then(
             (res: any) => {
                 this.view.stopLoading();
                 res.forEach((r: any) => console.log(r.ruleAdditionalInfo.prefixCode + r.cell.code + r.ruleAdditionalInfo.postfixCode));
@@ -48,7 +48,7 @@ export class NotebookPresenter{
     public async propagateChanges(index: number, rules: RulesNodeImpl[]){
         this.view.setLoading("Propagating changes...");
         await this.model.updateRule(rules[index], index);
-        this.model.buildAdditionalInfo(index+1).then(
+        this.model.buildRulesAdditionalCode(index+1).then(
             (res: any) => {
                 this.view.stopLoading();
                 res.forEach((r: any) => console.log(r.ruleAdditionalInfo.prefixCode + r.cell.code + r.ruleAdditionalInfo.postfixCode));

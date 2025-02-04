@@ -109,7 +109,7 @@
 
             html += `<label for="code_core_${index}">Code:</label>\n`;
             html += `<div id="code_core_${index}" class="cell">\n`;
-            html += `<pre><code id="main_content_${index}" contenteditable="true">${hljs.highlight('python', element.cell.code).value}</code></pre>\n`;
+            html += `<pre><code id="main_content_${index}" contenteditable="false">${hljs.highlight('python', element.cell.code).value}</code></pre>\n`;
             html += "</div>\n";
 
             if (element.ruleAdditionalInfo.postfixCode.length > 0){
