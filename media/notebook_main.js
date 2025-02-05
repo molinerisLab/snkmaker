@@ -505,8 +505,15 @@
             });
         });
 
+        
+        const savedScrollPos = {
+            x: window.scrollX,
+            y: window.scrollY
+        };          
+        window.scrollTo(0, 0);
         initializeArrows();
         buildDependencyLines(cells);
+        window.scrollTo(savedScrollPos.x, savedScrollPos.y);
     }
 
     window.addEventListener('message', event => {
@@ -702,7 +709,6 @@
         if (existingSvg) {
             existingSvg.remove();
         }
-        window.scrollTo(0, 0);
         const height_px = document.getElementById('mainContainer').getBoundingClientRect().height;
         const width_px = getAbsolutePosition(document.getElementById('mainContainer')) - 8;
         const svgNS = "http://www.w3.org/2000/svg";
