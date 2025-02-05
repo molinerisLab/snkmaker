@@ -2,7 +2,7 @@ import { mock } from "node:test";
 import { LLM } from "../model/ModelComms";
 import { NotebookController, CellDependencyGraph, DependencyError, IllegalTypeChangeError, RulesNode, Cell } from "../model/NotebookController";
 import { NotebookViewCallbacks } from "../view/NotebookView";
-const vscode = require('vscode');
+import * as vscode from 'vscode';
 
 /**The notebook functionality uses MVP pattern instead of MVVM
  * Compared to the bash history this component is based on a limited and very ordered sequence of commands 
@@ -229,5 +229,32 @@ export class NotebookPresenter{
                 }
             }
         );
+    }
+
+    public exportSnakefile(){
+        vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Select export directory'
+        }).then((folderUri:any) => {
+            if (folderUri && folderUri[0]) {
+                const exportPath = folderUri[0].fsPath;
+                this.view.setLoading("Exporting Snakefile...");
+                this.model.exportSnakefile(exportPath).then(
+                    (snakefileUri: vscode.Uri) => {
+                        this.view.stopLoading();
+                        vscode.window.showInformationMessage(`Snakefile exported to ${exportPath}`);
+                        vscode.workspace.openTextDocument(snakefileUri).then((document: vscode.TextDocument) => {
+                            vscode.window.showTextDocument(document);
+                        });
+                    }
+                ).catch(
+                    (error: any) => {
+                        this.view.onError(error);
+                    }
+                );
+            }
+        });
     }
 }

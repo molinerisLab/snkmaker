@@ -62,17 +62,6 @@
     }
 
     function set_output(cells){
-
-        //Set up header
-        /*document.getElementById('main_header').innerHTML = `
-            <h1>Export Notebook into Snakemake - Step 2</h1>
-            <div id="header_instructions">
-            <p>In this step all the rules and scripts are presented.</p>
-            <p>Rules have prefix and suffix generated code, to manage imports from scripts, reading and writing files.</p>
-            <p>The generated Prefix and Suffix code can be manually adjusted.</p>
-            </div>
-            <div id="proceed_button_container"></div>
-        `;*/
         //Remove lines and old content
         document.getElementById('lines').style.display = 'none';
         document.getElementById('mainContainer').innerHTML = "";
@@ -88,8 +77,11 @@
             <p>In this step all the rules and scripts are presented.</p>
             <p>Rules have prefix and suffix generated code, to manage imports from scripts, reading and writing files.</p>
             <p>The generated Prefix and Suffix code can be manually adjusted.</p>
+            <p>Manual updates will be propagated automatically - you can modify a rule's output file and following rules will update as well.</p>
             </div>
-            <div id="proceed_button_container"></div>
+            <div id="proceed_button_container">
+                <button id="export_snakefile">Export Snakefile</button>
+            </div>
         `;
         cells.cells.forEach((cell, index) => {
             const element = cell.rule;
@@ -153,6 +145,11 @@
         });
         container.innerHTML = html;
         //Initialize event listeners
+        document.getElementById('export_snakefile').addEventListener('click', () => {
+            vscode.postMessage({
+                command: 'export_snakefile'
+            });
+        });
         cells.cells.forEach((cell, index) => {
             const element = cell.rule;
             const prefix = document.getElementById(`prefix_content_${index}`);
@@ -427,7 +424,7 @@
             document.getElementById('undecided_cells').innerHTML = "";
         }
         const mainHeader = document.getElementById('proceed_button_container');
-        mainHeader.innerHTML = `<button id="produce_snakefile_button" ${hasMissingDependency || hasUndecidedRules ? 'disabled' : ''}>Produce Snakefile</button>\n`;
+        mainHeader.innerHTML = `<button id="produce_snakefile_button" ${hasMissingDependency || hasUndecidedRules ? 'disabled' : ''}>Proceed to step 2</button>\n`;
         html = "";
 
         cells.cells.forEach((cell, index) => {

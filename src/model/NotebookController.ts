@@ -3,6 +3,8 @@ import * as vscode from 'vscode';
 import { LLM, ModelComms } from './ModelComms';
 import { read } from 'fs';
 import { resolve } from 'path';
+import { writeFile } from 'fs/promises';
+import { ExtensionSettings } from '../utils/ExtensionSettings';
 
 
 export class DependencyError{
@@ -30,7 +32,7 @@ export class RulesNode{
 
     updateRuleDependencies(cell: Cell, cells: Cell[]){
         this.rule_dependencies = {}; this.import_dependencies = {}; this.undecided_dependencies = {};
-        cell.reads.forEach((key: string, target: number) => {
+        Object.entries(cell.dependsOn).forEach(([key, target]) => {
             switch(cells[target].rule.type){
                 case "rule":
                     this.rule_dependencies[key] = target;
@@ -107,6 +109,37 @@ export class Cell {
         public rule: RulesNode = new RulesNode(isFunctions ? declares[0] : "", isFunctions ? "script" : "undecided", isFunctions, {}, {}, {})
     ) {}
 
+    toCode(): string{
+        return this.rule.prefixCode.trim() + "\n" + this.code.trim() + "\n" + this.rule.postfixCode.trim();
+    }
+
+    private toSnakemakeRuleFirst(logs:boolean){
+        return `rule ${this.rule.name}:\n`+
+        (this.rule.readFiles.length>0 ? `\tinput:\n\t\t${this.rule.readFiles.map((c)=>'"'+c+'"').join("\t\t")}\n` : "")+
+        (this.rule.saveFiles.length>0 ? `\toutput:\n\t\t${this.rule.saveFiles.map((c)=>'"'+c+'"').join("\t\t")}` : "")+
+        (logs ? `\n\tlog:\n\t\t"${this.rule.name}.log"` : "");
+    }
+
+    private toSnakemakeRuleInline(logs:boolean):string{
+        return `${this.toSnakemakeRuleFirst(logs)}\n`+
+        `\trun:\n`+
+        this.toCode().split("\n").filter((line)=>line.length>0).map((line) => `\t\t${line}`).join("\n");
+    }
+
+
+    toSnakemakeRule(inline_under: number, logs:boolean): {"rule": string|null, "filename": string|null, "code": string|null}{
+        if (this.isFunctions || this.rule.type === "script"){
+            return {"rule": null, "filename": this.rule.name+".py", "code": this.toCode()};
+        }
+        if (this.code.length < inline_under){
+            return {"rule": this.toSnakemakeRuleInline(logs), "filename": null, "code": null};
+        }
+        const filename = this.rule.name + ".py";
+        const code = this.toCode();
+        const rule = `${this.toSnakemakeRuleFirst(logs)}\n`+
+        `\tscript:\n\t\t"""${filename}"""`;
+        return {"rule": rule, "filename": filename, "code": code};
+    }
 
     setWritesTo(index: number, variable: string){
         if (this.writesTo[variable]){
@@ -267,8 +300,6 @@ export class CellDependencyGraph{
                     if (lastChanged[index-1][read] !== undefined) {
                         cell.dependsOn[read] = lastChanged[index-1][read];
                         this.cells[lastChanged[index-1][read]].setWritesTo(index, read);
-                    } else if (cell.writes.includes(read)){
-
                     } else {
                         cell.missingDependencies.push(read);
                     }
@@ -469,7 +500,23 @@ export class NotebookController{
         this.cells.cells[index].rule.saveFiles = formatted.written_filenames;
         
         //Propagate changes to other cells who reads from this one
-        const propagateTo: number[] = Object.values(this.cells.cells[index].writesTo).flat();
+        //and recursively to the cells that reads from them
+        const targetsDone = new Set<number>();
+        const targetsProcessing = new Set<number>(Object.values(this.cells.cells[index].writesTo).flat());
+        while(targetsProcessing.size > 0){
+            const t:number|undefined = targetsProcessing.values().next().value;
+            if (t === undefined){
+                continue;
+            }
+            Object.values(this.cells.cells[t].writesTo).flat().forEach((n) => {
+                if (!targetsDone.has(n)){
+                    targetsProcessing.add(n);
+                }
+            });
+            targetsProcessing.delete(t);
+            targetsDone.add(t);
+        }
+        const propagateTo = Array.from(targetsDone);
         propagateTo.sort((a, b) => a - b);
         await this.buildRulesAdditionalCode(propagateTo);
         return this.cells;
@@ -519,11 +566,11 @@ export class NotebookController{
                 "2- The script produces some output files, that will be readed by other scripts. "+
                 " I will provide the name of the variables that needs to be saved."+
                 "My script is:\n\n" + cell.code + "\n\n"+
-                "The variables it needs to valorize by reading files are: " +
+                "The variables it needs to valorize by reading files are:\n" +
                 ((ruleDependencies.length===0) ? " - no variable actually needed for reading -" :
                 ruleDependencies.map((d:any) => "Variable: " + d[0] + " produced by the script " + this.cells.cells[d[1]].rule.name).join("\n") + "\n\n"+
-                "I will provide the code that produce the files that you need: "+
-                ruleDependencies.map((d:any) => "Code that saves variable " + d[0] + " to a file:\n" + this.cells.cells[d[1]].rule.postfixCode).join("\n")) + "\n\n"+
+                "I will provide the code that produce the files that you need. These scripts might load the variable from another file, modify them and save them again. Read the most recently saved version.\n"+
+                ruleDependencies.map((d:any) => "Code that saves variable " + d[0] + " to a file:\n" + this.cells.cells[d[1]].toCode()).join("\n")) + "\n\n"+
                 "The variables that needs to be saved are: \n" +
                 ((exportsTo.length===0) ? " - no variable actually needed for saving -" :
                 exportsTo.map((entry:[string,number[]]) => "Variable: " + entry[0] + " must be saved and will be readed by the script(s) " + entry[1].map((index:number)=>this.cells.cells[index].rule.name).join(", ")).join("\n") + "\n\n"+
@@ -555,7 +602,7 @@ export class NotebookController{
         //re-build graph
         this.cells.buildDependencyGraph();
         //Re-build rules graph from cell_index 
-        const update = this.rulesGuessNameAndState(cell_index).then(()=>this.cells);
+        const update = Promise.resolve(this.cells) //this.rulesGuessNameAndState(cell_index).then(()=>this.cells);
         return [this.cells, update];
     }
 
@@ -566,7 +613,7 @@ export class NotebookController{
         this.cells.cells[cell_index].reads.push(dependency);
         //re-build graph
         this.cells.buildDependencyGraph();
-        const update = this.rulesGuessNameAndState(cell_index).then(()=>this.cells);
+        const update = Promise.resolve(this.cells) //this.rulesGuessNameAndState(cell_index).then(()=>this.cells);
         return [this.cells, update];
     }
     removeCellDependency(cell_index: number, dependency: string): [CellDependencyGraph, Promise<CellDependencyGraph>]{
@@ -576,7 +623,7 @@ export class NotebookController{
         }
         this.cells.cells[cell_index].reads = this.cells.cells[cell_index].reads.filter((read) => read !== dependency);
         this.cells.buildDependencyGraph();
-        const update = this.rulesGuessNameAndState(cell_index).then(()=>this.cells);
+        const update = Promise.resolve(this.cells) //this.rulesGuessNameAndState(cell_index).then(()=>this.cells);
         return [this.cells, update];
     }
     removeCellWrite(cell_index: number, write: string): [CellDependencyGraph, Promise<CellDependencyGraph>]{
@@ -587,7 +634,7 @@ export class NotebookController{
         this.cells.cells[cell_index].writes = this.cells.cells[cell_index].writes.filter((w) => w !== write);
         //re-build graph
         this.cells.buildDependencyGraph();
-        const update = this.rulesGuessNameAndState(cell_index).then(()=>this.cells);
+        const update = Promise.resolve(this.cells) //this.rulesGuessNameAndState(cell_index).then(()=>this.cells);
         return [this.cells, update];
     }
 
@@ -697,6 +744,25 @@ export class NotebookController{
         this.cells.buildDependencyGraph();
         const update = this.rulesGuessNameAndState(index_a).then(()=>this.cells);
         return [this.cells, update];
+    }
+
+    async exportSnakefile(exportPath:any):Promise<vscode.Uri>{
+        //Build the snakefile
+        const logs = ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules();
+        const rules: {"rule": string|null; "filename": string|null; "code": string|null}[] = this.cells.cells.map(cell => cell.toSnakemakeRule(30,logs));
+        let snakefile = "";
+        const waiting = [];
+        rules.forEach((rule) => {
+            if (rule.rule){
+                snakefile += rule.rule + "\n\n";
+            }
+            if (rule.filename && rule.code){
+                waiting.push(writeFile(resolve(exportPath, rule.filename), rule.code));
+            }
+        });
+        waiting.push(writeFile(resolve(exportPath, "Snakefile"), snakefile));
+        await Promise.all(waiting);
+        return vscode.Uri.file(resolve(exportPath, "Snakefile"));
     }
 
 }

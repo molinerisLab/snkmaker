@@ -113,6 +113,9 @@ export class NotebookView implements NotebookViewCallbacks{
                     case 'propagate_changes_postfix':
                         presenter.propagateChangesPostfix(message.index, message.content);
                         break;
+                    case 'export_snakefile':
+                        presenter.exportSnakefile();
+                        break;
                     //become_rule become_script become_undecided all with message.index
                 }
             },
