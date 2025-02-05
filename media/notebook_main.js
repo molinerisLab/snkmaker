@@ -119,20 +119,17 @@
                 html += `</div>\n`;
             }
 
-            
-            if (element.prefixCode.length > 0){
-                html += `<label for="code_prefix_${index}">Prefix code:</label>\n`;
-                html += `<div id="code_prefix_${index}" class="cell">\n`;
-                html += `<pre><code id="prefix_content_${index}" contenteditable="true">${hljs.highlight(element.prefixCode, { language: 'python' }).value}</code></pre>\n`;
-                html += "</div>\n";
-            }
+            html += `<label for="code_prefix_${index}">Prefix code:</label>\n`;
+            html += `<div id="code_prefix_${index}" class="cell">\n`;
+            html += `<pre><code id="prefix_content_${index}" contenteditable="true">${hljs.highlight(element.prefixCode, { language: 'python' }).value}</code></pre>\n`;
+            html += "</div>\n";
 
             html += `<label for="code_core_${index}">Code:</label>\n`;
             html += `<div id="code_core_${index}" class="cell">\n`;
             html += `<pre><code id="main_content_${index}" contenteditable="false">${hljs.highlight(cell.code, { language: 'python' }).value}</code></pre>\n`;
             html += "</div>\n";
 
-            if (element.postfixCode.length > 0){
+            if (element.type==="rule"){
                 html += `<label for="code_postfix_${index}">Suffix code:</label>\n`;
                 html += `<div id="code_postfix_${index}" class="cell">\n`;
                 html += `<pre><code id="postfix_content_${index}" contenteditable="true">${hljs.highlight(element.postfixCode, { language: 'python' }).value}</code></pre>\n`;
@@ -178,17 +175,18 @@
                     });
                 }
             });
-            /*document.getElementById(`propagate_${index}`).addEventListener('click', () => {
-                vscode.postMessage({
-                    command: 'propagate_changes',
-                    index: index,
-                    rules: cells.cells.map(c => c.rule)
-                });
-            });*/
         });
-
-        //initializeArrows();
-        //buildDependencyLines({'cells': rules.map((r)=>r.cell)});
+        document.querySelectorAll('code[contenteditable="true"]').forEach(codeEl => {
+            codeEl.addEventListener('keydown', (e) => {
+              if (e.key === 'Tab') {
+                e.preventDefault();
+                // Insert tab (or spaces) at cursor
+                const range = window.getSelection().getRangeAt(0);
+                range.insertNode(document.createTextNode('    '));
+                range.collapse(false);
+              }
+            });
+          });
     }
 
     //MainContainer( [(CellContainer(..,CellRuleContainer)) for each cell] )

@@ -18,7 +18,7 @@ export class NotebookView implements NotebookViewCallbacks{
     private readonly _panel: vscode.WebviewPanel;
     private readonly _extensionUri: vscode.Uri;
     private _disposables: vscode.Disposable[] = [];
-    private loading = true;
+    private currentScreen = 0;
 
     public static create(extensionUri: vscode.Uri, viewModel: BashCommandViewModel, notebookUri: vscode.Uri, context: vscode.ExtensionContext) {
         const panel = vscode.window.createWebviewPanel(
@@ -41,6 +41,7 @@ export class NotebookView implements NotebookViewCallbacks{
         this._panel.webview.postMessage({ command: 'set_rules', data: nodes });
     }
     setOutput(cells: CellDependencyGraph){
+        this.currentScreen = 1;
         this.stopLoading();
         this._panel.webview.postMessage({ command: 'set_output', data: cells });
     }
@@ -55,11 +56,9 @@ export class NotebookView implements NotebookViewCallbacks{
         vscode.window.showWarningMessage(error);
     }
     setLoading(loadMessage: string){
-        this.loading = true;
         this._panel.webview.postMessage({ command: 'set_loading', data: loadMessage, loading: true });
     }
     stopLoading(){
-        this.loading = false;
         this._panel.webview.postMessage({ command: 'set_loading', loading: false });
     }
 
@@ -125,8 +124,12 @@ export class NotebookView implements NotebookViewCallbacks{
         this._panel.webview.html = this._getHtmlForWebview(this._panel.webview);
         panel.onDidChangeViewState(e => {
                 const data = presenter.getCells();
-                this.setNotebookCells(data);
-                this.setRulesNodes(data);
+                if (this.currentScreen===0){
+                    this.setNotebookCells(data);
+                    this.setRulesNodes(data);
+                } else {
+                    this.setOutput(data);
+                }
             },
             null,
             context.subscriptions);

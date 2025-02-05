@@ -110,7 +110,9 @@ export class Cell {
     ) {}
 
     toCode(): string{
-        return this.rule.prefixCode.trim() + "\n" + this.code.trim() + "\n" + this.rule.postfixCode.trim();
+        return (this.rule.prefixCode.length>0 ? "#Read input files\n"+this.rule.prefixCode.trim()+"\n" : "" ) +
+        (this.code.length>0 ? "#Script body:\n"+this.code.trim()+"\n" : "") +
+        (this.rule.postfixCode.length>0 ? "#Write output files\n"+this.rule.postfixCode.trim() : "");
     }
 
     private toSnakemakeRuleFirst(logs:boolean){
@@ -283,6 +285,21 @@ export class CellDependencyGraph{
                     });
                 }
                 fcell.reads = [];
+            } else {
+                //Simply add dependencies to the cells that call the function
+                for (let j=i+1; j<this.cells.length; j++){
+                    const cell = this.cells[j];
+                    if (cell.isFunctions){
+                        continue;
+                    }
+                    fcell.declares.forEach((decl, index) => {
+                        const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
+                        if (cell.code.match(regex)){
+                            cell.calls.push(decl);
+                            cell.dependsOnFunction[decl] = i;
+                        }
+                    });
+                }
             }
         }
         //Remove eventually empty cells
@@ -548,6 +565,7 @@ export class NotebookController{
             });
             return Array.from(dependencies).join("\n");
         }
+
         if (targets.length === 0){
             targets = Array.from(this.cells.cells.keys());
         }
