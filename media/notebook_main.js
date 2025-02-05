@@ -23,9 +23,15 @@
         html += `<div class="userinput" id="cell_container_${cell_index}">\n`;
         html += "<h2>Split cell code</h2>\n";
         html += "<p>First part of split</p>\n";
-        html += `<textarea id="area_1" class="cell" rows="10" cols="50">\n${code}\n</textarea>\n`;
+        //html += `<textarea id="area_1" class="cell" rows="10" cols="50">\n${code}\n</textarea>\n`;
+        html += "<div class='cell_split'>\n";
+        html += `<pre><code id="area_1" contenteditable="true">${hljs.highlight(code, { language: 'python' }).value}</code></pre>\n`;
+        html += "</div>\n";
         html += "<p>Second part of split</p>\n";
-        html += `<textarea id="area_2" class="cell" rows="10" cols="50"></textarea>\n`;
+        html += `<div class='cell_split'>\n`;
+        html += `<pre><code id="area_2" contenteditable="true">${hljs.highlight("", { language: 'python' }).value}</code></pre>\n`;
+        //html += `<textarea class="cell" id="area_2" class="cell" rows="10" cols="50"></textarea>\n`;
+        html += "</div>\n";
         html += "<div class='buttons_split'>\n";
         html += `<button id="cancel_button_${cell_index}">Cancel</button>\n`;
         html += `<button id="split_button_${cell_index}">Split</button>\n`;
@@ -39,8 +45,8 @@
                 vscode.postMessage({
                     command: 'split_cell',
                     index: cell_index,
-                    code1: document.getElementById('area_1').value,
-                    code2: document.getElementById('area_2').value
+                    code1: document.getElementById('area_1').innerText,
+                    code2: document.getElementById('area_2').innerText
                 });
                 overlay.innerHTML = "";
                 overlay.style.display = 'none';
@@ -56,13 +62,35 @@
     }
 
     function set_output(cells){
+
+        //Set up header
+        /*document.getElementById('main_header').innerHTML = `
+            <h1>Export Notebook into Snakemake - Step 2</h1>
+            <div id="header_instructions">
+            <p>In this step all the rules and scripts are presented.</p>
+            <p>Rules have prefix and suffix generated code, to manage imports from scripts, reading and writing files.</p>
+            <p>The generated Prefix and Suffix code can be manually adjusted.</p>
+            </div>
+            <div id="proceed_button_container"></div>
+        `;*/
+        //Remove lines and old content
+        document.getElementById('lines').style.display = 'none';
         document.getElementById('mainContainer').innerHTML = "";
         const existingSvg = document.querySelector('#lines svg');
         if (existingSvg) {
             existingSvg.remove();
         }
-        const container = document.getElementById('mainContainer');
-        let html = "";
+
+        const container = document.getElementById('main_header');
+        let html = `
+            <h1>Export Notebook into Snakemake - Step 2</h1>
+            <div id="header_instructions">
+            <p>In this step all the rules and scripts are presented.</p>
+            <p>Rules have prefix and suffix generated code, to manage imports from scripts, reading and writing files.</p>
+            <p>The generated Prefix and Suffix code can be manually adjusted.</p>
+            </div>
+            <div id="proceed_button_container"></div>
+        `;
         cells.cells.forEach((cell, index) => {
             const element = cell.rule;
             html += `<div class="cell_container" id="cell_container_${index}">\n`;
@@ -113,12 +141,12 @@
             html += "</div>\n";
 
             if (element.postfixCode.length > 0){
-                html += `<label for="code_postfix_${index}">Postfix code:</label>\n`;
+                html += `<label for="code_postfix_${index}">Suffix code:</label>\n`;
                 html += `<div id="code_postfix_${index}" class="cell">\n`;
                 html += `<pre><code id="postfix_content_${index}" contenteditable="true">${hljs.highlight(element.postfixCode, { language: 'python' }).value}</code></pre>\n`;
                 html += "</div>\n";
             }
-            html += `<button id="propagate_${index}" style="display: none;">Save changes</button>\n`;
+            //html += `<button id="propagate_${index}" style="display: none;">Save changes</button>\n`;
             
             html += "</div>\n";
             html += "</div>\n";
@@ -128,23 +156,38 @@
         cells.cells.forEach((cell, index) => {
             const element = cell.rule;
             const prefix = document.getElementById(`prefix_content_${index}`);
-            const core = document.getElementById(`main_content_${index}`);
             const postfix = document.getElementById(`postfix_content_${index}`);
-            prefix?.addEventListener('input', function() {
-                cells.cells[index].rule.prefixCode = prefix.innerText;
-                document.getElementById(`propagate_${index}`).style.display = 'block';
+
+            prefix?.addEventListener('focusout', function() {
+                const code = prefix.innerText;
+                if (code !== cells.cells[index].rule.prefixCode){
+                    cells.cells[index].rule.prefixCode = code;
+                    vscode.postMessage({
+                        command: 'propagate_changes_prefix',
+                        index: index,
+                        content: code
+                    });
+                }
             });
-            postfix?.addEventListener('input', function() {
-                cells.cells[index].rule.postfixCode = postfix.innerText;
-                document.getElementById(`propagate_${index}`).style.display = 'block';
+            postfix?.addEventListener('focusout', function() {
+                const code = postfix.innerText;
+                if (code !== cells.cells[index].rule.postfixCode){
+                    cells.cells[index].rule.postfixCode = code;
+                    console.log("Code changed");
+                    vscode.postMessage({
+                        command: 'propagate_changes_postfix',
+                        index: index,
+                        content: code
+                    });
+                }
             });
-            document.getElementById(`propagate_${index}`).addEventListener('click', () => {
+            /*document.getElementById(`propagate_${index}`).addEventListener('click', () => {
                 vscode.postMessage({
                     command: 'propagate_changes',
                     index: index,
                     rules: cells.cells.map(c => c.rule)
                 });
-            });
+            });*/
         });
 
         //initializeArrows();
@@ -159,24 +202,25 @@
                 element[0].removeEventListener(element[1], element[2]);
             });
         }
+
+        //Set up header
+        document.getElementById('main_header').innerHTML = `
+            <h1>Export Notebook into Snakemake - Step 1</h1>
+            <div id="header_instructions">
+            <p>The following page presents the formatted notebook cells with their data dependencies. Before proceeding, make sure the data dependencies are correct.</p>
+            <p>Cells can be removed, split or merged.</p>
+            <p>Every cell will be converted into either a Snakemake rule or a script. Snakemaker will try to guess if a cell needs to become
+            a Rule or a Script, but might leave some cells in the Undecided state. You can manually set the type of a cell using the corresponding buttons below the cell's body.</p>
+            </div>
+            <div class="notice_before_proceed" id="data_dependency_errors"></div>
+            <div class="notice_before_proceed" id="undecided_cells"></div>
+            <div id="proceed_button_container"></div>
+        `;
+
         const container = document.getElementById('mainContainer');
         let html = "";
         let removeDependencyCallbacks = [];
         let removeWriteCallbacks = [];
-
-        //Check if there is any missing dependency
-        const missingDependencies = [...cells.cells.map((cell,index) => {return {i: index, d: cell.missingDependencies}}).filter(c => c.d.length>0)].flat();
-        if (missingDependencies.length > 0){
-            html += "<div class='cell_container'>\n";
-            html += `<div class="cell_code_container">\n`;
-            html += "<h2>The cells have some broken data dependencies:</h2>\n";
-            missingDependencies.forEach((element) => {
-                html += `<p>Cell ${element.i} is missing dependency: ${element.d}</p>\n`;
-            });
-            html += "<p>Please fix the dependencies by either removing them or adding writes manually</p>\n";
-            html += "</div>\n";
-            html += "</div>\n";
-        }
 
         cells.cells.forEach((element, index) => {
             html += `<div class="cell_container" id="cell_container_${index}">\n`;
@@ -349,30 +393,42 @@
         }
         document.getElementById('addWrite').addEventListener('click', addWritef);
         OldEventListener.push([document.getElementById('addWrite'), "click", addWritef]);
-        
-
-        initializeArrows();
-        buildDependencyLines(cells);
     }
 
     function set_rules(cells){
-        //Button to proceed
-        const container = document.getElementById('send_button');
         let html = "";
-        const hasMissingDependency = cells.cells.filter((cell) => cell.missingDependencies.length > 0).length > 0;
-        const hasUndecidedRules = cells.cells.filter((cell) => cell.rule.type === "undecided").length > 0;
-        html += "<div class='cell_container'>\n";
-        html += `<div class="cell_code_container">\n`;
+        const missingDependencies = [...cells.cells.map((cell,index) => {return {i: index, d: cell.missingDependencies}}).filter(c => c.d.length>0)].flat();
+        const hasMissingDependency = missingDependencies.length > 0;
+        const cellsUndecidedState = cells.cells.filter((cell) => cell.rule.type === "undecided").map((cell, index) => index);
+        const hasUndecidedRules = cellsUndecidedState.length > 0;
+
         if (hasMissingDependency){
-            html += "<p>To proceed, fix the missing dependencies</p>\n";
+            html = "<h2>&#9888; The cells have some missing data dependencies:</h2>\n";
+            html += `<div class="warning_about_cells">\n`;
+            missingDependencies.forEach((element) => {
+                html += `<p>Cell ${element.i} is missing dependency: ${element.d}</p>\n`;
+            });
+            html += "</div>\n";
+            html += "<p>Please fix the dependencies by either removing them or adding writes manually.</p>\n";
+            document.getElementById('data_dependency_errors').innerHTML = html;
+        } else {
+            document.getElementById('data_dependency_errors').innerHTML = "";
         }
         if (hasUndecidedRules){
-            html += "<p>To proceed, decide on the type of the rules</p>\n";
+            html = "<h2>&#9888; Some cells are in an Undecided state:</h2>\n";
+            html += `<div class="warning_about_cells">\n`;
+            cellsUndecidedState.forEach((element) => {
+                html += `<p>Cell ${element}</p>\n`;
+            });
+            html += "</div>\n";
+            html += "<p>Please set these cells either as Scripts or Rules.</p>\n";
+            document.getElementById('undecided_cells').innerHTML = html;
+        } else {
+            document.getElementById('undecided_cells').innerHTML = "";
         }
-        html += `<button id="produce_snakefile_button" ${hasMissingDependency || hasUndecidedRules ? 'disabled' : ''}>Produce Snakefile</button>\n`;
-        html += "</div>\n";
-        html += "</div>\n";
-        container.innerHTML = html;
+        const mainHeader = document.getElementById('proceed_button_container');
+        mainHeader.innerHTML = `<button id="produce_snakefile_button" ${hasMissingDependency || hasUndecidedRules ? 'disabled' : ''}>Produce Snakefile</button>\n`;
+        html = "";
 
         cells.cells.forEach((cell, index) => {
             const element =cell.rule;
@@ -453,6 +509,9 @@
                 command: 'produce_snakefile'
             });
         });
+
+        initializeArrows();
+        buildDependencyLines(cells);
     }
 
     window.addEventListener('message', event => {
@@ -484,12 +543,15 @@
         /**For each line must decide: horizontal offset, vertical offset for start and end 
          * Horizontal: data structure for each cell, computing the min. available offset
         */
-        const OFFSET_DELTA = 7; const OFFSET_START = 20;
-        const MAX_OFFSET = (220-20)/OFFSET_DELTA;
+        const OFFSET_DELTA = 10; const OFFSET_START = 20;
+        const linesDiv = document.getElementById('lines');
+        const linesDivWidth = linesDiv.getBoundingClientRect().width;
+        const MAX_OFFSET = (linesDivWidth - OFFSET_START) / OFFSET_DELTA;
         let offsets;
         let h_offset = cells.cells.map(() => new Set());
 
        function addDependencyArrow(VAR_NAME, CELL_IND, i, helper_text){
+            offsets = new Set();
             for (let k=CELL_IND; k<=i; k++){
                 offsets = new Set([...offsets, ...h_offset[k]]);
             }
@@ -518,12 +580,20 @@
                     mergedDependencies[target] = [var_name];
                 }
             });
-
             Object.entries(mergedDependencies).forEach(([target, variables]) => {
                 addDependencyArrow(variables.join(", "), target, i, "depends on");
             });
+
+            const mergedFunctionCalls = {};
             Object.entries(cell.dependsOnFunction).forEach(([var_name, target]) => {
-                addDependencyArrow(var_name, target, i, "depends on function");
+                if (mergedFunctionCalls[target] !== undefined){
+                    mergedFunctionCalls[target] = [...mergedFunctionCalls[target], var_name];
+                } else {
+                    mergedFunctionCalls[target] = [var_name];
+                }
+            });
+            Object.entries(mergedFunctionCalls).forEach(([target, variables]) => {
+                addDependencyArrow(variables.join(", "), target, i, "calls function");
             });
         }
     }
@@ -536,6 +606,7 @@
         const rect2 = obj2.getBoundingClientRect();
         const xrect = (document.getElementById('lines')).getBoundingClientRect();
         const svg = document.querySelector('svg');
+        const lineWidth = 2;
 
         const arrowColor = getRandomColor();
 
@@ -551,6 +622,7 @@
         line.setAttribute("stroke-width", "2");
         line.addEventListener('mouseover', () => showTooltip(line, toolTipText));
         line.addEventListener('mouseout', hideTooltip);
+        line.setAttribute("stroke-width", lineWidth);
         svg.appendChild(line);
         
         line = document.createElementNS(svgNS, "line");
@@ -562,6 +634,7 @@
         line.setAttribute("stroke-width", "2");
         line.addEventListener('mouseover', () => showTooltip(line, toolTipText));
         line.addEventListener('mouseout', hideTooltip);
+        line.setAttribute("stroke-width", lineWidth);
         svg.appendChild(line);
     
         line = document.createElementNS(svgNS, "line");
@@ -573,11 +646,15 @@
         line.setAttribute("stroke-width", "2");
         line.addEventListener('mouseover', () => showTooltip(line, toolTipText));
         line.addEventListener('mouseout', hideTooltip);
+        line.setAttribute("stroke-width", lineWidth);
         svg.appendChild(line);
     }
 
     function getRandomColor() {
-        const colors = ["#24DFE2", "#B4FF2B", "#FFEE00","#FF9400", "#04E762","#008BF8","#ff0000"];
+        //const colors = ["#24DFE2", "#B4FF2B", "#FFEE00","#FF9400", "#04E762","#008BF8","#ff0000"];
+        const colors = [
+            "#4D908E", "#43AA8B", "#90BE6D", "#F9C74F", "#F9844A", "#F8961E", "#F3722C", "#F94144", "#4CC9F0"
+        ];
         return colors[Math.floor(Math.random() * colors.length)];
     }
 

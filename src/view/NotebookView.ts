@@ -27,6 +27,7 @@ export class NotebookView implements NotebookViewCallbacks{
             (vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn: undefined) || vscode.ViewColumn.One,
             {enableScripts: true,localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')]}
         );
+        panel.iconPath = vscode.Uri.joinPath(extensionUri, 'media', 'icon.svg');
         return new NotebookView(panel, extensionUri, viewModel, notebookUri, context);
     }
 
@@ -106,8 +107,11 @@ export class NotebookView implements NotebookViewCallbacks{
                     case 'produce_snakefile':
                         presenter.produceSnakefile();
                         break;
-                    case 'propagate_changes':
-                        presenter.propagateChanges(message.index, message.rules);
+                    case 'propagate_changes_prefix':
+                        presenter.propagateChangesPrefix(message.index, message.content);
+                        break;
+                    case 'propagate_changes_postfix':
+                        presenter.propagateChangesPostfix(message.index, message.content);
                         break;
                     //become_rule become_script become_undecided all with message.index
                 }
@@ -174,12 +178,12 @@ export class NotebookView implements NotebookViewCallbacks{
                 </div>
                 <div id="userinputoverlay">
                 </div>
+                <div id="main_header">
+                </div>
                 <div id="supercontainer">
                     <div id="lines"></div>
                     <div id="mainContainer">
                     </div>
-                </div>
-                <div id="send_button">
                 </div>
                 <link rel="stylesheet" href="${highlightjsStyle}">
                 <script nonce="${nonce}" src="${highlightjs}"></script>

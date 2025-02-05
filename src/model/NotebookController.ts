@@ -318,7 +318,6 @@ export class NotebookController{
     constructor(private path: vscode.Uri, private llm: LLM){}
 
     private parseJsonFromResponse(response: string): any{
-        console.log(response);
         let start = response.indexOf("{");
         let end = response.lastIndexOf("}");
         if (start !== -1 && end !== -1){
@@ -458,23 +457,40 @@ export class NotebookController{
         }
     }
 
-    async updateRule(rule: RulesNode, position: number){
-        if (rule.saveFiles.length > 0){
-            const prompt = "I have this Python script:\n"+
-            rule.postfixCode + "\n\n"+
-            "Can you tell me the list of files that this script writes? If it writes none, then return an empty list."+
-            "Plase return it in JSON format following this schema:\n" +
-            "{ 'written_filenames': ['list of filenames for the saved files'] }";
-            const response = await this.llm.runQuery(prompt);
-            const formatted: any = this.parseJsonFromResponse(response);
-            rule.saveFiles = formatted.written_filenames;
-        }
-        if (this.cells.cells.length > position){
-            this.cells.cells[position].rule = rule;
-        }
+    async updateRulePostfix(index: number, code: string){
+        this.cells.cells[index].rule.postfixCode = code;
+        const prompt = "I have this Python script:\n"+
+        code + "\n\n"+
+        "Can you tell me the list of files that this script writes? If it writes none, then return an empty list."+
+        "Plase return it in JSON format following this schema:\n" +
+        "{ 'written_filenames': ['list of filenames for the saved files'] }";
+        const response = await this.llm.runQuery(prompt);
+        const formatted: any = this.parseJsonFromResponse(response);
+        this.cells.cells[index].rule.saveFiles = formatted.written_filenames;
+        
+        //Propagate changes to other cells who reads from this one
+        const propagateTo: number[] = Object.values(this.cells.cells[index].writesTo).flat();
+        propagateTo.sort((a, b) => a - b);
+        await this.buildRulesAdditionalCode(propagateTo);
+        return this.cells;
     }
 
-    async buildRulesAdditionalCode(startFrom=0): Promise<CellDependencyGraph>{
+    async updateRulePrefix(index: number, code: string){
+        this.cells.cells[index].rule.prefixCode = code;
+        if (this.cells.cells[index].rule.type === "rule"){
+            const prompt = "I have this Python script:\n"+
+                code + "\n\n"+ this.cells.cells[index].code + "\n\n"+ this.cells.cells[index].rule.postfixCode + "\n\n"+
+                "Can you tell me the list of files that this script reads? If it reads none, then return an empty list."+
+                "Plase return it in JSON format following this schema:\n" +
+                "{ 'readed_filenames': ['list of filenames for the readed files'] }";
+            const response = await this.llm.runQuery(prompt);
+            const formatted: any = this.parseJsonFromResponse(response);
+            this.cells.cells[index].rule.readFiles = formatted.readed_filenames;
+        }
+        return this.cells;
+    }
+
+    async buildRulesAdditionalCode(targets:number[]=[]): Promise<CellDependencyGraph>{
         function getImportStatementsFromScripts(node: Cell, cells: Cell[]): string{
             const dependencies: Set<string> = new Set();
             Object.keys(node.rule.import_dependencies).forEach((dep) => {
@@ -485,8 +501,10 @@ export class NotebookController{
             });
             return Array.from(dependencies).join("\n");
         }
-
-        for (let i=startFrom; i<this.cells.cells.length; i++){
+        if (targets.length === 0){
+            targets = Array.from(this.cells.cells.keys());
+        }
+        for (const i of targets){
             const cell = this.cells.cells[i];
             const node = cell.rule;
             if (node.type === "script"){

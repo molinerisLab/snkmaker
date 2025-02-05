@@ -122,7 +122,7 @@ input[type="number"] {
 	width: 100%;
 	height: 100%;
 	background-color: rgba(0, 0, 0, 0.8);
-	z-index: 1000;
+	z-index: 2001;
 	display: none;
 	flex-direction: column;
 	align-items: center;
@@ -162,17 +162,40 @@ input[type="number"] {
 }
 
 #supercontainer{
-	padding-top: 32px;
 	width: 100%;
 	display: flex;
 	margin-right: 0px; padding-right: 0px;
 	flex-direction: row;
 }
 #lines{
-	width: 20%;
+	width: 18%;
 }
 #mainContainer {
-	width: 80%;
+	width: 82%;
+}
+#main_header{
+	margin-top: 32px;
+	padding-left: 128px;
+	padding-right: 128px;
+}
+.notice_before_proceed{
+	margin-left: 16px;
+}
+#header_instructions{
+	max-width: 700px;
+}
+#proceed_button_container{
+	width: 100%;
+	display: flex;
+	justify-content: flex-end;
+}
+#proceed_button_container button{
+	width: 200px;
+}
+button:disabled {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	cursor: not-allowed;
 }
 
 .cell_container{
@@ -204,6 +227,7 @@ input[type="number"] {
 	-ms-overflow-style: none;
 	padding-left: 16px; padding-top: 8px; padding-bottom: 8px;
 	font-size: small;
+	width: 400px;
 }
 .cell_rule_preview p{
 	margin-top: 0px;
@@ -213,7 +237,7 @@ input[type="number"] {
 	white-space: pre;
 	color: rgb(255, 195, 122);
 }
-/*.cell{
+.cell{
 	background-color: var(--vscode-notebook-cellEditorBackground);
 	border: 1px solid var(--vscode-notebook-cellBorderColor);
 	padding-bottom: 10px;
@@ -227,8 +251,8 @@ input[type="number"] {
 	scrollbar-width: none;
 	-ms-overflow-style: none;
 	min-height: 100px;
-}*/
-.cell{
+}
+.cell_split{
 	background-color: var(--vscode-notebook-cellEditorBackground);
 	border: 1px solid var(--vscode-notebook-cellBorderColor);
 	padding-bottom: 10px;
@@ -236,7 +260,7 @@ input[type="number"] {
 	padding-left: 24px;
 	margin-bottom: 6px;
 	margin-top: 9px;
-	max-height: 370px;
+	max-height: 220px;
 	overflow-y: scroll;
 	overflow-x: scroll;
 	scrollbar-width: none;
@@ -255,10 +279,16 @@ input[type="number"] {
 .cell code{
 	background-color: var(--vscode-notebook-cellEditorBackground) !important;
 }
-.cell code{
+.cell_no_heigh_limit code{
+	background-color: var(--vscode-notebook-cellEditorBackground) !important;
+}
+.cell_split code{
 	background-color: var(--vscode-notebook-cellEditorBackground) !important;
 }
 .cell::-webkit-scrollbar { 
+	display: none;
+}
+.cell_split::-webkit-scrollbar { 
 	display: none;
 }
 .cell p{
@@ -331,6 +361,8 @@ input[type="number"] {
 .buttons_split{
 	display: flex;
 	justify-content: space-between;
+	margin-top: 16px;
+	width: 100%;
 }
 .buttons_split button{
 	margin-left: 6px; margin-right: 6px;
@@ -399,4 +431,28 @@ input[type="number"] {
 }
 .missingdip{
 	color: rgb(182, 0, 0);
+}
+.warning_about_cells{
+	background-color: var(--vscode-notebook-cellEditorBackground);
+	border: 1px solid var(--vscode-notebook-cellBorderColor);
+	padding-bottom: 10px;
+	padding-top: 10px;
+	padding-left: 24px;
+	margin-bottom: 6px;
+	margin-top: 9px;
+}
+.warning_about_cells p{
+	margin-top: 0px;
+	margin-bottom: 0px;
+	padding: 0px;
+	white-space: pre-wrap;
+    font-family: monospace;
+}
+
+
+
+[contenteditable="true"]:active, [contenteditable="true"]:focus
+{
+   border:none;
+   outline:none;
 }

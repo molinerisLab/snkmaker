@@ -30,7 +30,6 @@ export class LLM{
             SnkmakerLogger.instance()?.log("User tried running query but no model selected:\n"+query);
             throw new Error("No model currently selected - please select a model to use Snakemaker");
         }
-        console.log(query);
         return this.models[this.current_model].runQuery(query).then(response => {
             SnkmakerLogger.instance()?.query(this.models[this.current_model].getName(), query, response);
             return response;
