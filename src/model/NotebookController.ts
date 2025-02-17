@@ -117,8 +117,8 @@ export class Cell {
 
     private toSnakemakeRuleFirst(logs:boolean){
         return `rule ${this.rule.name}:\n`+
-        (this.rule.readFiles.length>0 ? `\tinput:\n\t\t${this.rule.readFiles.map((c)=>'"'+c+'"').join("\t\t")}\n` : "")+
-        (this.rule.saveFiles.length>0 ? `\toutput:\n\t\t${this.rule.saveFiles.map((c)=>'"'+c+'"').join("\t\t")}` : "")+
+        (this.rule.readFiles.length>0 ? `\tinput:\n\t\t${this.rule.readFiles.map((c)=>'"'+c+'"').join("\n\t\t")}\n` : "")+
+        (this.rule.saveFiles.length>0 ? `\toutput:\n\t\t${this.rule.saveFiles.map((c)=>'"'+c+'"').join("\n\t\t")}` : "")+
         (logs ? `\n\tlog:\n\t\t"${this.rule.name}.log"` : "");
     }
 

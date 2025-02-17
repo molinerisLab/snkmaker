@@ -5,3 +5,4 @@ snakemake-llm-*
 snkmaker*.vsix
 out
 media
+dist

@@ -119,6 +119,9 @@ HERE IS THE HISTORY:`;
         ];
         // get the previous messages
         const previousMessages = context.history.filter(h => h instanceof vscode.ChatResponseTurn);
+        if (previousMessages.length > 10) {
+            previousMessages.splice(0, previousMessages.length - 190);
+        }
         previousMessages.forEach(m => {
             let fullMessage = '';
             m.response.forEach(r => {
