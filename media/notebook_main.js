@@ -80,6 +80,7 @@
             <p>Manual updates will be propagated automatically - you can modify a rule's output file and following rules will update as well.</p>
             </div>
             <div id="proceed_button_container">
+                <button id="back_button">Back to Step 1</button>
                 <button id="export_snakefile">Export Snakefile</button>
             </div>
         `;
@@ -147,6 +148,11 @@
                 command: 'export_snakefile'
             });
         });
+        document.getElementById('back_button').addEventListener('click', () => {
+            vscode.postMessage({
+                command: 'back'
+            });
+        });
         cells.cells.forEach((cell, index) => {
             const element = cell.rule;
             const prefix = document.getElementById(`prefix_content_${index}`);
@@ -197,6 +203,8 @@
                 element[0].removeEventListener(element[1], element[2]);
             });
         }
+        document.getElementById('lines').style.display = 'block';
+        document.getElementById('mainContainer').innerHTML = "";
 
         //Set up header
         document.getElementById('main_header').innerHTML = `

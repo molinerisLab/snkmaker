@@ -192,6 +192,9 @@ input[type="number"] {
 #proceed_button_container button{
 	width: 200px;
 }
+#back_button{
+	margin-right: 16px;
+}
 button:disabled {
 	background: var(--vscode-button-secondaryBackground);
 	color: var(--vscode-button-secondaryForeground);

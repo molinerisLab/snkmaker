@@ -51,6 +51,12 @@ export class NotebookPresenter{
             this.view.onError(error);
         }
     }
+    
+    public back(){
+        this.view.setLoading("Returning to notebook...");
+        this.view.setNotebookCells(this.model.cells);
+        this.view.setRulesNodes(this.model.cells);
+    }
 
     public produceSnakefile(){
         /*let mocked = this.mockOrLoadData('secondstep');
