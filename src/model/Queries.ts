@@ -25,9 +25,11 @@ Please write "YES" if it's worth making into a rule, "NO" if it's a one-time com
 ${command}
 It is estimated that the input could be (${inputs}) and the output could be (${output}) - but it could be wrong. A possible name for the rule could be ${ruleName}.${rulesContext}
 Please do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary.
-Please output only the rule. What you output goes entirely in the ${ruleFormat} file, so Do not output other things. Example of good output: "<RULE>". Examples of bad output: "Here is the rule <RULE>" or "<RULE> is the rule" or  or "<Comment/Title of rule><RULE>".`;
+${ruleFormat==="Snakemake" ? "Please use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n" : ""}`;
         prompt += "If the rule contains some type of loop - like a for loop - acting on multiple files, generate one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' to generate all output files. The name of the second rule should NOT be 'all', should be a meaningful name connected to the original rule."
         prompt += logField ? "\nPlease add a log field to the rule with the name of the log file. For example, log: 'logs/{rule}.log'. If the rule contains wildcards, they must be part of the log file name or Snakemake will throw an error. Log field must be added before shell field." : "";
+        prompt += "Please return the rule in JSON format. The JSON contains a single field 'rule' which is a string, that contains the entire rule. Es. {rule: string}";
+        //Please output only the rule. What you output goes entirely in the ${ruleFormat} file, so Do not output other things. Example of good output: "<RULE>". Examples of bad output: "Here is the rule <RULE>" or "<RULE> is the rule" or  or "<Comment/Title of rule><RULE>".
     return prompt;
     }
 
@@ -46,9 +48,13 @@ Please output only the corrected rule. What you output goes entirely in the Snak
         return `I have the following set of bash commands. Can you convert them into ${ruleFormat} rules? Note that Estimated inputs and outputs are just guesses and could be wrong.
 ${formattedRules.join("\n")}${rulesContext}
 Please do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary. ${extraPrompt}
+${ruleFormat==="Snakemake" ? "Please use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n" : ""}
 If one of the rules contains some type of loop - like a for loop - acting on multiple files, generate one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' to generate all output files. The name of the second rule should should NOT be 'all', it should be a meaningful name connected to the original rule.
-Please output only the ${ruleFormat} rules. What you output goes entirely in the ${ruleFormat} file, so DO NOT, EVER, OUTPUT ANYTHING OTHER THAN THE RULES. Example of good output: "<RULES>". Examples of bad output: "Here are the rules <RULES>" or "<Comment/Title of rule><RULE>"`;
-        }
+Please return the rules in JSON format. The JSON contains a single field 'rule' which is a string, that contains the entire snakefile. Es. {rule: string}";        
+`
+    }
+//Please output only the ${ruleFormat} rules. What you output goes entirely in the ${ruleFormat} file, so DO NOT, EVER, OUTPUT ANYTHING OTHER THAN THE RULES. Example of good output: "<RULES>". Examples of bad output: "Here are the rules <RULES>" or "<Comment/Title of rule><RULE>";
+
 
     static snakemakeBestPracticesPrompt(useWildcards: boolean, logDirective: boolean): string{
         let extraPrompt = "";
@@ -76,6 +82,15 @@ Please output only the ${ruleFormat} rules. What you output goes entirely in the
 export class Queries{
     constructor(private modelComms: LLM){
         this.modelComms = modelComms;
+    }
+
+    private parseJsonFromResponse(response: string): any{
+        let start = response.indexOf("{");
+        let end = response.lastIndexOf("}");
+        if (start !== -1 && end !== -1){
+            response = response.substring(start, end + 1);
+        }
+        return JSON.parse(response)["rule"];
     }
 
     getCurrentEditorContent(){
@@ -139,9 +154,18 @@ export class Queries{
         if (ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt()){
             context = ModelPrompts.rulesContextPrompt(this.getCurrentEditorContent());
         }
-        let prompt = ModelPrompts.ruleFromCommandPrompt(command, bashCommand.getRuleName(), ruleFormat, inputs, output, ruleFormat==="Snakemake" && ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules(), context);
-        const response = await this.modelComms.runQuery(prompt);
-        return this.cleanModelResponseStupidHeaders(response);
+        const prompt_original = ModelPrompts.ruleFromCommandPrompt(command, bashCommand.getRuleName(), ruleFormat, inputs, output, ruleFormat==="Snakemake" && ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules(), context);
+        let prompt = prompt_original;
+        for (let i = 0; i < 5; i++){
+            const response = await this.modelComms.runQuery(prompt);
+            try{
+                return this.parseJsonFromResponse(response);
+            } catch (e){
+                prompt = "I asked you this:\n" + prompt_original + "\nBut you gave me this:\n" + response
+                + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
+            }
+        }
+        return null;
     }
 
     async getAllRulesFromCommands(commands: BashCommand[]){
@@ -158,9 +182,19 @@ export class Queries{
             context = ModelPrompts.rulesContextPrompt(this.getCurrentEditorContent());
         }
 
-        const prompt = ModelPrompts.rulesFromCommandsBasicPrompt(formatted, ruleFormat, extraPrompt, context);
-        const response = await this.modelComms.runQuery(prompt);
-        return this.cleanModelResponseStupidHeaders(response);
+        const prompt_original = ModelPrompts.rulesFromCommandsBasicPrompt(formatted, ruleFormat, extraPrompt, context);
+
+        let prompt = prompt_original;
+        for (let i = 0; i < 5; i++){
+            const response = await this.modelComms.runQuery(prompt);
+            try{
+                return this.parseJsonFromResponse(response);
+            } catch (e){
+                prompt = "I asked you this:\n" + prompt_original + "\nBut you gave me this:\n" + response
+                + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
+            }
+        }
+        return null;
     }
 
     async guessOnlyName(command: BashCommand){
