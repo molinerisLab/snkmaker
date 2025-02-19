@@ -26,6 +26,7 @@ ${command}
 It is estimated that the input could be (${inputs}) and the output could be (${output}) - but it could be wrong. A possible name for the rule could be ${ruleName}.${rulesContext}
 Please do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary.
 Please output only the rule. What you output goes entirely in the ${ruleFormat} file, so Do not output other things. Example of good output: "<RULE>". Examples of bad output: "Here is the rule <RULE>" or "<RULE> is the rule" or  or "<Comment/Title of rule><RULE>".`;
+        prompt += "If the rule contains some type of loop - like a for loop - acting on multiple files, generate one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' to generate all output files. The name of the second rule should NOT be 'all', should be a meaningful name connected to the original rule."
         prompt += logField ? "\nPlease add a log field to the rule with the name of the log file. For example, log: 'logs/{rule}.log'. If the rule contains wildcards, they must be part of the log file name or Snakemake will throw an error. Log field must be added before shell field." : "";
     return prompt;
     }
@@ -45,6 +46,7 @@ Please output only the corrected rule. What you output goes entirely in the Snak
         return `I have the following set of bash commands. Can you convert them into ${ruleFormat} rules? Note that Estimated inputs and outputs are just guesses and could be wrong.
 ${formattedRules.join("\n")}${rulesContext}
 Please do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary. ${extraPrompt}
+If one of the rules contains some type of loop - like a for loop - acting on multiple files, generate one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' to generate all output files. The name of the second rule should should NOT be 'all', it should be a meaningful name connected to the original rule.
 Please output only the ${ruleFormat} rules. What you output goes entirely in the ${ruleFormat} file, so DO NOT, EVER, OUTPUT ANYTHING OTHER THAN THE RULES. Example of good output: "<RULES>". Examples of bad output: "Here are the rules <RULES>" or "<Comment/Title of rule><RULE>"`;
         }
 
@@ -157,6 +159,7 @@ export class Queries{
         }
 
         const prompt = ModelPrompts.rulesFromCommandsBasicPrompt(formatted, ruleFormat, extraPrompt, context);
+        console.log(prompt);
         const response = await this.modelComms.runQuery(prompt);
         return this.cleanModelResponseStupidHeaders(response);
     }
