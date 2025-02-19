@@ -209,6 +209,7 @@
         //Set up header
         document.getElementById('main_header').innerHTML = `
             <h1>Export Notebook into Snakemake - Step 1</h1>
+            <h2>Note: this is an experimental feature, still unstable.</h2>
             <div id="header_instructions">
             <p>The following page presents the formatted notebook cells with their data dependencies. Before proceeding, make sure the data dependencies are correct.</p>
             <p>Cells can be removed, split or merged.</p>
