@@ -33,7 +33,12 @@ export class AddModelView{
 				switch (message.command) {
 					case 'submit':
 						const data = message.data;
-						viewModel.addModel(data.url, data.model_name, data.max_tokens, data.api_key);
+						const max_tokens = parseInt(data.max_tokens);
+						if (isNaN(max_tokens)) {
+							vscode.window.showErrorMessage('Max tokens must be a number');
+							return;
+						}
+						viewModel.addModel(data.url, data.model_name, max_tokens, data.api_key);
 						panel.dispose();
 						return;
 				}

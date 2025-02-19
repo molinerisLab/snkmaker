@@ -159,7 +159,6 @@ export class Queries{
         }
 
         const prompt = ModelPrompts.rulesFromCommandsBasicPrompt(formatted, ruleFormat, extraPrompt, context);
-        console.log(prompt);
         const response = await this.modelComms.runQuery(prompt);
         return this.cleanModelResponseStupidHeaders(response);
     }
