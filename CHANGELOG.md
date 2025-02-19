@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8] - 2025-01- TODO
+
+### Added
+- Experimental - export Notebook feature.
+- Managing of loops in bash commands.
+### Changed
+- General improvements in prompts.
+
 ## [0.1.7] - 2025-01-16
 
 ### Added 
