@@ -87,7 +87,9 @@ export class LLM{
             if (!parsed){
                 return;
             }
-            return new OpenAI_Models(parsed.url, parsed.apiKey, parsed.model, parsed.max_tokens);
+            const m = new OpenAI_Models(parsed.url, parsed.apiKey, parsed.model, parsed.max_tokens);
+            m.id = parsed.id;
+            return m;
         }).filter(model => model !== undefined) as ModelComms[];
     }
 
@@ -194,7 +196,8 @@ class OpenAI_Models implements ModelComms{
             url: this.url,
             apiKey: this.apiKey,
             model: this.model,
-            max_tokens: this.max_tokens
+            max_tokens: this.max_tokens,
+            id: this.id
             });
     }
 
