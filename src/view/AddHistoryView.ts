@@ -25,6 +25,7 @@ export class AddHistoryView{
 	}
 
 	private parseCommands(commands: string): string[] {
+		commands = commands.replace(/\\\s*\n/g, '');
 		return commands.split('\n')
 			.map(commands => {
 				return commands.trim().replace(/^\d+\s+/, '');

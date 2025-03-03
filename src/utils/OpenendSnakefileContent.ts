@@ -52,7 +52,7 @@ export class OpenedSnakefileContent{
             content = "Snakefile:\n" + content;
         }
         if (configKeys.length > 0) {
-            content = "Included configuration files: \n\n" + 
+            content = "Included configuration files (use the configurations inside the rules if needed!): \n\n" + 
                 (
                     Object.keys(configPaths).map((key) => {
                         return "Config file: " + key + ":\n" + configPaths[key];
