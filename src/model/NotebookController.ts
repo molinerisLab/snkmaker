@@ -27,7 +27,8 @@ export class RulesNode{
         public postfixCode: string = "",
         public saveFiles: string[] = [],
         public readFiles: string[] = [],
-        public canBecomeStatic: {rule: boolean, script: boolean, undecided: boolean} = {"rule": true, "script": true, "undecided": true}
+        public canBecomeStatic: {rule: boolean, script: boolean, undecided: boolean} = {"rule": true, "script": true, "undecided": true},
+        public snakemakeRule: string = ""
     ) {}
 
     updateRuleDependencies(cell: Cell, cells: Cell[]){
@@ -107,7 +108,8 @@ export class Cell {
         
         public writesTo: { [key: string]: number[] } = {},
         public rule: RulesNode = new RulesNode(isFunctions ? declares[0] : "", isFunctions ? "script" : "undecided", isFunctions, {}, {}, {}),
-        public replacedFunctionVariables: string[] = []
+        public replacedFunctionVariables: string[] = [],
+        public wildcards: string[] = []
     ) {}
 
     toCode(): string{
@@ -131,6 +133,7 @@ export class Cell {
 
 
     toSnakemakeRule(inline_under: number, logs:boolean): {"rule": string|null, "filename": string|null, "code": string|null}{
+        return {"rule": this.rule.snakemakeRule, "filename": this.rule.name+".py", "code": this.toCode()};
         if (this.isFunctions || this.rule.type === "script"){
             return {"rule": null, "filename": this.rule.name+".py", "code": this.toCode()};
         }
@@ -197,10 +200,14 @@ export class CellDependencyGraph{
             let currentFunc: { name: string; content: string } | null = null;
             let currentIndent = 0;
             for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
+                let line = lines[i];
                 const defMatch = line.match(/^def\s+([A-Za-z_]\w*)\s*\(.*\)\s*:/);
                 if (defMatch) {
                     if (currentFunc) {functions.push(currentFunc)};
+                    //If function declaration is preceded by a comment, include the comment into the function
+                    if (i>0 && lines[i-1].trim().startsWith("#")){
+                        line = lines[i-1] + "\n" + line;
+                    }
                     currentFunc = { name: defMatch[1], content: line };
                     currentIndent = line.search(/\S|$/);
                 } else if (currentFunc) {
@@ -351,6 +358,28 @@ export class CellDependencyGraph{
         this.cells = this.cells.filter((cell) => cell.code.length>1);
     }
 
+    public setDependencyAsWildcard(index: number, dependency: string){
+        const cell = this.cells[index];
+        cell.wildcards.push(dependency);
+        if (!cell.reads.includes(dependency)){
+            cell.reads.push(dependency);
+        }
+        cell.dependsOn = Object.fromEntries(
+            Object.entries(cell.dependsOn).filter(([key]) => key !== dependency)
+        );
+        cell.missingDependencies = cell.missingDependencies.filter((dep) => dep !== dependency);
+        for (let i = index+1; i<this.cells.length; i++){
+            if (this.cells[i].dependsOn[dependency] === index){
+                this.setDependencyAsWildcard(i, dependency);
+            }
+        }
+    }
+
+    public setWildcardAsDependency(index: number, dependency: string){
+        const cell = this.cells[index];
+        cell.wildcards = cell.wildcards.filter((dep) => dep !== dependency);
+    }
+
     buildDependencyGraph(){
         const lastChanged: { [key: string]: number }[] = this.cells.map(() => ({}));
         this.cells.forEach((cell, index) => {
@@ -359,11 +388,13 @@ export class CellDependencyGraph{
             cell.writesTo = {};
             if (index > 0){
                 cell.reads.forEach((read) => {
-                    if (lastChanged[index-1][read] !== undefined) {
-                        cell.dependsOn[read] = lastChanged[index-1][read];
-                        this.cells[lastChanged[index-1][read]].setWritesTo(index, read);
-                    } else {
-                        cell.missingDependencies.push(read);
+                    if (!cell.wildcards.includes(read)){
+                        if (lastChanged[index-1][read] !== undefined) {
+                            cell.dependsOn[read] = lastChanged[index-1][read];
+                            this.cells[lastChanged[index-1][read]].setWritesTo(index, read);
+                        } else {
+                            cell.missingDependencies.push(read);
+                        }
                     }
                 });
                 Object.keys(lastChanged[index - 1]).forEach((key) => {
@@ -421,6 +452,25 @@ export class NotebookController{
         return JSON.parse(response);
     }
 
+    private async runPromptAndParse(original_prompt: string): Promise<any> {
+        let prompt = original_prompt;
+        let response = "";
+        for (let i=0; i<5; i++){
+            try{
+                response = await this.llm.runQuery(prompt);
+                console.log(prompt);
+                console.log(response);
+                const parsed = this.parseJsonFromResponse(response);
+                return parsed;
+            } catch (e:any){
+                prompt = "I asked you this:\n\n" + original_prompt + 
+                "\n\nAnd your response was: \n" + response +
+                "\n\nBut when trying to parse your response in json I got this error: \n" + e.message +
+                "\n\nPlease try again.";
+            }
+        }
+    }
+
     //Opens notebook, create cell graph with read/write dependencies, parse imports and functions.
     async openNotebook(): Promise<CellDependencyGraph>{
         const opened = await vscode.workspace.openTextDocument(this.path);
@@ -473,9 +523,10 @@ export class NotebookController{
         `{"rules": [ {"cell_index": <number>, "rule_name": <string>, "type": <string>} for each cell... ] } \n`+
         (changeFrom===0 ? "Please provide at least a name for every cell, even if you don't want to change the state." : 
             "You can change the state of the cells from " + changeFrom + " onward. For those, please provide at least a name for every cell, even if you don't want to change the state.");
-        const response = await this.llm.runQuery(prompt);
-        const formatted: any = this.parseJsonFromResponse(response);
-        this.cells.setRulesTypesAndNames(formatted, changeFrom);
+        const formatted = await this.runPromptAndParse(prompt);
+        if (formatted){
+            this.cells.setRulesTypesAndNames(formatted, changeFrom);
+        }
     }
 
     private async setDependenciesForCells(){
@@ -505,9 +556,8 @@ export class NotebookController{
         "Please provide to me the list of READED variables, WRITTEN variables and READED file for each cell. For each variable use the same name used in the code without changing it.\n"+
         "\n\nPlease write the output in JSON format following this schema:\n"+
         `{ "cells": [ {"cell_index": <number>, "reads": [<strings>], "writes": [<indexes>], "reads_file": [<indexes>]}  for each rule... ] }`;
-        const response = await this.llm.runQuery(prompt);
-        const formatted: any = this.parseJsonFromResponse(response);
-        if (!formatted.cells || !Array.isArray(formatted.cells)) {
+        const formatted = await this.runPromptAndParse(prompt);
+        if (!formatted || !formatted.cells || !Array.isArray(formatted.cells)) {
             throw new Error("Invalid response format: 'rules' is missing or not an array");
         }
         formatted.cells.forEach(
@@ -538,9 +588,8 @@ export class NotebookController{
         "Please write the needed imports as a list of indexes (example: import 0, 1, 5).\n"+
         "Please write the output in JSON format following this schema:\n"+
         "{'cells': [cell_index: number, imports: [index of import for each import needed]]}";
-        const response = await this.llm.runQuery(prompt);
-        const formatted: any = this.parseJsonFromResponse(response);
-        if (!formatted.cells || !Array.isArray(formatted.cells)) {
+        const formatted = await this.runPromptAndParse(prompt);
+        if (!formatted || !formatted.cells || !Array.isArray(formatted.cells)) {
             throw new Error("Invalid response format: 'rules' is missing or not an array");
         }
         if (!this.cells){return;}
@@ -550,6 +599,16 @@ export class NotebookController{
             this.cells.cells[p.cell_index].code = newImports.join("\n") + "\n" + this.cells.cells[p.cell_index].code;
             this.cells.cells[p.cell_index].imports = newImports;
         }
+    }
+
+    public setDependencyAsWildcard(index: number, dependency: string){
+        this.cells.setDependencyAsWildcard(index, dependency);
+        this.cells.buildDependencyGraph();
+    }
+
+    public setWildcardAsDependency(index: number, dependency: string){
+        this.cells.setWildcardAsDependency(index, dependency);
+        this.cells.buildDependencyGraph();
     }
 
     public removeFunctionDependency(index: number, keyword: string){
@@ -569,8 +628,7 @@ export class NotebookController{
         "Can you tell me the list of files that this script writes? If it writes none, then return an empty list."+
         "Plase return it in JSON format following this schema:\n" +
         "{ 'written_filenames': ['list of filenames for the saved files'] }";
-        const response = await this.llm.runQuery(prompt);
-        const formatted: any = this.parseJsonFromResponse(response);
+        const formatted = await this.runPromptAndParse(prompt);
         this.cells.cells[index].rule.saveFiles = formatted.written_filenames;
         
         //Propagate changes to other cells who reads from this one
@@ -604,8 +662,7 @@ export class NotebookController{
                 "Can you tell me the list of files that this script reads? If it reads none, then return an empty list."+
                 "Plase return it in JSON format following this schema:\n" +
                 "{ 'readed_filenames': ['list of filenames for the readed files'] }";
-            const response = await this.llm.runQuery(prompt);
-            const formatted: any = this.parseJsonFromResponse(response);
+            const formatted = await this.runPromptAndParse(prompt);
             this.cells.cells[index].rule.readFiles = formatted.readed_filenames;
         }
         return this.cells;
@@ -635,30 +692,50 @@ export class NotebookController{
                 // [variable, node]
                 const ruleDependencies: [string, number][] = Object.entries(node.rule_dependencies);
                 const exportsTo: [string, number[]][] = Object.entries(cell.writesTo);
-                const prompt = "I have this Python script, and I need you to add code to perform three operations: "+
-                "1- The script needs to read some file(s) and use their content to valorize some variables before starting. "+
-                " I will provide the name of the variables to valorize and the piece of code that produces the file that needs to be readed.\n"+
-                "2- The script produces some output files, that will be readed by other scripts. "+
-                " I will provide the name of the variables that needs to be saved."+
-                "My script is:\n\n" + cell.code + "\n\n"+
+                const wildcards: string[] = cell.wildcards;
+                const prompt = "I have a Python script, and I need to convert it to a snakemake rule and insert it into an existing snakemake workflow.\n"+
+                "The script needs additional code to read and save files, read command line arguments, and manage wildcards.\n"+
+                "Consider the following dependencies that can happen between rules:\n" +
+                "1- The script might need to read files, produced by other rules, to valorize some variables.\n"+
+                "2- The script might need to save some variables into files, that will be readed by other scripts.\n"+
+                "3- The rule might have wildcards. Wildcards in Snakemake are specified inside the name of the output file(s), for example 'output_{sample}.txt'; Snakemake then generally passes their values as command line arguments, as python my_script.py sample\n"+
+                "4- The script might need to import data from other scripts, like from other_script import variable_n\n\n" + 
+
+                " I will provide the name of the variables to valorize from files, the name of the input files and the piece of code that produces the file that needs to be readed. \n"+
+                " I will also provide the name of the output files to write and the variables to save there.\n"+
+                " And I will provide the variables that need to be valorized from wildcards.\n\n"+
+                " From this, please write for me three things:\n"+
+                "1- A snakemake rule, with input, output and shell directives. Manage wildcards and arguments of the script. Always pass to the script arguments the names of the input files, and the wildcards.\n"+
+                "2- A prefix code, that will be appended before the actual code in the script, that reads command line arguments, read files and initializes variables (from files and wildcards). Please always use the filenames provided as command line arguments for the filenames.\n"+
+                "3- A suffix code, that will be appended after the script, that saves the variables to the output files.\n"+
+                
+                /*"Example:\n"+
+                "from script: \nprint(VAR_1)\nprint(VAR_2)\nVAR_1 += 1\n With VAR_1 readed from file var1.txt, VAR_2 wildcard:\n"+
+                "snakemake rule:\nrule my_rule:\n\tinput:\n\t\t'var1.txt'\n\toutput:\n\t\t'output_{sample}.txt'\n\tscript:\n\t\t\"\"\"script.py {sample} {input}\"\"\"\n"+
+                "Prefix code: read VAR_2 and input file from command line, read VAR_1 from file var1.txt\n"+
+                "Suffix code: save output_{sample}.txt\n\n"+*/
+                "My script is:\n\n" + cell.code + "\nnamed: " + cell.rule.name + "\n"+
                 "The variables it needs to valorize by reading files are:\n" +
-                ((ruleDependencies.length===0) ? " - no variable actually needed for reading -" :
-                ruleDependencies.map((d:any) => "Variable: " + d[0] + " produced by the script " + this.cells.cells[d[1]].rule.name).join("\n") + "\n\n"+
+                ((ruleDependencies.length===0) ? " - no variable actually needed for reading from files-\n" :
+                ruleDependencies.map((d:any) => "Variable: " + d[0] + " produced by the script " + this.cells.cells[d[1]].rule.name).join("\n") + "\n"+
                 "I will provide the code that produce the files that you need. These scripts might load the variable from another file, modify them and save them again. Read the most recently saved version.\n"+
                 ruleDependencies.map((d:any) => "Code that saves variable " + d[0] + " to a file:\n" + this.cells.cells[d[1]].toCode()).join("\n")) + "\n\n"+
-                "The variables that needs to be saved are: \n" +
-                ((exportsTo.length===0) ? " - no variable actually needed for saving -" :
+                "The variables that needs to be saved to files are: \n" +
+                ((exportsTo.length===0) ? " - no variable actually needed for saving -\n" :
                 exportsTo.map((entry:[string,number[]]) => "Variable: " + entry[0] + " must be saved and will be readed by the script(s) " + entry[1].map((index:number)=>this.cells.cells[index].rule.name).join(", ")).join("\n") + "\n\n"+
+                (
+                    (wildcards.length===0) ? " - no wildcard needed -" : "Wildcards: " + wildcards.join(", ") + "\n\n"
+                ) +
                 "When saving files, you can decide the name, format and number of files. Consider the number of scripts that will read them to make a good decision.\n") +
                 "\nPlease write the output in JSON format following this schema:\n"+
-                "{ 'reads': ['code to read each file'], 'writes': ['code to save each file'], 'readed_filenames': ['list of filenames for readed files'], 'written_filenames': ['list of filenames for the saved files'] }\n"+
-                "Please do not repeat the code already existing, only valorize the three fields. If a field is empty, write an empty array.";
-                const response = await this.llm.runQuery(prompt);
-                const formatted: any = this.parseJsonFromResponse(response);
+                "{ 'reads': ['code to read each file'], 'writes': ['code to save each file'], 'readed_filenames': ['list of filenames for readed files'], 'written_filenames': ['list of filenames for the saved files'], 'rule': string (snakemake rule) }\n"+
+                "Please do not repeat the code already existing, only valorize the fields. If a field is empty, write an empty array or string.";
+                const formatted = await this.runPromptAndParse(prompt);
                 node.prefixCode = getImportStatementsFromScripts(cell, this.cells.cells) + "\n" + formatted.reads.join("\n");
                 node.postfixCode = formatted.writes.join("\n");
                 node.saveFiles = formatted.written_filenames;
                 node.readFiles = formatted.readed_filenames;
+                node.snakemakeRule = formatted.rule;
             }
         }
         return this.cells;
@@ -682,10 +759,11 @@ export class NotebookController{
     }
 
     addCellDependency(cell_index: number, dependency: string): [CellDependencyGraph, Promise<CellDependencyGraph>]{
-        if (this.cells.cells[cell_index].reads.includes(dependency)){
-            return [this.cells, new Promise((resolve) => resolve(this.cells))];
+        //Remove from wildcards if present
+        this.cells.setWildcardAsDependency(cell_index, dependency);
+        if (!this.cells.cells[cell_index].reads.includes(dependency)){
+            this.cells.cells[cell_index].reads.push(dependency);
         }
-        this.cells.cells[cell_index].reads.push(dependency);
         //re-build graph
         this.cells.buildDependencyGraph();
         const update = Promise.resolve(this.cells) //this.rulesGuessNameAndState(cell_index).then(()=>this.cells);
@@ -696,6 +774,7 @@ export class NotebookController{
         if (!this.cells.cells[cell_index].reads.includes(dependency)){
             return [this.cells, new Promise((resolve)=>resolve(this.cells))];
         }
+        this.cells.setWildcardAsDependency(cell_index, dependency);
         this.cells.cells[cell_index].reads = this.cells.cells[cell_index].reads.filter((read) => read !== dependency);
         this.cells.buildDependencyGraph();
         const update = Promise.resolve(this.cells) //this.rulesGuessNameAndState(cell_index).then(()=>this.cells);
@@ -754,8 +833,7 @@ export class NotebookController{
             "Please provide to me the list of READED variables, WRITTEN variables and READED file for each cell. For each variable use the same name used in the code without changing it.\n"+
             "\n\nPlease write the output in JSON format following this schema:\n"+
             `{ "cells": [ {"cell_index": <number>, "reads": [<strings>], "writes": [<indexes>], "reads_file": [<indexes>]}  for each rule... ] }`;
-            const response = await this.llm.runQuery(prompt);
-            const formatted: any = this.parseJsonFromResponse(response);
+            const formatted = await this.runPromptAndParse(prompt);
             if (!formatted.cells || !Array.isArray(formatted.cells)) {
                 throw new Error("Invalid response format: 'rules' is missing or not an array");
             }

@@ -94,23 +94,7 @@
             if (element.type==="rule"){
                 html += `<p>Export as: <strong>Snakemake Rule</strong></p>\n`;
                 html += "<div class='cell_rule_preview'>\n";
-                html += `<p>rule ${element.name}:</p>\n`;
-                html += `<p>    input:</p>\n`;
-                let inputs = element.readFiles;
-                inputs.forEach((inp) => {
-                    html += `<p>        ${inp}</p>\n`;
-                });
-                if (inputs.size === 0){
-                    html += `<p>        - </p>\n`;
-                }
-                html += `<p>    output:</p>\n`;
-                let output = element.saveFiles;
-                output.forEach((inp) => {
-                    html += `<p>        ${inp}</p>\n`;
-                });
-                if (output.size === 0){
-                    html += `<p>        - </p>\n`;
-                }
+                html += `<p>${element.snakemakeRule}</p>\n`;
                 html += `</div>\n`;
 
             } else if (element.type==="script"){
@@ -277,7 +261,9 @@
                     html += "</div>\n";
                 }
             } else {
-                const dependencies = Object.entries(element.dependsOn).map(([key, value]) => [`${key} (cell [${value}])`, key]);
+                let dependencies = Object.entries(element.dependsOn).map(([key, value]) => [`${key} (cell [${value}])`, key]);
+                const cellWildcards = element.wildcards.map((wildcard) => [wildcard + " (Wildcard)", wildcard]);
+                dependencies = [...dependencies, ...cellWildcards];
                 if (dependencies.length === 0){
                     html += `<p><strong>No dependencies</strong></p>\n`;
                 } else {
@@ -333,7 +319,9 @@
         //Set callbacks
         let selectedText = ""; let selectedCell = "";
         const actionButton = document.getElementById('actionButton');
+        const actionButtonDepends = document.getElementById('addDependency')
         const actionButtonWrites = document.getElementById('addWrite')
+        const actionButtonWildcards = document.getElementById('addWildcards')
         const parapgraphs = [];
         for (let i=0; i<cells.cells.length; i++){
             const paragraph = document.getElementById('cell'+i);
@@ -347,12 +335,25 @@
                     }
                     const range = selection.getRangeAt(0);
                     const rect = range.getBoundingClientRect();
+                    selectedCell = i;
+                    selectedText = selection.toString().trim();
+                    
+                    const textIsInCellReads = cells.cells[i].reads.includes(selectedText);
+                    const textIsInCellWrites = cells.cells[i].writes.includes(selectedText);
+                    const textIsInCellWildcards = cells.cells[i].wildcards.includes(selectedText);
+
                     actionButton.style.top = `${rect.bottom + window.scrollY}px`;
                     actionButton.style.left = `${rect.left + window.scrollX}px`;
                     actionButton.style.display = 'flex';
-                    actionButtonWrites.style.display = (cells.cells[i].isFunctions) ? 'none' : 'flex';
-                    selectedCell = i;
-                    selectedText = selection.toString().trim();
+                    if (cells.cells[i].isFunctions){
+                        actionButtonWrites.style.display = 'none';
+                        actionButtonWildcards.style.display = 'none';
+                    } else {
+                        //Can add to writes if not already in it
+                        actionButtonWrites.style.display = textIsInCellWrites ? 'none' : 'flex';
+                        actionButtonDepends.style.display = (textIsInCellReads && !textIsInCellWildcards) ? 'none' : 'flex';
+                        actionButtonWildcards.style.display = (textIsInCellWildcards) ? 'none' : 'flex';
+                    }
                 } else {
                     actionButton.style.display = 'none';
                 }
@@ -416,6 +417,16 @@
         }
         document.getElementById('addWrite').addEventListener('click', addWritef);
         OldEventListener.push([document.getElementById('addWrite'), "click", addWritef]);
+        function addWildcard(){
+            actionButton.style.display = 'none';
+            vscode.postMessage({
+                command: 'add_to_wildcards',
+                index: selectedCell,
+                keyword: selectedText
+            });
+        }
+        document.getElementById('addWildcards').addEventListener('click', addWildcard);
+        OldEventListener.push([document.getElementById('addWildcards'), "click", addWildcard]);
     }
 
     function set_rules(cells){
@@ -596,8 +607,15 @@
                     h_offset[k].add(minOffset);
                 }
             }
-            const text = `Cell ${i} ${helper_text} ${VAR_NAME} of cell ${CELL_IND}`;
-            drawArrows(`cell${CELL_IND}`, `cell${i}`, OFFSET_START + minOffset * OFFSET_DELTA, text);
+            let text = "";
+            if (i !== CELL_IND){
+                text = `Cell ${i} ${helper_text} ${VAR_NAME} of cell ${CELL_IND}`;
+                drawArrows(`cell${CELL_IND}`, `cell${i}`, OFFSET_START + minOffset * OFFSET_DELTA, text);
+            } else {
+                text = `Cell ${i} has wildcard ${VAR_NAME}`
+                drawArrows(`cell${CELL_IND}`, `cell${i}`, OFFSET_START + MAX_OFFSET+10, text);
+            }
+            
        }
         for (let i = 1; i < cells.cells.length; i++) {
             const cell = cells.cells[i];
@@ -612,6 +630,9 @@
             });
             Object.entries(mergedDependencies).forEach(([target, variables]) => {
                 addDependencyArrow(variables.join(", "), target, i, "depends on");
+            });
+            cell.wildcards.forEach((wildcard) => {
+                addDependencyArrow(wildcard, i, i, "is wildcard");
             });
 
             const mergedFunctionCalls = {};
@@ -641,7 +662,12 @@
         const arrowColor = getRandomColor();
 
         const Y1 = rect1.top + rect1.height * (0.75 + (Math.random() - 0.5)*0.2);
-        const Y2 = rect2.top + rect2.height * (0.25 + (Math.random() - 0.5)*0.2);
+        let Y2;
+        if (id_a === id_b){
+            Y2 = Y1;
+        } else {
+            Y2 = rect2.top + rect2.height * (0.25 + (Math.random() - 0.5)*0.2);
+        }
         const svgNS = "http://www.w3.org/2000/svg";
         let line = document.createElementNS(svgNS, "line");
         line.setAttribute("x1", `${xrect.right - distance}px`);

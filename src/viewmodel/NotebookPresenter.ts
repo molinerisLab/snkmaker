@@ -280,4 +280,22 @@ export class NotebookPresenter{
         this.view.setNotebookCells(this.model.cells);
         this.view.setRulesNodes(this.model.cells);
     }
+
+    public setDependencyAsWildcard(index: number, dependency: string){
+        this.model.setDependencyAsWildcard(index, dependency);
+        this.view.setNotebookCells(this.model.cells);
+        this.view.setRulesNodes(this.model.cells);
+    }
+
+    public setWildcardAsDependency(index: number, dependency: string){
+        this.model.setWildcardAsDependency(index, dependency);
+        this.view.setNotebookCells(this.model.cells);
+        this.view.setRulesNodes(this.model.cells);
+    }
+
+    public addWildcard(index: number, dependency: string){
+        this.model.setDependencyAsWildcard(index, dependency);
+        this.view.setNotebookCells(this.model.cells);
+        this.view.setRulesNodes(this.model.cells);
+    }
 }

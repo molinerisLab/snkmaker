@@ -91,6 +91,9 @@ export class NotebookView implements NotebookViewCallbacks{
                     case 'add_to_dependencies':
                         presenter.addDependency(message.index, message.keyword);
                         break;
+                    case 'add_to_wildcards':
+                        presenter.addWildcard(message.index, message.keyword);
+                        break;
                     case 'remove_write':
                         presenter.removeWrite(message.index, message.keyword);
                         break;
@@ -182,6 +185,7 @@ export class NotebookView implements NotebookViewCallbacks{
                 <div id="actionButton">
                     <button id="addWrite">Add to cell Writes</button>
                     <button id="addDependency">Add to cell dependencies</button>
+                    <button id="addWildcards">Add to cell wildcards</button>
                 </div>
                 <div id="loadingscreen">
                     <div class="spinner"></div>

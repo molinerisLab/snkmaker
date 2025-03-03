@@ -58,8 +58,8 @@ export class LLM{
         if (models.length === 0 || this.copilotActive===true){
             return -1;
         }
-        //Remove gpt-3.5 because it sucks
-        models = models.filter(model => model.id.indexOf("gpt-3.5") === -1);
+        //Remove gpt-3.5 and gemini because they suck and cause all sort of problems
+        models = models.filter(model => model.id.indexOf("gpt-3.5") === -1 && model.id.indexOf("gemini") === -1);
         const copilot_models: ModelComms[] = models.map(_model => 
             new CopilotModel(_model)
         );
