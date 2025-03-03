@@ -386,6 +386,10 @@ export class TerminalHistory {
             throw e;
         }
     }
+
+    writeDocumentation(documentationContext: string){
+        return this.queries.writeDocumentationFromContext(documentationContext);
+    }
 }
 
 export interface BashCommand{

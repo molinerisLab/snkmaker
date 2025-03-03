@@ -102,6 +102,14 @@ export class Queries{
         }
         return JSON.parse(response)["rule"];
     }
+    private parseJsonFromResponseGeneric(response: string): any{
+        let start = response.indexOf("{");
+        let end = response.lastIndexOf("}");
+        if (start !== -1 && end !== -1){
+            response = response.substring(start, end + 1);
+        }
+        return JSON.parse(response);
+    }
 
     cleanModelResponseStupidHeaders(response: string): string{
         if (response.startsWith("Makefile") || response.startsWith("makefile")){
@@ -124,6 +132,15 @@ export class Queries{
         const output = split[1]?.split("=")[1]?.replace("[", "")?.replace("]", "")?? "Unknown";
         const name = split[2]?.split("=")[1]?.replace("[", "")?.replace("]", "")?? "Unknown";
         return [input, output, name];
+    }
+
+    async writeDocumentationFromContext(context: string){
+        const query = `The user is building a data processing pipeline using bash command and snakemake:\n\n${context}.
+Please write a short documentation explaining what the user is doing. Use every information available to be as specific as you can. The documentation should be professional and mimick the style of a methodology section of a paper. It is possible you don't have enough information for a full methodology section, in this case write what you can.
+Please write the documentation as a string in a JSON in this format: {documentation: string}. The string should follow the markdown format.`;
+        const response = await this.modelComms.runQuery(query);
+        const parsed = this.parseJsonFromResponseGeneric(response);
+        return parsed["documentation"];
     }
 
     async guessIfCommandImportant(command: string, positive_examples: string[], negative_examples: string[]){

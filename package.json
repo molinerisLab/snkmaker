@@ -387,6 +387,10 @@
       {
         "command": "process-notebook",
         "title": "Process with Snakemaker"
+      },
+      {
+        "command": "generate-documentation",
+        "title": "Auto-generate documentation for current work."
       }
     ],
     "configuration": {

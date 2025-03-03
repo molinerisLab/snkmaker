@@ -6,6 +6,7 @@ import { WriteToFiles } from "../utils/WriteToFiles";
 import * as vscode from 'vscode';
 import { NotebookViewCallbacks } from "../view/NotebookView";
 import { NotebookPresenter } from "./NotebookPresenter";
+import { OpenedSnakefileContent } from "../utils/OpenendSnakefileContent";
 
 export class BashCommandViewModel{
     llm: LLM;
@@ -319,6 +320,39 @@ export class BashCommandViewModel{
     
     openNotebook(notebookPath: vscode.Uri, view: NotebookViewCallbacks){
         return new NotebookPresenter(view, new NotebookController(notebookPath, this.llm), this.memento);
+    }
+
+    async generateDocumentation(){
+      const history = this.terminalHistory.getHistory().map((command) => command.getCommand()).join('\n\n');
+      let contextForHistory = "These are bash commands that will be converted into snakemake rules:\n" + history;
+      vscode.window.showQuickPick(['Yes', 'No, use only bash history'], {
+          placeHolder: 'Use existing Snakefile for the documentation?'
+      }).then((selection) => {
+          if (selection === 'Yes') {
+            const path = OpenedSnakefileContent.getCurrentEditorSnakefilePath();
+            vscode.window.showInputBox({ prompt: 'Enter the path to the Snakefile', value: path || "" }).then(async (snakefilePath) => {
+              if (snakefilePath) {
+                const content = await OpenedSnakefileContent.getFilePathContent(snakefilePath);
+                contextForHistory = "Snakefile:\n\n" + content + "\n\n" + contextForHistory;
+                this.terminalHistory.writeDocumentation(contextForHistory).then((docs) => {
+                  this.writeToFiles.writeToNewFile(docs).catch((e:any) => {
+                    vscode.window.showInformationMessage(e.toString());
+                  });
+                }).catch((e:any) => {
+                  vscode.window.showInformationMessage(e.toString());
+                });
+              } else {
+                vscode.window.showInformationMessage('No Snakefile path provided');
+              }
+            });
+          } else {
+            this.terminalHistory.writeDocumentation(contextForHistory).then((docs) => {
+              this.writeToFiles.writeToNewFile(docs).catch((e:any) => {
+                vscode.window.showInformationMessage(e.toString());
+              });
+            });
+          }
+      });
     }
 
 }

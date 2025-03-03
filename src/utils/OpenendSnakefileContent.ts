@@ -70,18 +70,39 @@ export class OpenedSnakefileContent{
     }
 
     static async getCurrentEditorContent(){
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) { 
-                return  ""; 
-            }
-            let activeEditorCurrentPath = editor.document.fileName;
-            activeEditorCurrentPath = activeEditorCurrentPath.slice(0, activeEditorCurrentPath.lastIndexOf("/"));
-            const document = editor.document;
-            const content = await OpenedSnakefileContent.manageInclude(
-                document.getText(),
-                activeEditorCurrentPath
-            );
-            return content;
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) { 
+            return  ""; 
         }
+        let activeEditorCurrentPath = editor.document.fileName;
+        activeEditorCurrentPath = activeEditorCurrentPath.slice(0, activeEditorCurrentPath.lastIndexOf("/"));
+        const document = editor.document;
+        const content = await OpenedSnakefileContent.manageInclude(
+            document.getText(),
+            activeEditorCurrentPath
+        );
+        return content;
+    }
+    
+    static async getFilePathContent(filePath: string): Promise<string> {
+        const document = await vscode.workspace.openTextDocument(filePath);
+        const content = await OpenedSnakefileContent.manageInclude(
+            document.getText(),
+            filePath.slice(0, filePath.lastIndexOf("/"))
+        );
+        return content;
+    }
+    
+    static getCurrentEditorSnakefilePath(): string | null {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) { 
+            return  ""; 
+        }
+        let activeEditorCurrentPath = editor.document.fileName;
+        if (activeEditorCurrentPath.includes("Snakefile")) {
+            return activeEditorCurrentPath;
+        }
+        return null;
+    }
 
 }

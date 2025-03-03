@@ -29,6 +29,13 @@ export class WriteToFiles{
         return true;
     }
 
+    async writeToNewFile(value: string): Promise<boolean>{
+        return vscode.commands.executeCommand('workbench.action.files.newUntitledFile', {"languageId": "markdown"}).then(() => {
+            const editor = vscode.window.activeTextEditor;
+            return this.writeToEditor(value, editor);
+        });
+    }
+
     async writeToCurrentFile(value: string): Promise<boolean>{
         //Write to the file currently in focus, if any
         var editor = vscode.window.activeTextEditor;
