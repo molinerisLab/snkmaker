@@ -17,6 +17,7 @@ export class ExtensionSettings{
     private validateSnakemakeRules: boolean = false;
     private snakemakeAbsolutePath: string = "";
     private includeCurrentFileIntoPrompt: boolean = false;
+    private commentEveryRule: boolean = false;
     
     public getAllowLogging(): boolean {
         return this.allowLogging;
@@ -42,6 +43,9 @@ export class ExtensionSettings{
     public getIncludeCurrentFileIntoPrompt(): boolean {
         return this.includeCurrentFileIntoPrompt;
     }
+    public getCommentEveryRule(): boolean {
+        return this.commentEveryRule;
+    }
 
     private constructor(){
         this.allowLogging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
@@ -52,6 +56,7 @@ export class ExtensionSettings{
         this.validateSnakemakeRules = vscode.workspace.getConfiguration('snakemaker').get('validateSnakemakeRules', false);
         this.snakemakeAbsolutePath = vscode.workspace.getConfiguration('snakemaker').get('snakemakeAbsolutePath', "");
         this.includeCurrentFileIntoPrompt = vscode.workspace.getConfiguration('snakemaker').get('includeCurrentFileIntoPrompt', false);
+        this.commentEveryRule = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.CommentEveryRule', false);
 
         vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration("snakemaker.allowLogging")) {
@@ -70,6 +75,8 @@ export class ExtensionSettings{
                 this.snakemakeAbsolutePath = vscode.workspace.getConfiguration('snakemaker').get('snakemakeAbsolutePath', "");
             } else if (event.affectsConfiguration("snakemaker.includeCurrentFileIntoPrompt")){
                 this.includeCurrentFileIntoPrompt = vscode.workspace.getConfiguration('snakemaker').get('includeCurrentFileIntoPrompt', false);
+            } else if (event.affectsConfiguration("snakemaker.snakemakeBestPractices.CommentEveryRule")){
+                this.commentEveryRule = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.CommentEveryRule', false);
             }
         });
     }

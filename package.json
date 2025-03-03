@@ -412,6 +412,11 @@
           "default": true,
           "markdownDescription": "Snakemake rules are generated, when possible, with generic filenames, using wildcards, as recommended by [Snakemake best practices](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html#wildcards)."
         },
+        "snakemaker.snakemakeBestPractices.CommentEveryRule": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Every rule is generated with a short description."
+        },
         "snakemaker.rulesOutputFormat": {
           "type": "string",
           "enum": [
