@@ -2,6 +2,7 @@ import { LLM } from "./ModelComms";
 import { BashCommand } from "./TerminalHistory";
 import { ExtensionSettings } from '../utils/ExtensionSettings';
 import * as vscode from 'vscode';
+import { OpenedSnakefileContent } from "../utils/OpenendSnakefileContent";
 
 class ModelPrompts{
     static ruleDetailsPrompt(command: string): string{
@@ -73,7 +74,7 @@ Please return the rules in JSON format. The JSON contains a single field 'rule' 
     }
 
     static rulesContextPrompt(currentRules: string){
-        if (currentRules.length <= 50){return "";} //Skip prompt if file has a few characters inside
+        if (currentRules.length <= 20){return "";} //Skip prompt if file has a few characters inside
         return `\nFor context, these are the rules already present:\n${currentRules}\nPlease consider these rules as a context when writing the new rules. Follow their style and formalism. If a command results in a rule equal to one already present, do not output it. If you need to return no rule at all, return a newline instead. DO NOT write the already present rules them back in your response or the user will find them twice in his file.`;
     }
 
@@ -91,16 +92,6 @@ export class Queries{
             response = response.substring(start, end + 1);
         }
         return JSON.parse(response)["rule"];
-    }
-
-    getCurrentEditorContent(){
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) { 
-            return  ""; 
-        }
-        const document = editor.document;
-        const content = document.getText();
-        return content;
     }
 
     cleanModelResponseStupidHeaders(response: string): string{
@@ -152,7 +143,8 @@ export class Queries{
         if (output === "-"){ output = "No output";}
         let context = "";
         if (ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt()){
-            context = ModelPrompts.rulesContextPrompt(this.getCurrentEditorContent());
+            const currentSnakefileContext = await OpenedSnakefileContent.getCurrentEditorContent();
+            context = ModelPrompts.rulesContextPrompt(currentSnakefileContext);
         }
         const prompt_original = ModelPrompts.ruleFromCommandPrompt(command, bashCommand.getRuleName(), ruleFormat, inputs, output, ruleFormat==="Snakemake" && ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules(), context);
         let prompt = prompt_original;
@@ -179,7 +171,8 @@ export class Queries{
         );
         let context = "";
         if (ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt()){
-            context = ModelPrompts.rulesContextPrompt(this.getCurrentEditorContent());
+            const currentSnakefileContext = await OpenedSnakefileContent.getCurrentEditorContent();
+            context = ModelPrompts.rulesContextPrompt(currentSnakefileContext);
         }
 
         const prompt_original = ModelPrompts.rulesFromCommandsBasicPrompt(formatted, ruleFormat, extraPrompt, context);
