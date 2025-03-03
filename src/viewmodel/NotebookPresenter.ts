@@ -125,6 +125,11 @@ export class NotebookPresenter{
     }
 
     public addDependency(cell_index: number, variable: string){
+        if (this.model.cells.cells[cell_index].isFunctions){
+            this.addFunctionDependency(cell_index, variable);
+            return;
+        }
+
         try{
             this.view.setLoading("Updating cell depenency graph...");
             const res = this.model.addCellDependency(cell_index, variable);
@@ -262,5 +267,17 @@ export class NotebookPresenter{
                 );
             }
         });
+    }
+
+    public removeFunctionDependency(cell_index: number, variable_name: string){
+        this.model.removeFunctionDependency(cell_index, variable_name);
+        this.view.setNotebookCells(this.model.cells);
+        this.view.setRulesNodes(this.model.cells);
+    }
+
+    public addFunctionDependency(cell_index: number, variable_name: string){
+        this.model.addDependencyToFunction(cell_index, variable_name);
+        this.view.setNotebookCells(this.model.cells);
+        this.view.setRulesNodes(this.model.cells);
     }
 }

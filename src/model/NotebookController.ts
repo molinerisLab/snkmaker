@@ -106,7 +106,8 @@ export class Cell {
         public dependsOnFunction: { [key: string]: number } = {},
         
         public writesTo: { [key: string]: number[] } = {},
-        public rule: RulesNode = new RulesNode(isFunctions ? declares[0] : "", isFunctions ? "script" : "undecided", isFunctions, {}, {}, {})
+        public rule: RulesNode = new RulesNode(isFunctions ? declares[0] : "", isFunctions ? "script" : "undecided", isFunctions, {}, {}, {}),
+        public replacedFunctionVariables: string[] = []
     ) {}
 
     toCode(): string{
@@ -237,70 +238,114 @@ export class CellDependencyGraph{
         this.cells = this.cells.filter((cell) => cell.code.length>1);
     }
 
-    public makeFunctionsIndependent(){
-        for (let i=0; i<this.cells.length; i++){ 
-            if (!this.cells[i].isFunctions) {continue};
-
-            const fcell = this.cells[i];
-            const reads = fcell.reads;
-            const replaced = reads.map((read) => `__${read.toLowerCase()}__` );
+    public removeFunctionDependency(i: number, dependency: string){
+        const fcell = this.cells[i];
+        if (!fcell.isFunctions) {return}
+        fcell.replacedFunctionVariables = fcell.replacedFunctionVariables.filter((v) => v !== dependency);
+        //In cell code, replace __dependency__ with dependency
+        const regex = new RegExp(`\\b__${dependency.toLowerCase()}__\\b`, 'g');
+        //In cell code, replace function definition parameter list with dependency removed
+        const regex2 = new RegExp(`\\b(${fcell.declares.join("|")})\\s*\\(([^)]*)\\)\\s*:`, 'g');
+        fcell.code = fcell.code.replace(regex2, (match, funcName, params) => {
+            const paramList = params.split(',').map((p: string) => p.trim());
+            const filteredParams = paramList.filter((p:string) => p !== `__${dependency.toLowerCase()}__`);
+            return `${funcName}(${filteredParams.join(', ')}):`;
+        });
+        fcell.code = fcell.code.replace(regex, dependency);
+        //Remove dependency from cells that call this function
+        for (let j=i+1; j<this.cells.length; j++){
+            const cell = this.cells[j];
+            if (cell.isFunctions){
+                continue;
+            }
             fcell.declares.forEach((decl, index) => {
-                if (fcell.writes.includes(decl)) {
-                    fcell.writes = fcell.writes.filter((read) => read !== decl);
-                }
-                for (let j=i+1; j<this.cells.length; j++){
-                    if (this.cells[j].reads.includes(decl)) {
-                        this.cells[j].reads = this.cells[j].reads.filter((read) => read !== decl);
+                if (cell.calls.includes(decl)){
+                    const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
+                    if (cell.code.match(regex)) {
+                        cell.code = cell.code.replace(regex, (match, args) => {
+                            const argList = args.split(',').map((arg:string) => arg.trim());
+                            const filteredArgs = argList.filter((arg:string) => arg !== `${dependency.toLowerCase()}`);
+                            return `${decl}(${filteredArgs.join(', ')})`;
+                        });
                     }
                 }
             });
-            //Replace all reads with replaced keyword inside code
-            for (let j=0; j<reads.length; j++){
-                fcell.code = fcell.code.replace(reads[j], replaced[j]);
+        }
+    }
+
+    public makeIndividualFunctionIndependent(i: number){
+        if (!this.cells[i].isFunctions) {return};
+
+        const fcell = this.cells[i];
+        const reads = fcell.reads;
+        const replaced = reads.map((read) => `__${read.toLowerCase()}__` );
+        fcell.declares.forEach((decl, index) => {
+            //Remove function name from cell writes (sometimes models put it there, but it should not)
+            if (fcell.writes.includes(decl)) {
+                fcell.writes = fcell.writes.filter((read) => read !== decl);
             }
-            if (replaced.length > 0){
+            //Same for reads of cells that call this function
+            for (let j=i+1; j<this.cells.length; j++){
+                if (this.cells[j].reads.includes(decl)) {
+                    this.cells[j].reads = this.cells[j].reads.filter((read) => read !== decl);
+                }
+            }
+        });
+        //Replace all reads with replaced keyword inside code
+        for (let j=0; j<reads.length; j++){
+            const regex = new RegExp(`\\b${reads[j]}\\b`, 'g');
+            fcell.code = fcell.code.replace(regex, replaced[j]);
+        }
+        if (replaced.length > 0){
+            fcell.declares.forEach((decl, index) => {
+                //Update function parameters
+                const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
+                fcell.code = fcell.code.replace(regex, (match, p1) => {
+                    return match.replace(p1, p1 + ", " + replaced.join(", "));
+                });
+            });
+            //Find cells that call one of these functions - replace call and add dependencies
+            for (let j=i+1; j<this.cells.length; j++){
+                const cell = this.cells[j];
+                if (cell.isFunctions){
+                    continue;
+                }
                 fcell.declares.forEach((decl, index) => {
                     const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
-                    fcell.code = fcell.code.replace(regex, (match, p1) => {
-                        return match.replace(p1, p1 + ", " + replaced.join(", "));
-                    });
+                    if (cell.code.match(regex)){
+                        cell.calls.push(decl);
+                        cell.dependsOnFunction[decl] = i;
+                        cell.reads.push(...reads);
+                        cell.reads = [...new Set(cell.reads)];
+                        cell.code = cell.code.replace(regex, (match, p1) => {
+                            return match.replace(p1, p1 + ", " + reads.join(", "));
+                        });
+                    }
                 });
-                //Find cells that call one of these functions - replace call and add dependencies
-                for (let j=i+1; j<this.cells.length; j++){
-                    const cell = this.cells[j];
-                    if (cell.isFunctions){
-                        continue;
-                    }
-                    fcell.declares.forEach((decl, index) => {
-                        const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
-                        if (cell.code.match(regex)){
-                            cell.calls.push(decl);
-                            cell.dependsOnFunction[decl] = i;
-                            cell.reads.push(...reads);
-                            cell.reads = [...new Set(cell.reads)];
-                            cell.code = cell.code.replace(regex, (match, p1) => {
-                                return match.replace(p1, p1 + ", " + reads.join(", "));
-                            });
-                        }
-                    });
-                }
-                fcell.reads = [];
-            } else {
-                //Simply add dependencies to the cells that call the function
-                for (let j=i+1; j<this.cells.length; j++){
-                    const cell = this.cells[j];
-                    if (cell.isFunctions){
-                        continue;
-                    }
-                    fcell.declares.forEach((decl, index) => {
-                        const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
-                        if (cell.code.match(regex)){
-                            cell.calls.push(decl);
-                            cell.dependsOnFunction[decl] = i;
-                        }
-                    });
-                }
             }
+            fcell.replacedFunctionVariables = [...fcell.reads, ...fcell.replacedFunctionVariables];
+            fcell.reads = [];
+        } else {
+            //Simply add dependencies to the cells that call the function
+            for (let j=i+1; j<this.cells.length; j++){
+                const cell = this.cells[j];
+                if (cell.isFunctions){
+                    continue;
+                }
+                fcell.declares.forEach((decl, index) => {
+                    const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
+                    if (cell.code.match(regex)){
+                        cell.calls.push(decl);
+                        cell.dependsOnFunction[decl] = i;
+                    }
+                });
+            }
+        }
+    }
+
+    public makeFunctionsIndependent(){
+        for (let i=0; i<this.cells.length; i++){ 
+            this.makeIndividualFunctionIndependent(i);
         }
         //Remove eventually empty cells
         this.cells = this.cells.filter((cell) => cell.code.length>1);
@@ -325,9 +370,11 @@ export class CellDependencyGraph{
                     lastChanged[index][key] = lastChanged[index - 1][key];
                 });
             }
-            cell.writes.forEach((write) => {
-                lastChanged[index][write] = index;
-            });
+            if (!cell.isFunctions){
+                cell.writes.forEach((write) => {
+                    lastChanged[index][write] = index;
+                });
+            }
         });
         this.updateRulesDependencies();
     }
@@ -503,6 +550,16 @@ export class NotebookController{
             this.cells.cells[p.cell_index].code = newImports.join("\n") + "\n" + this.cells.cells[p.cell_index].code;
             this.cells.cells[p.cell_index].imports = newImports;
         }
+    }
+
+    public removeFunctionDependency(index: number, keyword: string){
+        this.cells.removeFunctionDependency(index, keyword);
+    }
+
+    public addDependencyToFunction(index: number, keyword: string){
+        this.cells.cells[index].reads.push(keyword);
+        this.cells.makeIndividualFunctionIndependent(index);
+        this.cells.buildDependencyGraph();
     }
 
     async updateRulePostfix(index: number, code: string){

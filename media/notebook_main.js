@@ -258,6 +258,24 @@
             html += `<div id="cell${index}_details" class="cell_details">\n`;
             if (element.isFunctions){
                 html += `<p><strong>Declares:</strong> ${element.declares}</p>`;
+                const dependencies = element.replacedFunctionVariables;
+                if (dependencies.length === 0){
+                    html += `<p><strong>No dependencies</strong></p>\n`;
+                } else {
+                    html += `<p><strong>Function reads from global context (replaced to function arguments):</strong></p>\n`;
+                    html += "<div class='dependency_container'>\n";
+                    dependencies.forEach((dep) => {
+                        html += `<p>${dep}</p><button class="smallbutton" id="rem_dip_${index}_${dep}" title="remove">&times;</button>\n`;
+                        removeDependencyCallbacks.push([`rem_dip_${index}_${dep}`, ()=>{
+                        vscode.postMessage({
+                            command: 'remove_function_dependency',
+                            index: index,
+                            keyword: dep
+                        });
+                        }]);
+                    });
+                    html += "</div>\n";
+                }
             } else {
                 const dependencies = Object.entries(element.dependsOn).map(([key, value]) => [`${key} (cell [${value}])`, key]);
                 if (dependencies.length === 0){
@@ -315,9 +333,9 @@
         //Set callbacks
         let selectedText = ""; let selectedCell = "";
         const actionButton = document.getElementById('actionButton');
+        const actionButtonWrites = document.getElementById('addWrite')
         const parapgraphs = [];
         for (let i=0; i<cells.cells.length; i++){
-
             const paragraph = document.getElementById('cell'+i);
             parapgraphs.push(paragraph);
             paragraph.addEventListener('mouseup', () => {
@@ -332,6 +350,7 @@
                     actionButton.style.top = `${rect.bottom + window.scrollY}px`;
                     actionButton.style.left = `${rect.left + window.scrollX}px`;
                     actionButton.style.display = 'flex';
+                    actionButtonWrites.style.display = (cells.cells[i].isFunctions) ? 'none' : 'flex';
                     selectedCell = i;
                     selectedText = selection.toString().trim();
                 } else {

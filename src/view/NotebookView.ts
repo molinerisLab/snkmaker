@@ -118,7 +118,9 @@ export class NotebookView implements NotebookViewCallbacks{
                     case 'back':
                         presenter.back();
                         break;
-                    //become_rule become_script become_undecided all with message.index
+                    case 'remove_function_dependency':
+                        presenter.removeFunctionDependency(message.index, message.keyword);
+                        break;
                 }
             },
             null,

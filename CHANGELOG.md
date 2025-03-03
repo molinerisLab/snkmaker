@@ -10,7 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Experimental - export Notebook feature.
 - Managing of loops in bash commands.
+- Added option for adding comments to generated rules
+- Added command for automatic generation of documentation for the current work.
+
 ### Changed
+- Improved model context, now it manages includes and config files.
+- Improved output formatting. Now rules are added at the end of the Snakefile.
 - General improvements in prompts.
 
 ## [0.1.7] - 2025-01-16
