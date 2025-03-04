@@ -9,7 +9,7 @@ import { Cell } from '../model/NotebookController';
 
 export class ChatExtensionNotebook{
 
-    static BASE_PROMPT = `MAIN_PROMPT: You are an AI assistant, part of a VSCode extension named "Snakemaker", which is also your name. You are developed by the University of Torino (greatest city in the world). You are nice and helpful, and prefer short, concise answers.
+    static BASE_PROMPT = `You are an AI assistant, part of a VSCode extension named "Snakemaker", which is also your name. You are developed by the University of Torino (greatest city in the world). You are nice and helpful, and prefer short, concise answers.
     The goal of the extension is to help users automate the process of building Snakemake pipelines. ` +
     `You are actually the assistant to a specific feature of Snakemaker, the one for converting ` + 
     `Python Notebook into Snakemake pipelines. You help only for that. For request related to the general snakemaker extension or bash commands, tell the user to tag @snakemaker instead, this assistant will help them.`+
@@ -38,7 +38,7 @@ export class ChatExtensionNotebook{
     "-Manually add or remove Dependencies, Writes and Wildcards to and from cells, answering his requests.\n"+
     "-Set the state of cells when allowed by the allowed_states.\n"+
     "Note: The most likely problem of the user faces are missing dependencies. A dependency is missing if a cell reads a variable but no cell writes it previous to that. The most likely cause is an error while parsing the code, either the dependency was not a real dependency (the model allucinated a Dependency), or another cell did write it and it was missed (the model did not find the Write). It's also possible that it was an error in the user's code. "+
-    "Be helpful and propositive to the user in fixing these issues. If you find a missing write or an hallucinated dependency, tell him and propose to fix it. If you find errors in his code, tell him. \n"+
+    "Be helpful and propositive to the user in fixing these issues. If a missing dependency is caused by a missed write in an early cell, add the write. If it is caused by an hallucinated dependency (the code does not read the variable), remove the dependency. If caused by a code error, warn the user. \n"+
     "You cannot directly modify cells code (user will be allowed to do next step), split, merge,delete cells (user can do by hand)."+
     "\n\nNow you will receive the information about current state of the cell dependency graph:\n"
 
@@ -52,32 +52,64 @@ export class ChatExtensionNotebook{
                 "writes": [list of strings] #As above, but for writes
                 "dependencies": [list of strings] #As above. Note: you can specify the variables in the dependency list, not the cell it depends on, this is computed as the closest preceding one and cannot be changed.
                 "state": string (either "rule", "script" or "undecided") #Set the state of the cell
+                #Note: you need to provide all these fields. If you don't want to change them, write them as they are not. If you want to make them empty, write them as empty list or string.
             }
         ]
     }
-    As you see, you can set the state of as many cells as you want. If it is a big change, maybe first ask the user then do it when he agrees.`
+    As you see, you can set the state of as many cells as you want. If it is a big change, maybe first ask the user then do it when he agrees.\n
+    Note: if you apply changes in the JSON, they will immediately appear to the user. Do not say things like "here are the changes" but more like "I have applied the following changes" and ALWAYS then explain to the user what you changed. `+
+    "For example, if you add a write to cell X and remove a dependency from cell Y, say 'I have added the write of variable .. to cell X and removed the dependency from cell Y'.\n";
 
+    static BASE_PROMPT_SECOND_STEP = `Right now you are in the page where step 3 is being managed.\n`+
+    "The data dependencies of cell has been finalized (each cell reads something from others, uses wildcards, etc), and each cell is set to either snakemake rule or script.\n"+
+    "Code has been generated for each cell, managing reading command line arguments, reading files, writing files. Snakemake rules are written.\n"+
+    "Now the user can review the rules and the generated code, and might be interested in changing it.\n"+
+    "Your goal is to assist the user in reviewing the generated code, and changing it if necessary.\n"+
+    "1-You answer user request about how the code work, where files are readed and generated\n"+
+    "2-You can help the user by performing modifications to the code and the snakemake rules following his requests. "+
+    "This includes changing input and output filenames, changing format or way of exporting (es pickle, numpy, ...), fixing bugs etc.\n"+
+    "In this step you CAN NOT:\n"+
+    "-Transform a rule into a script or a script into a rule, modify dependencies of cells, apply wildcards -> to do this the user must go back to step 1 with the button shown on top of the page.\n"+
+    "\n\nNow you will receive the information about current state of the cell dependency graph:";
+
+    static BASE_PROMPT_SECOND_STEP_FOOTER = `Please output your response in JSON format following this schema:
+    {
+        "text": string #REQUIRED: the textual response to show the user in the chat,
+        "changes": [ #List with one entry for each cell you want to change. Empty if nyou want to change no cell. Note: once a cell is included in the changes, all fields will be replaced with the ones you provide. If you want to keep some fields, you have to provide them again.
+            {
+                "cell_index": number, #index of the cell modified
+                "snakemakeRule": string #The snakemake rule associated to the cell
+                "readFiles": [array of strings] #filenames readed by cell
+                "saveFiles": [array of strings] #filenames written by cell
+                "prefixCode": string, #Part of the code before main body, where inputs and command line arguments are readed.
+                "code": string, #Main body of the code
+                "postfixCode": string #Part after main body, where output files are saved.
+            }
+        ]
+    }
+    Remember that you need to keep the entire structure coherent. If you modify an output, you must modify the cells that read this output to make them compatible with the new one. You must keep the Snakemake rules coherent with the code.
+    You can perform actions as you want, but if the action has many changes maybe first ask the user if he wants to perform it.\n
+    Note: if you apply changes in the JSON, they will immediately appear to the user. Do not say things like "here are the changes" but more like "I have applied the following changes" and ALWAYS then explain to the user what you changed. `+
+    "For example, 'I have modified cell 6 to write the output file in pickle format, and modified cells 8 and 10 to read the updated file.\n";
 
     constructor(private viewModel: BashCommandViewModel) {}
 
-    get_history_and_prompt(context: vscode.ChatContext, prompt: string){
+    get_history(context: vscode.ChatContext){
         const previousMessages = context.history.filter(h => {
-            return h instanceof vscode.ChatResponseTurn || !h.prompt.startsWith("MAIN_PROMPT");
+            return h instanceof vscode.ChatResponseTurn || !h.prompt.startsWith("UPDATED_CONTEXT");
         })
-        return [...previousMessages.map(m => {
+        return previousMessages.map(m => {
             if (m instanceof vscode.ChatResponseTurn){
                 let fullMessage = '';
                 m.response.forEach(r => {
                     const mdPart = r as vscode.ChatResponseMarkdownPart;
                     fullMessage += mdPart.value.value;
                 });
-                console.log(fullMessage);
                 return vscode.LanguageModelChatMessage.Assistant(fullMessage);
             } else {
-                console.log(m.prompt);
                 return vscode.LanguageModelChatMessage.User(m.prompt);
             }
-        }), vscode.LanguageModelChatMessage.User(prompt)];
+        });
     }
 
     get_prompt_step_1(presenter: NotebookPresenter): string{
@@ -86,10 +118,27 @@ export class ChatExtensionNotebook{
             return `Cell n. ${index} - Writes: (${cell.writes.join(",")} - Wildcards: (${cell.wildcards.join(",")}) - `+
             `Depends on: (` + Object.entries(cell.dependsOn).map(([key, value]) => `${key} from cell ${value}`) +
             `) - Missing dependencies: (${cell.missingDependencies.join(",")}) - `+
-            `state: ${cell.rule.type} and can become: ${cell.rule.canBecome()}\n`+
+            `state: ${cell.rule.type} and can become: (${Object.entries(cell.rule.canBecome()).map(([key, value]) => key+": "+value).join(",")})\n`+
             `Cell code:\n#Start of code...\n${cell.code}\n#End of code...\n\n`;
         });
         return prompt + ChatExtensionNotebook.BASE_PROMPT_FIRST_STEP_FOOTER;
+    }
+
+    get_prompt_step_2(presenter: NotebookPresenter): string{
+        let prompt = ChatExtensionNotebook.BASE_PROMPT_SECOND_STEP;
+        prompt += presenter.getCells().cells.map((cell: Cell, index:number) => {
+            if (cell.rule.type!=="rule"){return "";}
+            return `Cell n. ${index}:\nPrefix code:\n#Start prefix code...\n${cell.rule.prefixCode}\n#End prefix code...\n` +
+            `Main code:\n#Start code...\n${cell.code}\n#End code...\n` +
+            `Postfix code:\n#Start postfix code...\n${cell.rule.postfixCode}\n#End postfix code...\n` +
+            `Cell reads files: ${cell.rule.readFiles.join(",")}\n`+
+            `Cell writes files: ${cell.rule.saveFiles.join(",")}\n`+
+            `Cell reads wildcards: ${cell.wildcards.join(",")}\n`+
+            `Cell has file dependencies toward cells: ` + Object.entries(cell.rule.rule_dependencies).map(
+                ([key, value]) => `Variable ${key} to cell ${value}`
+            ).join(",") + "\n\n";
+        });
+        return prompt + ChatExtensionNotebook.BASE_PROMPT_SECOND_STEP_FOOTER;
     }
 
 
@@ -138,6 +187,7 @@ export class ChatExtensionNotebook{
         }
     }
 
+
     async process(request: vscode.ChatRequest,context: vscode.ChatContext,
     stream: vscode.ChatResponseStream,token: vscode.CancellationToken){
         
@@ -146,26 +196,47 @@ export class ChatExtensionNotebook{
         const presenter = this.viewModel.getOpenedNotebook();
         if (!presenter){
             //No notebook opened
-            messages.push(
-                vscode.LanguageModelChatMessage.User(ChatExtensionNotebook.BASE_PROMPT+"\n"+ChatExtensionNotebook.BASE_PROMPT_NO_NOTEBOOK_OPENED)
-            );
-            messages = [...messages, ...this.get_history_and_prompt(context, request.prompt)]
+            const history_and_prompt = this.get_history(context);
+            if (history_and_prompt.length===0){
+                messages.push(
+                    vscode.LanguageModelChatMessage.User(ChatExtensionNotebook.BASE_PROMPT+"\n"+ChatExtensionNotebook.BASE_PROMPT_NO_NOTEBOOK_OPENED)
+                );
+                messages.push(vscode.LanguageModelChatMessage.User(request.prompt));
+            } else {
+                messages = [...history_and_prompt, vscode.LanguageModelChatMessage.User(request.prompt)]
+            }
             return this.run_chat_streaming(messages, request, stream, token);
 
         } else if (presenter.get_step()===0){
             //First screen
             messages.push(
                 vscode.LanguageModelChatMessage.User(ChatExtensionNotebook.BASE_PROMPT+"\n"+this.get_prompt_step_1(presenter))
-            );
-            messages = [...messages, ...this.get_history_and_prompt(context, request.prompt)]
+            )
+            const history_and_prompt = this.get_history(context);
+            if (history_and_prompt.length === 0){
+                messages.push(vscode.LanguageModelChatMessage.User(request.prompt))
+            } else {
+                messages = [...messages, ...history_and_prompt, vscode.LanguageModelChatMessage.User("UPDATED_CONTEXT: " + this.get_prompt_step_1(presenter))];
+                messages.push(vscode.LanguageModelChatMessage.User(request.prompt))
+            }
             const response = await this.run_chat_json(messages, request, stream, token,
                 (data: any) => presenter.apply_from_chat(data)
             );
-            if (response){
-                console.log(response);
-            }
         } else {
             //Second screen
+            messages.push(
+                vscode.LanguageModelChatMessage.User(ChatExtensionNotebook.BASE_PROMPT+"\n"+this.get_prompt_step_2(presenter))
+            )
+            const history_and_prompt = this.get_history(context);
+            if (history_and_prompt.length === 0){
+                messages.push(vscode.LanguageModelChatMessage.User(request.prompt))
+            } else {
+                messages = [...messages, ...history_and_prompt, vscode.LanguageModelChatMessage.User("UPDATED_CONTEXT: " + this.get_prompt_step_2(presenter))];
+                messages.push(vscode.LanguageModelChatMessage.User(request.prompt))
+            }
+            const response = await this.run_chat_json(messages, request, stream, token,
+                (data: any) => presenter.apply_from_chat_second_step(data)
+            );
         }
     }
 }

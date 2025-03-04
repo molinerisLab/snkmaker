@@ -319,4 +319,16 @@ export class NotebookPresenter{
             this.view.setRulesNodes(this.model.cells);
         }, 1400);
     }
+
+    public apply_from_chat_second_step(data:any){
+        if (data["changes"].length===0){
+            return;
+        }
+        this.view.setLoading("Applying changes from chat agent...");
+        const changes = data["changes"];
+        this.model.apply_from_chat_second_step(changes);
+        setTimeout(() => {
+            this.view.setOutput(this.model.cells);
+        }, 1100);
+    }
 }

@@ -453,11 +453,16 @@ export class NotebookController{
     }
 
     apply_from_chat(changes:any){
+        //Validate input
         for (let cell of changes){
-            /**"cell_index": number #Index of the cell changed,
-                "wildcards": [list of strings] #Set the wildcards - every entry in the list is a string corresponding to a variable in the code
-                "writes": [list of strings] #As above, but for writes
-                "dependencies": [list of strings] #As above. Note: you can specify the variables in the dependency list, not the cell it depends on, this is computed as the closest preceding one and cannot be changed. */
+            if (typeof cell.cell_index !== 'number' ||
+            !Array.isArray(cell.wildcards) ||
+            !Array.isArray(cell.writes) ||
+            !Array.isArray(cell.dependencies)) {
+                throw new Error("Invalid response format: One or more cell properties are missing or of incorrect type. A cell changing must have cell_index, wildcards, writes and dependencies as fields.");
+            }
+        }
+        for (let cell of changes){
             const index = cell.cell_index;
             const target = this.cells.cells[index];
             target.reads = cell.dependencies;
@@ -467,6 +472,32 @@ export class NotebookController{
         }
         this.cells.buildDependencyGraph();
     }
+
+    apply_from_chat_second_step(changes:any){
+        //Validate input
+        for (let cell of changes){
+            if (typeof cell.cell_index !== 'number' ||
+                typeof cell.snakemakeRule !== 'string' ||
+                !Array.isArray(cell.readFiles) ||
+                !Array.isArray(cell.saveFiles) ||
+                typeof cell.prefixCode !== 'string' ||
+                typeof cell.code !== 'string' ||
+                typeof cell.postfixCode !== 'string') {
+                 throw new Error("Invalid response format: One or more cell properties are missing or of incorrect type");
+            }
+        }
+        for (let cell of changes){
+            const index = cell.cell_index;
+            const target = this.cells.cells[index];
+            target.rule.readFiles = cell.readFiles;
+            target.rule.saveFiles = cell.saveFiles;
+            target.rule.prefixCode = cell.prefixCode;
+            target.rule.postfixCode = cell.postfixCode;
+            target.code = cell.code;
+        }
+
+    }
+
 
     private async runPromptAndParse(original_prompt: string): Promise<any> {
         let prompt = original_prompt;
