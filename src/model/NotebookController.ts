@@ -493,6 +493,7 @@ export class NotebookController{
             target.rule.saveFiles = cell.saveFiles;
             target.rule.prefixCode = cell.prefixCode;
             target.rule.postfixCode = cell.postfixCode;
+            target.rule.snakemakeRule = cell.snakemakeRule;
             target.code = cell.code;
         }
 

@@ -87,7 +87,7 @@ export class ChatExtensionNotebook{
             }
         ]
     }
-    Remember that you need to keep the entire structure coherent. If you modify an output, you must modify the cells that read this output to make them compatible with the new one. You must keep the Snakemake rules coherent with the code.
+    Remember that you need to keep the entire structure coherent. If you modify an output, you must modify the cells that read this output to make them compatible with the new one. You must keep the Snakemake rules, its input and output fields coherent with the code.
     You can perform actions as you want, but if the action has many changes maybe first ask the user if he wants to perform it.\n
     Note: if you apply changes in the JSON, they will immediately appear to the user. Do not say things like "here are the changes" but more like "I have applied the following changes" and ALWAYS then explain to the user what you changed. `+
     "For example, 'I have modified cell 6 to write the output file in pickle format, and modified cells 8 and 10 to read the updated file.\n";
