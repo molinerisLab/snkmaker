@@ -456,7 +456,19 @@ button:disabled {
 	font-family: 'Courier New', Courier, monospace;
 }
 
-
+.code_dependent{
+	background-color: rgba(43, 213, 0, 0.516);
+}
+.code_wildcard{
+	background-color: rgba(0, 183, 255, 0.516);
+}
+.code_missing{
+	background-color: rgba(210, 0, 0, 0.516);
+}
+.code_write{
+	text-decoration: underline;
+	text-decoration-color: rgb(255, 0, 221);
+}
 
 [contenteditable="true"]:active, [contenteditable="true"]:focus
 {

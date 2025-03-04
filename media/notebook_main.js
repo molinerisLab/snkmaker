@@ -179,6 +179,24 @@
           });
     }
 
+    function match_and_replace(code, keywords, tag){
+        for (let i=0; i<keywords.length; i++){
+            const keyword = keywords[i];
+            const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`\\b${escapedKeyword}\\b`, 'g');
+            code = code.replace(regex, `<span class=${tag}>${keyword}</span>`);
+        }
+        return code;
+    }
+
+    function highlight_code_by_dependencies(code, highlight_dependent, highlight_wildcards, highlight_writes, highlight_missing){
+        code = match_and_replace(code, highlight_dependent, "code_dependent");
+        code = match_and_replace(code, highlight_wildcards, "code_wildcard");
+        code = match_and_replace(code, highlight_writes, "code_write");
+        code = match_and_replace(code, highlight_missing, "code_missing");
+        return code;
+    }
+
     //MainContainer( [(CellContainer(..,CellRuleContainer)) for each cell] )
     function set_cells(cells) {
         //Remove old event listener
@@ -210,6 +228,10 @@
             <p class="with_space">>Manually set a variable as "Written by the cell" or "Readed from other cells" or as "Readed from Wildcard". Select the variable 
             in the code and click on the buttons that appears</p>
             <p class="with_space">>Manually remove a variable from the "Read" or "Write" set of a cell using the X buttons below the cell.</p>
+            <p class="with_space"><span class="code_dependent">Green</span> keyword are variables readed from previous cells.</p>
+            <p class="with_space"><span class="code_wildcard">Blue</span> keyword are variables readed from wildcards.</p>
+            <p class="with_space"><span class="code_missing">Red</span> keyword are missing dependencies.</p>
+            <p class="with_space"><span class="code_write">Underlined</span> keyword are variables written by the cell.</p>
             </div>
             <div class="notice_before_proceed" id="data_dependency_errors"></div>
             <div class="notice_before_proceed" id="undecided_cells"></div>
@@ -237,15 +259,20 @@
                 if (index > 0 && !cells.cells[index-1].isFunctions){
                     html += `<button id="merge_prev_button_${index}" title="Merge with previous cell">&uarr;</button>\n`;
                 }
-                //TODO split
                 html += `<button id="split_button_${index}" title="Split cell">&#247;</button>\n`;
             }
             html += "</div>\n";
             html += "</div>\n";
             
             //Code
+            //variables for code highlighting
+            const highlight_dependent = Object.entries(element.dependsOn).map(([key, value]) => key);
+            const highlight_wildcards = element.wildcards;
+            const highlight_writes = element.writes;
+            const highlight_missing = element.missingDependencies
+
             html += `<div id="cell${index}" class="cell">\n`;
-            html += `<pre><code>${hljs.highlight(element.code, { language: 'python' }).value}</code></pre>\n`;
+            html += `<pre><code>${highlight_code_by_dependencies(hljs.highlight(element.code, { language: 'python' }).value, highlight_dependent, highlight_wildcards, highlight_writes, highlight_missing)}</code></pre>\n`;
             //html += `<p>${element.code}</p>\n`;
             html += "</div>\n";
 
@@ -774,7 +801,7 @@
         if (existingSvg) {
             existingSvg.remove();
         }
-        const height_px = document.getElementById('mainContainer').getBoundingClientRect().height;
+        const height_px = document.getElementById('mainContainer').getBoundingClientRect().height + document.getElementById('main_header').getBoundingClientRect().height;
         const width_px = getAbsolutePosition(document.getElementById('mainContainer')) - 8;
         const svgNS = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(svgNS, "svg");
