@@ -11,6 +11,7 @@ import { ExtensionSettings } from './utils/ExtensionSettings';
 import { AddModelView } from './view/AddModelView';
 import { AddHistoryView } from './view/AddHistoryView';
 import { NotebookView } from './view/NotebookView';
+import { ChatExtensionNotebook } from './utils/ChatExtensionNotebook';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -261,6 +262,14 @@ export function activate(context: vscode.ExtensionContext) {
 		};
 	const snakemaker = vscode.chat.createChatParticipant('chat-snakemaker', chat_handler);
 	snakemaker.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources/icon.svg');
+
+	const notebookChatExtension: ChatExtensionNotebook = new ChatExtensionNotebook(viewModel);
+	const notebook_chat_handler: vscode.ChatRequestHandler = async (request: vscode.ChatRequest,context: vscode.ChatContext,
+		stream: vscode.ChatResponseStream,token: vscode.CancellationToken) => {
+			await notebookChatExtension.process(request, context, stream, token);
+		};
+	const nb_snakemaker = vscode.chat.createChatParticipant('chat-snakemaker-notebook', notebook_chat_handler);
+	nb_snakemaker.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources/icon.svg');
 }
 
 // This method is called when your extension is deactivated

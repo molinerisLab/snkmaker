@@ -2,6 +2,7 @@
 import * as vscode from 'vscode';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
 import { CellDependencyGraph } from '../model/NotebookController';
+import internal from 'stream';
 
 export interface NotebookViewCallbacks{
     setNotebookCells(cells: CellDependencyGraph): void;
@@ -11,6 +12,8 @@ export interface NotebookViewCallbacks{
     setRulesNodes(nodes: CellDependencyGraph): void;
     stopLoading(): void;
     setOutput(cells: CellDependencyGraph): void;
+    dispose(): void;
+    get_state(): number;
 }
 
 export class NotebookView implements NotebookViewCallbacks{
@@ -29,6 +32,10 @@ export class NotebookView implements NotebookViewCallbacks{
         );
         panel.iconPath = vscode.Uri.joinPath(extensionUri, 'media', 'icon.svg');
         return new NotebookView(panel, extensionUri, viewModel, notebookUri, context);
+    }
+
+    public get_state(): number {
+        return this.currentScreen;
     }
 
     setNotebookCells(cells: CellDependencyGraph): void {
@@ -65,7 +72,7 @@ export class NotebookView implements NotebookViewCallbacks{
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, viewModel: BashCommandViewModel, notebookUri: vscode.Uri, context: vscode.ExtensionContext) {
         this._panel = panel;
         this._extensionUri = extensionUri;
-        this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+        this._panel.onDidDispose(() => {viewModel.openedNotebookPresenter=null; this.dispose();}, null, this._disposables);
         const presenter = viewModel.openNotebook(notebookUri, this);
         this._panel.webview.onDidReceiveMessage(
             message => {

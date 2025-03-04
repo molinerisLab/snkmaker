@@ -452,14 +452,28 @@ export class NotebookController{
         return JSON.parse(response);
     }
 
+    apply_from_chat(changes:any){
+        for (let cell of changes){
+            /**"cell_index": number #Index of the cell changed,
+                "wildcards": [list of strings] #Set the wildcards - every entry in the list is a string corresponding to a variable in the code
+                "writes": [list of strings] #As above, but for writes
+                "dependencies": [list of strings] #As above. Note: you can specify the variables in the dependency list, not the cell it depends on, this is computed as the closest preceding one and cannot be changed. */
+            const index = cell.cell_index;
+            const target = this.cells.cells[index];
+            target.reads = cell.dependencies;
+            target.writes = cell.writes;
+            target.wildcards = cell.wildcards;
+            target.rule.type = cell.state;
+        }
+        this.cells.buildDependencyGraph();
+    }
+
     private async runPromptAndParse(original_prompt: string): Promise<any> {
         let prompt = original_prompt;
         let response = "";
         for (let i=0; i<5; i++){
             try{
                 response = await this.llm.runQuery(prompt);
-                console.log(prompt);
-                console.log(response);
                 const parsed = this.parseJsonFromResponse(response);
                 return parsed;
             } catch (e:any){

@@ -298,4 +298,25 @@ export class NotebookPresenter{
         this.view.setNotebookCells(this.model.cells);
         this.view.setRulesNodes(this.model.cells);
     }
+
+    public dispose(){
+        this.view.dispose();
+    }
+
+    public get_step(){
+        return this.view.get_state();
+    }
+
+    public apply_from_chat(data:any){
+        if (data["changes"].length===0){
+            return;
+        }
+        this.view.setLoading("Applying changes from chat agent...");
+        const changes = data["changes"];
+        this.model.apply_from_chat(changes);
+        setTimeout(() => {
+            this.view.setNotebookCells(this.model.cells);
+            this.view.setRulesNodes(this.model.cells);
+        }, 1400);
+    }
 }

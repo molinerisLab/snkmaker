@@ -11,6 +11,7 @@ The goal of the VSCode extension is to help users track the bash command they ru
 As the AI assistant of this extension, you have these responsabilities:
 -Help the user with any questions they have about the extension and its usage.
 -Help the user reason about Snakemake, Make, bash commands and the conversion between them.
+-The extension also allows automatic convertion of Python Notebook into Snakemake pipelines; but you cannot directly help the user with this feature. You can just tell him this feature exists and it is accessible by opening a notebook, clicking "More actions" and "Process with Snakemaker". For other requests, tell the user to tag @snakemaker-notebook to get help with this feature.
 -You are provided with the user's commands history, and you can convert it, or parts of it, in snakemake or make rules, following user's requests.
 -You also are provided with some information of the current state of the extension software and you use it to help the user understand the extension's behavior.
 -Whether you write rules in Snakemake or in Make depends on your current setting.
@@ -123,7 +124,7 @@ HERE IS THE HISTORY:`;
         // get the previous messages
         const previousMessages = context.history.filter(h => h instanceof vscode.ChatResponseTurn);
         if (previousMessages.length > 10) {
-            previousMessages.splice(0, previousMessages.length - 190);
+            previousMessages.splice(0, previousMessages.length - 10);
         }
         previousMessages.forEach(m => {
             let fullMessage = '';

@@ -17,6 +17,7 @@ export class BashCommandViewModel{
     writeToFiles: WriteToFiles;
     isListening = false;
     isChangingModel = false;
+    openedNotebookPresenter: NotebookPresenter|null = null;
     
     constructor(private memento: vscode.Memento){
         this.llm = new LLM(memento);
@@ -319,7 +320,25 @@ export class BashCommandViewModel{
     }
     
     openNotebook(notebookPath: vscode.Uri, view: NotebookViewCallbacks){
-        return new NotebookPresenter(view, new NotebookController(notebookPath, this.llm), this.memento);
+      if (this.openedNotebookPresenter){
+        this.closeNotebook();
+      }
+      this.openedNotebookPresenter = new NotebookPresenter(view, new NotebookController(notebookPath, this.llm), this.memento);
+      return this.openedNotebookPresenter;
+    }
+
+    closeNotebook(){
+      if (this.openedNotebookPresenter){
+        this.openedNotebookPresenter.dispose();
+      }
+      this.openedNotebookPresenter = null;
+    }
+
+    getOpenedNotebook(): NotebookPresenter|null{
+      if (vscode.window.tabGroups.activeTabGroup.activeTab?.label != "Export notebook"){
+        return null;
+      }
+      return this.openedNotebookPresenter;
     }
 
     async generateDocumentation(){
