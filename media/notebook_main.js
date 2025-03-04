@@ -195,10 +195,21 @@
             <h1>Export Notebook into Snakemake - Step 1</h1>
             <h2>Note: this is an experimental feature, still unstable.</h2>
             <div id="header_instructions">
-            <p>The following page presents the formatted notebook cells with their data dependencies. Before proceeding, make sure the data dependencies are correct.</p>
-            <p>Cells can be removed, split or merged.</p>
-            <p>Every cell will be converted into either a Snakemake rule or a script. Snakemaker will try to guess if a cell needs to become
+            <p>The following page presents the formatted notebook cells with their data dependencies. Before proceeding, review the cell and their dependencies.</p>
+            <p> </p>
+            <p>Export cells into rules or script:</p>
+            <p class="with_space">Every cell will be converted into either a Snakemake rule or a script. Snakemaker tries to guess if a cell needs to become
             a Rule or a Script, but might leave some cells in the Undecided state. You can manually set the type of a cell using the corresponding buttons below the cell's body.</p>
+            <p>Manage cells:</p>
+            <p class="with_space">Cells can be removed, split or merged. Use the buttons on the top-right of each cell to perform actions on them.</p>
+            <p>Review dependencies:</p>
+            <p class="with_space">Conversion into a Snakefile involves resolving data dependencies between cells. In the cells below the dependencies
+            are represented with the colored lines on the left. Each cell read variables written by previous cells. These dependencies will be solved 
+            by adding import statements or by reading/writing files.</p>
+            <p class="with_space">You can manually modify this dependency graph by performing actions:</p>
+            <p class="with_space">>Manually set a variable as "Written by the cell" or "Readed from other cells" or as "Readed from Wildcard". Select the variable 
+            in the code and click on the buttons that appears</p>
+            <p class="with_space">>Manually remove a variable from the "Read" or "Write" set of a cell using the X buttons below the cell.</p>
             </div>
             <div class="notice_before_proceed" id="data_dependency_errors"></div>
             <div class="notice_before_proceed" id="undecided_cells"></div>

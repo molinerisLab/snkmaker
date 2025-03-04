@@ -698,8 +698,7 @@ export class NotebookController{
                 "Consider the following dependencies that can happen between rules:\n" +
                 "1- The script might need to read files, produced by other rules, to valorize some variables.\n"+
                 "2- The script might need to save some variables into files, that will be readed by other scripts.\n"+
-                "3- The rule might have wildcards. Wildcards in Snakemake are specified inside the name of the output file(s), for example 'output_{sample}.txt'; Snakemake then generally passes their values as command line arguments, as python my_script.py sample\n"+
-                "4- The script might need to import data from other scripts, like from other_script import variable_n\n\n" + 
+                "3- The rule might have wildcards. Wildcards in Snakemake are specified inside the name of the output file(s), for example 'output_{sample}.txt'; Snakemake then generally passes their values as command line arguments, for example python my_script.py sample. The script must read these values and initialize the correct variables.\n"+ 
 
                 " I will provide the name of the variables to valorize from files, the name of the input files and the piece of code that produces the file that needs to be readed. \n"+
                 " I will also provide the name of the output files to write and the variables to save there.\n"+
@@ -708,31 +707,23 @@ export class NotebookController{
                 "1- A snakemake rule, with input, output and shell directives. Manage wildcards and arguments of the script. Always pass to the script arguments the names of the input files, and the wildcards.\n"+
                 "2- A prefix code, that will be appended before the actual code in the script, that reads command line arguments, read files and initializes variables (from files and wildcards). Please always use the filenames provided as command line arguments for the filenames.\n"+
                 "3- A suffix code, that will be appended after the script, that saves the variables to the output files.\n"+
-                
-                /*"Example:\n"+
-                "from script: \nprint(VAR_1)\nprint(VAR_2)\nVAR_1 += 1\n With VAR_1 readed from file var1.txt, VAR_2 wildcard:\n"+
-                "snakemake rule:\nrule my_rule:\n\tinput:\n\t\t'var1.txt'\n\toutput:\n\t\t'output_{sample}.txt'\n\tscript:\n\t\t\"\"\"script.py {sample} {input}\"\"\"\n"+
-                "Prefix code: read VAR_2 and input file from command line, read VAR_1 from file var1.txt\n"+
-                "Suffix code: save output_{sample}.txt\n\n"+*/
-                "My script is:\n\n" + cell.code + "\nnamed: " + cell.rule.name + "\n"+
+
+                "\nMy script is:\n#Begin script...\n" + cell.code + "\n#End of script...\nThe Script is named: " + cell.rule.name + "\n"+
                 "The variables it needs to valorize by reading files are:\n" +
                 ((ruleDependencies.length===0) ? " - no variable actually needed for reading from files-\n" :
-                ruleDependencies.map((d:any) => "Variable: " + d[0] + " produced by the script " + this.cells.cells[d[1]].rule.name).join("\n") + "\n"+
-                "I will provide the code that produce the files that you need. These scripts might load the variable from another file, modify them and save them again. Read the most recently saved version.\n"+
-                ruleDependencies.map((d:any) => "Code that saves variable " + d[0] + " to a file:\n" + this.cells.cells[d[1]].toCode()).join("\n")) + "\n\n"+
+                ruleDependencies.map((d:any) => ">Variable: " + d[0] + " produced by the script " + this.cells.cells[d[1]].rule.name).join("\n") + "\n"+
+                "I will provide the code that produce the files that you need.\n"+
+                ruleDependencies.map((d:any) => "Code that saves variable " + d[0] + " to a file:\n#Begin code...\n" + this.cells.cells[d[1]].code + "\n" + this.cells.cells[d[1]].rule.postfixCode + "\n#End code...\n").join("\n")) + "\n"+
                 "The variables that needs to be saved to files are: \n" +
-                ((exportsTo.length===0) ? " - no variable actually needed for saving -\n" :
-                exportsTo.map((entry:[string,number[]]) => "Variable: " + entry[0] + " must be saved and will be readed by the script(s) " + entry[1].map((index:number)=>this.cells.cells[index].rule.name).join(", ")).join("\n") + "\n\n"+
-                (
-                    (wildcards.length===0) ? " - no wildcard needed -" : "Wildcards: " + wildcards.join(", ") + "\n\n"
-                ) +
-                "When saving files, you can decide the name, format and number of files. Consider the number of scripts that will read them to make a good decision.\n") +
+                ((exportsTo.length===0) ? " - no variable actually needed for saving -\n" : exportsTo.map((entry:[string,number[]]) => "Variable: " + entry[0] + " must be saved and will be readed by the script(s) " + entry[1].map((index:number)=>this.cells.cells[index].rule.name).join(", ")).join("\n")) + "\n\n"+
+                ((wildcards.length===0) ? " - no wildcard needed -" : "Wildcards: " + wildcards.join(", ") + "\n\n") +
+                "When saving files, you can decide the name, format and number of files. Consider the number of scripts that will read them to make a good decision.\n" +
                 "\nPlease write the output in JSON format following this schema:\n"+
-                "{ 'reads': ['code to read each file'], 'writes': ['code to save each file'], 'readed_filenames': ['list of filenames for readed files'], 'written_filenames': ['list of filenames for the saved files'], 'rule': string (snakemake rule) }\n"+
-                "Please do not repeat the code already existing, only valorize the fields. If a field is empty, write an empty array or string.";
+                "{ 'prefix_code': string 'code to read arguments, files', 'suffix_code': string 'code to save each file', 'readed_filenames': ['list of filenames for readed files'], 'written_filenames': ['list of filenames for the saved files'], 'rule': string (snakemake rule) }\n"+
+                "Please do not repeat the code already existing, only valorize the fields. If a field is empty, write an empty array or empty string, don't skip the field.";
                 const formatted = await this.runPromptAndParse(prompt);
-                node.prefixCode = getImportStatementsFromScripts(cell, this.cells.cells) + "\n" + formatted.reads.join("\n");
-                node.postfixCode = formatted.writes.join("\n");
+                node.prefixCode = getImportStatementsFromScripts(cell, this.cells.cells) + "\n" + formatted.prefix_code;
+                node.postfixCode = formatted.suffix_code;
                 node.saveFiles = formatted.written_filenames;
                 node.readFiles = formatted.readed_filenames;
                 node.snakemakeRule = formatted.rule;
