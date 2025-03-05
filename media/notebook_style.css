@@ -185,6 +185,9 @@ input[type="number"] {
 #header_instructions{
 	max-width: 700px;
 }
+#header_instructions p{
+	margin:6px;
+}
 #proceed_button_container{
 	width: 100%;
 	display: flex;
@@ -459,6 +462,19 @@ button:disabled {
 .with_space{
 	padding-left: 14px;
 	font-family: 'Courier New', Courier, monospace;
+	margin: 4px;
+}
+.with_space_l{
+	padding-left: 22px;
+	font-family: 'Courier New', Courier, monospace;
+	margin: 4px;
+}
+#chat_tag{
+	padding: 4px 8px;
+	border-radius: 8px;
+	background-color: rgba(100, 149, 237, 0.2);
+	color: cornflowerblue;
+	font-size: 0.9em;
 }
 
 .code_dependent{

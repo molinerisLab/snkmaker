@@ -214,24 +214,26 @@
             <h2>Note: this is an experimental feature, still unstable.</h2>
             <div id="header_instructions">
             <p>The following page presents the formatted notebook cells with their data dependencies. Before proceeding, review the cell and their dependencies.</p>
-            <p> </p>
-            <p>Export cells into rules or script:</p>
-            <p class="with_space">Every cell will be converted into either a Snakemake rule or a script. Snakemaker tries to guess if a cell needs to become
-            a Rule or a Script, but might leave some cells in the Undecided state. You can manually set the type of a cell using the corresponding buttons below the cell's body.</p>
+            <br>
             <p>Manage cells:</p>
             <p class="with_space">Cells can be removed, split or merged. Use the buttons on the top-right of each cell to perform actions on them.</p>
+            <p>Export cells into rules or script:</p>
+            <p class="with_space">Every cell can be converted into either a Snakemake rule or a script. You can manually set the type of a cell using the corresponding buttons below the cell's body.</p>
             <p>Review dependencies:</p>
-            <p class="with_space">Conversion into a Snakefile involves resolving data dependencies between cells. In the cells below the dependencies
-            are represented with the colored lines on the left. Each cell read variables written by previous cells. These dependencies will be solved 
-            by adding import statements or by reading/writing files.</p>
-            <p class="with_space">You can manually modify this dependency graph by performing actions:</p>
-            <p class="with_space">>Manually set a variable as "Written by the cell" or "Readed from other cells" or as "Readed from Wildcard". Select the variable 
-            in the code and click on the buttons that appears</p>
-            <p class="with_space">>Manually remove a variable from the "Read" or "Write" set of a cell using the X buttons below the cell.</p>
-            <p class="with_space"><span class="code_dependent">Green</span> keyword are variables readed from previous cells.</p>
-            <p class="with_space"><span class="code_wildcard">Blue</span> keyword are variables readed from wildcards.</p>
-            <p class="with_space"><span class="code_missing">Red</span> keyword are missing dependencies.</p>
-            <p class="with_space"><span class="code_write">Underlined</span> keyword are variables written by the cell.</p>
+            <p class="with_space">Data dependencies between cells are represented with the colored lines on the left side. Each cell's Read and Write set are defined below the cell's code.</p>
+            <p class="with_space">You can manually add variables to the Read or Write set by selecting them in the code and using the corresponding button.</p>
+            <p class="with_space">You can manually remove variables from the Read or Write sets using the X buttons below the cell.</p>
+            <p class= "with_space">Variables involved in dependencies are highlighted in the code:</p>
+            <p class="with_space_l">><span class="code_dependent">Green</span> keyword are variables readed from previous cells.</p>
+            <p class="with_space_l">><span class="code_wildcard">Blue</span> keyword are variables readed from wildcards.</p>
+            <p class="with_space_l">><span class="code_missing">Red</span> keyword are missing dependencies.</p>
+            <p class="with_space_l">><span class="code_write">Underlined</span> keyword are variables written by the cell.</p>
+            <br>
+            <h2>Snakemaker-Notebook Agent.</h2>
+            <p>This feature includes a chat-agent that can help you review and fix your dependencies.</p>
+            <p>Open the Github Copilot Chat (Ctrl + Alt + I), tag the agent <span id="chat_tag">#@snakemaker-notebook</span> to chat with it.</p>
+            <p>Snakemaker-Notebook analyzes your code and the dependency graph and can fix issues from natural language prompts.</p>
+            <br>
             </div>
             <div class="notice_before_proceed" id="data_dependency_errors"></div>
             <div class="notice_before_proceed" id="undecided_cells"></div>
@@ -473,7 +475,7 @@
         let html = "";
         const missingDependencies = [...cells.cells.map((cell,index) => {return {i: index, d: cell.missingDependencies.join(", ")}}).filter(c => c.d.length>0)].flat();
         const hasMissingDependency = missingDependencies.length > 0;
-        const cellsUndecidedState = cells.cells.filter((cell) => cell.rule.type === "undecided").map((cell, index) => index);
+        const cellsUndecidedState = cells.cells.flatMap((cell, index) => cell.rule.type === "undecided" ? index : [])
         const hasUndecidedRules = cellsUndecidedState.length > 0;
 
         if (hasMissingDependency){
