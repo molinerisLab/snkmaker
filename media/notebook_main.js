@@ -466,10 +466,12 @@
         document.getElementById('addWildcards').addEventListener('click', addWildcard);
         OldEventListener.push([document.getElementById('addWildcards'), "click", addWildcard]);
     }
+    
+    let resizeObserver = null;
 
     function set_rules(cells){
         let html = "";
-        const missingDependencies = [...cells.cells.map((cell,index) => {return {i: index, d: cell.missingDependencies}}).filter(c => c.d.length>0)].flat();
+        const missingDependencies = [...cells.cells.map((cell,index) => {return {i: index, d: cell.missingDependencies.join(", ")}}).filter(c => c.d.length>0)].flat();
         const hasMissingDependency = missingDependencies.length > 0;
         const cellsUndecidedState = cells.cells.filter((cell) => cell.rule.type === "undecided").map((cell, index) => index);
         const hasUndecidedRules = cellsUndecidedState.length > 0;
@@ -507,67 +509,63 @@
             const container = document.getElementById(`cell_rule_${index}_container`);
             let html = "";
             let actions = [];
-            if (false && element.isLoading){
-                html += '<div class="smallSpinner"></div>';
+            if (element.type==="rule"){
+                html += `<p>Export as: <strong>Snakemake Rule</strong></p>\n`;
+                html += "<div class='cell_rule_preview'>\n";
+                html += `<p>rule ${element.name}:</p>\n`;
+                html += `<p>    input:</p>\n`;
+                let inputs = new Set();
+                Object.keys(element.rule_dependencies).forEach((key) => {
+                    inputs.add(`output of ${cells.cells[element.rule_dependencies[key]].rule.name}`);
+                });
+                inputs.forEach((inp) => {
+                    html += `<p>        ${inp}</p>\n`;
+                });
+                if (inputs.size === 0){
+                    html += `<p>        - </p>\n`;
+                }
+                html += `<p>    output:</p>\n`;
+                html += `<p>        --filename to be defined--</p>\n`;
+                html += `</div>\n`;
+
+            } else if (element.type==="script"){
+                html += `<p>Export as: <strong>Script</strong></p>\n`;
+                html += "<div class='cell_rule_preview'>\n";
+                html += `<p>${element.name}.py</p>\n`;
+                html += `</div>\n`;
+
             } else {
-                if (element.type==="rule"){
-                    html += `<p>Export as: <strong>Snakemake Rule</strong></p>\n`;
-                    html += "<div class='cell_rule_preview'>\n";
-                    html += `<p>rule ${element.name}:</p>\n`;
-                    html += `<p>    input:</p>\n`;
-                    let inputs = new Set();
-                    Object.keys(element.rule_dependencies).forEach((key) => {
-                        inputs.add(`output of ${cells.cells[element.rule_dependencies[key]].rule.name}`);
-                    });
-                    inputs.forEach((inp) => {
-                        html += `<p>        ${inp}</p>\n`;
-                    });
-                    if (inputs.size === 0){
-                        html += `<p>        - </p>\n`;
-                    }
-                    html += `<p>    output:</p>\n`;
-                    html += `<p>        --filename to be defined--</p>\n`;
-                    html += `</div>\n`;
-
-                } else if (element.type==="script"){
-                    html += `<p>Export as: <strong>Script</strong></p>\n`;
-                    html += "<div class='cell_rule_preview'>\n";
-                    html += `<p>${element.name}.py</p>\n`;
-                    html += `</div>\n`;
-
-                } else {
-                    html += `<p><strong>Undecided</strong>: can be either a script or a rule.</p>\n`;
-                }
-                html += "<div class='cell_rule_buttons'>\n";
-                if (element.type!=="rule" && element.canBecomeStatic["rule"]){
-                    html += `<button id="become_rule_${index}">Become Rule</button>\n`;
-                    actions.push([`become_rule_${index}`, () => {
-                        vscode.postMessage({
-                            command: 'become_rule',
-                            index: index
-                        });
-                    }]);
-                }
-                if (element.type!=="script" && element.canBecomeStatic["script"]){
-                    html += `<button id="become_script_${index}">Become Script</button>\n`;
-                    actions.push([`become_script_${index}`, () => {
-                        vscode.postMessage({
-                            command: 'become_script',
-                            index: index
-                        });
-                    }]);
-                }
-                if (element.type!=="undecided" && element.canBecomeStatic["undecided"]){
-                    html += `<button id="become_undecided_${index}">Become Undecided</button>\n`;
-                    actions.push([`become_undecided_${index}`, () => {
-                        vscode.postMessage({
-                            command: 'become_undecided',
-                            index: index
-                        });
-                    }]);
-                }
-                html += "</div>\n";
+                html += `<p><strong>Undecided</strong>: can be either a script or a rule.</p>\n`;
             }
+            html += "<div class='cell_rule_buttons'>\n";
+            if (element.type!=="rule" && element.canBecomeStatic["rule"]){
+                html += `<button id="become_rule_${index}">Become Rule</button>\n`;
+                actions.push([`become_rule_${index}`, () => {
+                    vscode.postMessage({
+                        command: 'become_rule',
+                        index: index
+                    });
+                }]);
+            }
+            if (element.type!=="script" && element.canBecomeStatic["script"]){
+                html += `<button id="become_script_${index}">Become Script</button>\n`;
+                actions.push([`become_script_${index}`, () => {
+                    vscode.postMessage({
+                        command: 'become_script',
+                        index: index
+                    });
+                }]);
+            }
+            if (element.type!=="undecided" && element.canBecomeStatic["undecided"]){
+                html += `<button id="become_undecided_${index}">Become Undecided</button>\n`;
+                actions.push([`become_undecided_${index}`, () => {
+                    vscode.postMessage({
+                        command: 'become_undecided',
+                        index: index
+                    });
+                }]);
+            }
+            html += "</div>\n";
             container.innerHTML = html;
             actions.forEach(([id, callback]) => {
                 const button = document.getElementById(id);
@@ -587,10 +585,25 @@
             x: window.scrollX,
             y: window.scrollY
         };          
-        window.scrollTo(0, 0);
-        initializeArrows();
-        buildDependencyLines(cells);
-        window.scrollTo(savedScrollPos.x, savedScrollPos.y);
+
+        //Observe resize of window and adjust arrows accordingly
+        if (resizeObserver) {
+            resizeObserver.disconnect();
+        }
+    
+        let resizeTimeout; //Debouncer
+        const targetElement = document.getElementById("mainContainer");
+        resizeObserver = new ResizeObserver(entries => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                console.log("Adjusting arrows SVG")
+                window.scrollTo(0, 0);
+                initializeArrows();
+                buildDependencyLines(cells);
+                window.scrollTo(savedScrollPos.x, savedScrollPos.y);
+            }, 200);
+        });
+        resizeObserver.observe(targetElement);
     }
 
     window.addEventListener('message', event => {

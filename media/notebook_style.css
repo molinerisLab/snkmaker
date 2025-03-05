@@ -163,20 +163,21 @@ input[type="number"] {
 
 #supercontainer{
 	width: 100%;
+	min-width: 500px;
 	display: flex;
 	margin-right: 0px; padding-right: 0px;
 	flex-direction: row;
 }
 #lines{
-	width: 18%;
+	width: 11%;
 }
 #mainContainer {
-	width: 82%;
+	width: 89%;
 }
 #main_header{
 	margin-top: 32px;
-	padding-left: 128px;
-	padding-right: 128px;
+	padding-left: 86px;
+	padding-right: 86px;
 }
 .notice_before_proceed{
 	margin-left: 16px;
@@ -207,7 +208,7 @@ button:disabled {
 	justify-content: space-between;
 	margin-top: 8px;
 	margin-bottom: 32px;
-	padding:16px;
+	padding:12px;
 	border: 0.5px solid transparent;
 }
 .cell_container:hover{
@@ -217,7 +218,7 @@ button:disabled {
 	width: 100%;
 }
 .cell_rule_container{
-	width: 40%;
+	width: 100%;
 	padding-top: 0px;
 }
 .cell_rule_preview{
@@ -228,9 +229,10 @@ button:disabled {
 	overflow-x: scroll;
 	scrollbar-width: none;
 	-ms-overflow-style: none;
-	padding-left: 16px; padding-top: 8px; padding-bottom: 8px;
+	padding-left: 16px; padding-top: 8px; padding-bottom: 8px; padding-right: 16px;
 	font-size: small;
-	width: 400px;
+	width: fit-content;
+	max-width: 100%;
 }
 .cell_rule_preview p{
 	margin-top: 0px;
@@ -246,6 +248,7 @@ button:disabled {
 	padding-bottom: 10px;
 	padding-top: 10px;
 	padding-left: 24px;
+	padding-right: 24px;
 	margin-bottom: 6px;
 	margin-top: 9px;
 	max-height: 370px;
@@ -415,6 +418,7 @@ button:disabled {
 }
 .cell_rule_buttons{
 	margin-top: 16px;
+	width: fit-content;
 	display: flex;
 	justify-content:end;
 }
@@ -424,6 +428,7 @@ button:disabled {
 	font-size: medium;
 	height: 36px;
 	margin-left: 4px; margin-right: 4px;
+	width: 150px;
 }
 .cell_rule_buttons button:hover{
 	background-color: var(--vscode-notebook-editorBackground);
