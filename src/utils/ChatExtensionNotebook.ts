@@ -103,6 +103,9 @@ export class ChatExtensionNotebook{
                     const mdPart = r as vscode.ChatResponseMarkdownPart;
                     fullMessage += mdPart.value.value;
                 });
+                if (fullMessage.includes("## Performed changes:")) {
+                    fullMessage = fullMessage.split("## Performed changes:")[0];
+                }
                 return vscode.LanguageModelChatMessage.Assistant(fullMessage);
             } else {
                 return vscode.LanguageModelChatMessage.User(m.prompt);

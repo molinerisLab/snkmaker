@@ -13,10 +13,8 @@
   "publisher": "SnakemakerUnito",
   "icon": "resources/icon.png",
   "activationEvents": [],
-  "main_dev":"./out/extension.js",
-  "main":"./dist/extension.js"
-
-,
+  "main_dev": "./out/extension.js",
+  "main": "./dist/extension.js",
   "contributes": {
     "menus": {
       "commandPalette": [
@@ -97,7 +95,7 @@
           "when": "false"
         }
       ],
-      "notebook/toolbar":[
+      "notebook/toolbar": [
         {
           "command": "process-notebook"
         }
@@ -512,7 +510,7 @@
     "vscode:prepublish": "npm run package",
     "package": "npm run check-types && node esbuild.js --production"
   },
-  "scripts_dev":{
+  "scripts_dev": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./"
@@ -530,6 +528,7 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
+    "diff": "^7.0.0",
     "openai": "^4.73.1",
     "tmp": "^0.2.3"
   }

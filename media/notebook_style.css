@@ -214,6 +214,9 @@ button:disabled {
 	padding:12px;
 	border: 0.5px solid transparent;
 }
+.cell_output_container{
+	width: 100%;
+}
 .cell_container:hover{
 	border: 0.5px solid rgb(160, 160, 160);
 }
@@ -234,8 +237,7 @@ button:disabled {
 	-ms-overflow-style: none;
 	padding-left: 16px; padding-top: 8px; padding-bottom: 8px; padding-right: 16px;
 	font-size: small;
-	width: fit-content;
-	max-width: 100%;
+	padding-right: 24px;
 }
 .cell_rule_preview p{
 	margin-top: 0px;

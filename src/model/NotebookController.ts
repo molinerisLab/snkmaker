@@ -6,6 +6,7 @@ import { resolve } from 'path';
 import { writeFile } from 'fs/promises';
 import { ExtensionSettings } from '../utils/ExtensionSettings';
 import { UndoRedoStack } from './UndoRedoStack';
+const diff = require('diff');
 
 
 export class DependencyError{
@@ -551,6 +552,30 @@ export class NotebookController{
         return "\n\n## Performed changes:\n\n" + diff.join("") + "\n*Changes can be undo with Ctrl+Z*";
     }
 
+    static diffCode(oldCode: string, newCode: string, title: string): string {
+        const changes = diff.diffLines(oldCode, newCode);
+        let lineNumber = 1;
+        let worthShowing = false;
+        const formatted_changes = changes.map((change:any) => {
+            const currentLineNumber = change.removed ? lineNumber : lineNumber;
+            if (!change.removed) {
+                lineNumber += (change.value.match(/\n/g) || []).length;
+            }
+            worthShowing = worthShowing || ((change.added || change.removed) && change.value.trim().length>0);
+            if (change.added){
+                return `+ ${change.value}`;
+            } else if (change.removed){
+                return `- ${change.value}`;
+            } else {
+                return `${change.value}`;
+            }
+        }).join("\n");
+        if (!worthShowing){
+            return "";
+        }
+        return `\n\n\`\`\`diff\n#### Changes in ${title}:\n${formatted_changes}\n\`\`\`\n`;
+    }
+
     apply_from_chat_second_step(changes:any): string{
         //Validate input
         for (let cell of changes){
@@ -562,15 +587,28 @@ export class NotebookController{
                  throw new Error("Invalid response format: One or more cell properties are missing or of incorrect type");
             }
         }
+        const diffs: string[] = []
         for (let cell of changes){
             const index = cell.cell_index;
             const target = this.cells.cells[index];
-            target.rule.prefixCode = cell.prefixCode.replace("#Start prefix code...\n", "").replace("#End prefix code...\n", "");
-            target.rule.postfixCode = cell.postfixCode.replace("#Start postfix code...\n", "").replace("#End postfix code...\n", "");
-            target.rule.snakemakeRule = cell.snakemakeRule.replace("#Rule...\n", "").replace("#End rule...\n", "");
-            target.code = cell.code.replace("#Start code...\n", "").replace("#End code...\n", "");
+            cell.prefixCode = cell.prefixCode.trim().replace("#Start prefix code...\n", "").replace("#End prefix code...", "");
+            cell.postfixCode = cell.postfixCode.trim().replace("#Start postfix code...\n", "").replace("#End postfix code...", "");
+            cell.snakemakeRule = cell.snakemakeRule.trim().replace("#Rule...\n", "").replace("#End rule...", "");
+            cell.code = cell.code.trim().replace("#Start code...\n", "").replace("#End code...", "");
+
+            diffs.push(
+                `### Cell ${index}:\n`,
+                NotebookController.diffCode(target.rule.snakemakeRule, cell.snakemakeRule, `Cell ${index} - Snakefile`),
+                NotebookController.diffCode(target.rule.prefixCode, cell.prefixCode, `Cell ${index} - Prefix code`),
+                NotebookController.diffCode(target.code, cell.code, `Cell ${index} - Main code`),
+                NotebookController.diffCode(target.rule.postfixCode, cell.postfixCode, `Cell ${index} - Suffix code`)
+            );
+            target.rule.prefixCode = cell.prefixCode;
+            target.rule.postfixCode = cell.postfixCode;
+            target.rule.snakemakeRule = cell.snakemakeRule;
+            target.code = cell.code;
         }
-        return "";
+        return "\n\n## Performed changes:\n\n" + diffs.join("");
     }
 
 
@@ -882,9 +920,9 @@ export class NotebookController{
                 "{ 'prefix_code': string 'code to read arguments, files', 'suffix_code': string 'code to save each file', 'rule': string (snakemake rule) }\n"+
                 "Please do not repeat the code already existing, only valorize the fields. If a field is empty, write an empty array or empty string, don't skip the field.\n"
                 const formatted = await this.runPromptAndParse(prompt);
-                node.prefixCode = getImportStatementsFromScripts(cell, this.cells.cells) + "\n" + formatted.prefix_code;
-                node.postfixCode = formatted.suffix_code;
-                node.snakemakeRule = formatted.rule;
+                node.prefixCode = getImportStatementsFromScripts(cell, this.cells.cells) + "\n" + formatted.prefix_code.trim().replace("#Begin prefix code...\n", "").replace("#End prefix code...", "");
+                node.postfixCode = formatted.suffix_code.trim().replace("#Start Suffix code...\n", "").replace("#End Suffix code...", "");
+                node.snakemakeRule = formatted.rule.trim().replace("#Rule...\n", "").replace("#End rule...", "");
             }
         }
         return this.cells;
