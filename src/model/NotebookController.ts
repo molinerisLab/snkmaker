@@ -26,8 +26,6 @@ export class RulesNode{
         public undecided_dependencies: { [key: string]: number },
         public prefixCode: string = "",
         public postfixCode: string = "",
-        public saveFiles: string[] = [],
-        public readFiles: string[] = [],
         public canBecomeStatic: {rule: boolean, script: boolean, undecided: boolean} = {"rule": true, "script": true, "undecided": true},
         public snakemakeRule: string = ""
     ) {}
@@ -117,13 +115,6 @@ export class Cell {
         return (this.rule.prefixCode.length>0 ? "#Read input files\n"+this.rule.prefixCode.trim()+"\n" : "" ) +
         (this.code.length>0 ? "#Script body:\n"+this.code.trim()+"\n" : "") +
         (this.rule.postfixCode.length>0 ? "#Write output files\n"+this.rule.postfixCode.trim() : "");
-    }
-
-    private toSnakemakeRuleFirst(logs:boolean){
-        return `rule ${this.rule.name}:\n`+
-        (this.rule.readFiles.length>0 ? `\tinput:\n\t\t${this.rule.readFiles.map((c)=>'"'+c+'"').join("\n\t\t")}` : "")+
-        (this.rule.saveFiles.length>0 ? `\toutput:\n\t\t${this.rule.saveFiles.map((c)=>'"'+c+'"').join("\n\t\t")}` : "")+
-        (logs ? `\n\tlog:\n\t\t"${this.rule.name}.log"` : "");
     }
 
     toSnakemakeRule(inline_under: number, logs:boolean): {"rule": string|null, "filename": string|null, "code": string|null}{
@@ -433,8 +424,6 @@ class JSON_Importer{
             data.undecided_dependencies,
             data.prefixCode,
             data.postfixCode,
-            data.saveFiles,
-            data.readFiles,
             data.canBecomeStatic,
             data.snakemakeRule
         );
@@ -545,8 +534,6 @@ export class NotebookController{
         for (let cell of changes){
             if (typeof cell.cell_index !== 'number' ||
                 typeof cell.snakemakeRule !== 'string' ||
-                !Array.isArray(cell.readFiles) ||
-                !Array.isArray(cell.saveFiles) ||
                 typeof cell.prefixCode !== 'string' ||
                 typeof cell.code !== 'string' ||
                 typeof cell.postfixCode !== 'string') {
@@ -556,8 +543,6 @@ export class NotebookController{
         for (let cell of changes){
             const index = cell.cell_index;
             const target = this.cells.cells[index];
-            target.rule.readFiles = cell.readFiles;
-            target.rule.saveFiles = cell.saveFiles;
             target.rule.prefixCode = cell.prefixCode;
             target.rule.postfixCode = cell.postfixCode;
             target.rule.snakemakeRule = cell.snakemakeRule;
@@ -736,15 +721,19 @@ export class NotebookController{
     }
 
     async updateRulePostfix(index: number, code: string){
-        this.cells.cells[index].rule.postfixCode = code;
-        const prompt = "I have this Python script:\n"+
-        code + "\n\n"+
-        "Can you tell me the list of files that this script writes? If it writes none, then return an empty list."+
-        "Plase return it in JSON format following this schema:\n" +
-        "{ 'written_filenames': ['list of filenames for the saved files'] }";
+        const cell = this.cells.cells[index];
+        const prompt = `I have a snakemake rule calling a python script. The script can be divided into prefix code, main code and suffix code.\n`+
+        `Snakemake rule:\n#Rule...\n${cell.rule.snakemakeRule}\n#End rule...\nPrefix code:\n#Start prefix code...\n${cell.rule.prefixCode}\n#End prefix code...\n` +
+        `Main code:\n#Start code...\n${cell.code}\n#End code...\n` +
+        `Suffix code:\n#Start Suffix code...\n${cell.rule.postfixCode}\n#End Suffix code...\n` +
+        `Cell uses wildcards: ${cell.wildcards.join(",")}\n\n` + 
+        `Now the user changed the suffix code. The new suffix code is:\n#Start suffix code...\n${code}\n#End suffix code...\n` +
+        `Please provide the new snakemake rule considering this updated prefix code.\n` +
+        `Please write the output in JSON format following this schema: { 'snakemakeRule': string }\n`+
+        "Please always output this JSON. If the rule does not need changing, output the same rule as before.";
         const formatted = await this.runPromptAndParse(prompt);
-        this.cells.cells[index].rule.saveFiles = formatted.written_filenames;
-        
+        this.cells.cells[index].rule.snakemakeRule = formatted.snakemakeRule;
+        this.cells.cells[index].rule.postfixCode = code;
         //Propagate changes to other cells who reads from this one
         //and recursively to the cells that reads from them
         const targetsDone = new Set<number>();
@@ -769,15 +758,20 @@ export class NotebookController{
     }
 
     async updateRulePrefix(index: number, code: string){
-        this.cells.cells[index].rule.prefixCode = code;
+        const cell = this.cells.cells[index];
         if (this.cells.cells[index].rule.type === "rule"){
-            const prompt = "I have this Python script:\n"+
-                code + "\n\n"+ this.cells.cells[index].code + "\n\n"+ this.cells.cells[index].rule.postfixCode + "\n\n"+
-                "Can you tell me the list of files that this script reads? If it reads none, then return an empty list."+
-                "Plase return it in JSON format following this schema:\n" +
-                "{ 'readed_filenames': ['list of filenames for the readed files'] }";
+            const prompt = `I have a snakemake rule calling a python script. The script can be divided into prefix code, main code and suffix code.\n`+
+            `Snakemake rule:\n#Rule...\n${cell.rule.snakemakeRule}\n#End rule...\nPrefix code:\n#Start prefix code...\n${cell.rule.prefixCode}\n#End prefix code...\n` +
+            `Main code:\n#Start code...\n${cell.code}\n#End code...\n` +
+            `Suffix code:\n#Start Suffix code...\n${cell.rule.postfixCode}\n#End Suffix code...\n` +
+            `Cell uses wildcards: ${cell.wildcards.join(",")}\n\n` + 
+            `Now the user changed the prefix code. The new prefix code is:\n#Start prefix code...\n${code}\n#End prefix code...\n` +
+            `Please provide the new snakemake rule considering this updated prefix code.\n` +
+            `Please write the output in JSON format following this schema: { 'snakemakeRule': string }\n`+
+            "Please always output this JSON. If the rule does not need changing, output the same rule as before.";
             const formatted = await this.runPromptAndParse(prompt);
-            this.cells.cells[index].rule.readFiles = formatted.readed_filenames;
+            this.cells.cells[index].rule.snakemakeRule = formatted.snakemakeRule;
+            this.cells.cells[index].rule.prefixCode = code;
         }
         return this.cells;
     }
@@ -818,28 +812,34 @@ export class NotebookController{
                 " I will also provide the name of the output files to write and the variables to save there.\n"+
                 " And I will provide the variables that need to be valorized from wildcards.\n\n"+
                 " From this, please write for me three things:\n"+
-                "1- A snakemake rule, with input, output and shell directives. Manage wildcards and arguments of the script. Always pass to the script arguments the names of the input files, and the wildcards.\n"+
+                "1- A snakemake rule, with input, output, logs and shell directives. Manage wildcards and arguments of the script. Always pass to the script arguments the names of the input files, and the wildcards.\n"+
                 "2- A prefix code, that will be appended before the actual code in the script, that reads command line arguments, read files and initializes variables (from files and wildcards). Please always use the filenames provided as command line arguments for the filenames.\n"+
                 "3- A suffix code, that will be appended after the script, that saves the variables to the output files.\n"+
 
                 "\nMy script is:\n#Begin script...\n" + cell.code + "\n#End of script...\nThe Script is named: " + cell.rule.name + "\n"+
                 "The variables it needs to valorize by reading files are:\n" +
-                ((ruleDependencies.length===0) ? " - no variable actually needed for reading from files-\n" :
-                ruleDependencies.map((d:any) => ">Variable: " + d[0] + " produced by the script " + this.cells.cells[d[1]].rule.name).join("\n") + "\n"+
-                "I will provide the code that produce the files that you need.\n"+
-                ruleDependencies.map((d:any) => "Code that saves variable " + d[0] + " to a file:\n#Begin code...\n" + this.cells.cells[d[1]].code + "\n" + this.cells.cells[d[1]].rule.postfixCode + "\n#End code...\n").join("\n")) + "\n"+
+                (
+                    (ruleDependencies.length===0) ? " - no variable needed for reading from files. This script reads no files.-\n" :
+                    ruleDependencies.map((d:any) => 
+                        ">Variable: " + d[0] + " produced by the script " + this.cells.cells[d[1]].rule.name
+                    ).join("\n") + "\n"+
+                    "I will provide the code that produce the files that you need.\n"+
+                    ruleDependencies.map(
+                        (d:any) => "Code that saves variable " + d[0] + " to a file:\n#Begin code...\n" + this.cells.cells[d[1]].code + "\n" + this.cells.cells[d[1]].rule.postfixCode + "\n#End code...\n"
+                    ).join("\n") +
+                    
+                "IMPORTANT: some variables in the code will be valorized with import statement, it is NOT your responsability manage them. You add code ONLY to read files for the variables you are provided with above. You DO NOT add code for other variables.\n"
+                ) + "\n"+
                 "The variables that needs to be saved to files are: \n" +
                 ((exportsTo.length===0) ? " - no variable actually needed for saving -\n" : exportsTo.map((entry:[string,number[]]) => "Variable: " + entry[0] + " must be saved and will be readed by the script(s) " + entry[1].map((index:number)=>this.cells.cells[index].rule.name).join(", ")).join("\n")) + "\n\n"+
                 ((wildcards.length===0) ? " - no wildcard needed -" : "Wildcards: " + wildcards.join(", ") + "\n\n") +
                 "When saving files, you can decide the name, format and number of files. Consider the number of scripts that will read them to make a good decision.\n" +
                 "\nPlease write the output in JSON format following this schema:\n"+
-                "{ 'prefix_code': string 'code to read arguments, files', 'suffix_code': string 'code to save each file', 'readed_filenames': ['list of filenames for readed files'], 'written_filenames': ['list of filenames for the saved files'], 'rule': string (snakemake rule) }\n"+
-                "Please do not repeat the code already existing, only valorize the fields. If a field is empty, write an empty array or empty string, don't skip the field.";
+                "{ 'prefix_code': string 'code to read arguments, files', 'suffix_code': string 'code to save each file', 'rule': string (snakemake rule) }\n"+
+                "Please do not repeat the code already existing, only valorize the fields. If a field is empty, write an empty array or empty string, don't skip the field.\n"
                 const formatted = await this.runPromptAndParse(prompt);
                 node.prefixCode = getImportStatementsFromScripts(cell, this.cells.cells) + "\n" + formatted.prefix_code;
                 node.postfixCode = formatted.suffix_code;
-                node.saveFiles = formatted.written_filenames;
-                node.readFiles = formatted.readed_filenames;
                 node.snakemakeRule = formatted.rule;
             }
         }

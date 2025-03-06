@@ -79,8 +79,6 @@ export class ChatExtensionNotebook{
             {
                 "cell_index": number, #index of the cell modified
                 "snakemakeRule": string #The snakemake rule associated to the cell
-                "readFiles": [array of strings] #filenames readed by cell
-                "saveFiles": [array of strings] #filenames written by cell
                 "prefixCode": string, #Part of the code before main body, where inputs and command line arguments are readed.
                 "code": string, #Main body of the code
                 "postfixCode": string #Part after main body, where output files are saved.
@@ -128,11 +126,9 @@ export class ChatExtensionNotebook{
         let prompt = ChatExtensionNotebook.BASE_PROMPT_SECOND_STEP;
         prompt += presenter.getCells().cells.map((cell: Cell, index:number) => {
             if (cell.rule.type!=="rule"){return "";}
-            return `Cell n. ${index}:\nPrefix code:\n#Start prefix code...\n${cell.rule.prefixCode}\n#End prefix code...\n` +
+            return `Cell n. ${index}:\nSnakemake rule:\n#Rule...\n${cell.rule.snakemakeRule}\n#End rule...\nPrefix code:\n#Start prefix code...\n${cell.rule.prefixCode}\n#End prefix code...\n` +
             `Main code:\n#Start code...\n${cell.code}\n#End code...\n` +
             `Postfix code:\n#Start postfix code...\n${cell.rule.postfixCode}\n#End postfix code...\n` +
-            `Cell reads files: ${cell.rule.readFiles.join(",")}\n`+
-            `Cell writes files: ${cell.rule.saveFiles.join(",")}\n`+
             `Cell reads wildcards: ${cell.wildcards.join(",")}\n`+
             `Cell has file dependencies toward cells: ` + Object.entries(cell.rule.rule_dependencies).map(
                 ([key, value]) => `Variable ${key} to cell ${value}`
