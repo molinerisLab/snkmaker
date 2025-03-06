@@ -69,6 +69,9 @@ export class NotebookView implements NotebookViewCallbacks{
         this._panel.webview.postMessage({ command: 'set_loading', loading: false });
     }
 
+    undoCommand: vscode.Disposable;
+    redoCommand: vscode.Disposable;
+
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, viewModel: BashCommandViewModel, notebookUri: vscode.Uri, context: vscode.ExtensionContext) {
         this._panel = panel;
         this._extensionUri = extensionUri;
@@ -148,10 +151,20 @@ export class NotebookView implements NotebookViewCallbacks{
             },
             null,
             context.subscriptions);
+        
+        this.undoCommand = vscode.commands.registerCommand('undo', async (args) => {
+            presenter.undo(this.currentScreen);
+        });
+        this.redoCommand = vscode.commands.registerCommand('redo', async (args) => {
+            presenter.redo(this.currentScreen);
+        });
+
     }
 
 
     public dispose() {
+        this.undoCommand.dispose();
+        this.redoCommand.dispose();
         this._panel.dispose();
         while (this._disposables.length) {
             const x = this._disposables.pop();

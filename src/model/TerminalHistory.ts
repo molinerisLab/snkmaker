@@ -5,46 +5,8 @@ import { SnkmakerLogger } from "../utils/SnkmakerLogger";
 import * as vscode from 'vscode';
 import { TestRules } from "../utils/TestRules";
 import { ExtensionSettings } from "../utils/ExtensionSettings";
+import { UndoRedoStack } from './UndoRedoStack';
 
-//Undo/Redo stack for the terminal history
-const STACK_SIZE = 4;
-class UndoRedoStack{
-    stack: (string | null)[] = [];
-    index: number = -1;
-    undoCount = -1;
-    redoCount = 0;
-    constructor(){
-        for (let i = 0; i < STACK_SIZE; i++){
-            this.stack.push(null);
-        }
-    }
-
-    push(state: string){
-        this.index = (this.index + 1) % STACK_SIZE;
-        this.stack[this.index] = state;
-        this.undoCount ++;
-        this.redoCount = 0;
-    }
-
-    undo(): string | null{
-        if (this.undoCount === 0){
-            return null;
-        }
-        this.index = (this.index - 1 + STACK_SIZE) % STACK_SIZE;
-        this.undoCount --;
-        this.redoCount ++;
-        return this.stack[this.index];
-    }
-    redo(): string | null{
-        if (this.redoCount === 0){
-            return null;
-        }
-        this.index = (this.index + 1) % STACK_SIZE;
-        this.undoCount ++;
-        this.redoCount --;
-        return this.stack[this.index];
-    }
-}
 
 export class TerminalHistory {
     history: BashCommandContainer[];

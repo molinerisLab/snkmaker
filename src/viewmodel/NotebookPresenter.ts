@@ -3,6 +3,7 @@ import { LLM } from "../model/ModelComms";
 import { NotebookController, CellDependencyGraph, DependencyError, IllegalTypeChangeError, RulesNode, Cell } from "../model/NotebookController";
 import { NotebookViewCallbacks } from "../view/NotebookView";
 import * as vscode from 'vscode';
+import { throws } from "assert";
 
 /**The notebook functionality uses MVP pattern instead of MVVM
  * Compared to the bash history this component is based on a limited and very ordered sequence of commands 
@@ -47,6 +48,7 @@ export class NotebookPresenter{
             this.view.setLoading("Building rules graph...");
             const nodes: CellDependencyGraph = await this.model.makeRulesGraph();
             this.view.setRulesNodes(nodes);
+            this.model.saveState();
         } catch(error: any){
             this.view.onError(error);
         }
@@ -56,6 +58,7 @@ export class NotebookPresenter{
         this.view.setLoading("Returning to notebook...");
         this.view.setNotebookCells(this.model.cells);
         this.view.setRulesNodes(this.model.cells);
+        this.model.resetUndoRedoStack();
     }
 
     public produceSnakefile(){
@@ -68,6 +71,8 @@ export class NotebookPresenter{
         this.view.setLoading("Building Snakemake rules...");
         this.model.buildRulesAdditionalCode().then(
             (res: CellDependencyGraph) => {
+                this.model.resetUndoRedoStack();
+                this.model.saveState();
                 this.view.stopLoading();
                 this.view.setOutput(res);
             }
@@ -82,6 +87,7 @@ export class NotebookPresenter{
         this.view.setLoading("Propagating changes...");
         this.model.updateRulePrefix(index, code).then(
             (res: CellDependencyGraph) => {
+                this.model.saveState();
                 this.view.stopLoading();
                 this.view.setOutput(res);
             }
@@ -95,6 +101,7 @@ export class NotebookPresenter{
         this.view.setLoading("Propagating changes...");
         this.model.updateRulePostfix(index, code).then(
             (res: CellDependencyGraph) => {
+                this.model.saveState();
                 this.view.stopLoading();
                 this.view.setOutput(res);
             }
@@ -114,6 +121,7 @@ export class NotebookPresenter{
         this.view.setLoading("Updating rules graph...");
         try{
             const nodes = this.model.changeRuleState(cell_index, state);
+            this.model.saveState();
             this.view.setRulesNodes(nodes);
         } catch(error: any){
             if (error instanceof IllegalTypeChangeError) {
@@ -127,6 +135,7 @@ export class NotebookPresenter{
     public addDependency(cell_index: number, variable: string){
         if (this.model.cells.cells[cell_index].isFunctions){
             this.addFunctionDependency(cell_index, variable);
+            this.model.saveState();
             return;
         }
 
@@ -137,6 +146,7 @@ export class NotebookPresenter{
             this.view.setLoading("Updating rules graph...");
             if (res) {
                 res[1].then((nodes: CellDependencyGraph) => this.view.setRulesNodes(nodes));
+                this.model.saveState();
             }
         } catch (error) {
             if (error instanceof DependencyError) {
@@ -155,6 +165,7 @@ export class NotebookPresenter{
             this.view.setLoading("Updating rules graph...");
             if (res) {
                 res[1].then((nodes: CellDependencyGraph) => this.view.setRulesNodes(nodes));
+                this.model.saveState();
             }
         } catch (error) {
             this.view.onError(String(error));
@@ -169,6 +180,7 @@ export class NotebookPresenter{
             this.view.setLoading("Updating rules graph...");
             if (res) {
                 res[1].then((nodes: CellDependencyGraph) => this.view.setRulesNodes(nodes));
+                this.model.saveState();
             }
         } catch (error) {
             if (error instanceof DependencyError) {
@@ -186,6 +198,7 @@ export class NotebookPresenter{
             this.view.setLoading("Updating rules graph...");
             if (res) {
                 res[1].then((nodes: CellDependencyGraph) => this.view.setRulesNodes(nodes));
+                this.model.saveState();
             }
         } catch (error) {
             if (error instanceof DependencyError) {
@@ -204,6 +217,7 @@ export class NotebookPresenter{
             this.view.setLoading("Updating rules graph...");
             if (res) {
                 res[1].then((nodes: CellDependencyGraph) => this.view.setRulesNodes(nodes));
+                this.model.saveState();
             }
         } catch (error) {
             if (error instanceof DependencyError) {
@@ -220,7 +234,10 @@ export class NotebookPresenter{
             const cells = result[0]; const rules = result[1];
             this.view.setNotebookCells(cells);
             this.view.setLoading("Updating rules graph...");
-            rules.then((nodes: CellDependencyGraph) => this.view.setRulesNodes(nodes));
+            rules.then((nodes: CellDependencyGraph) => {
+                this.view.setRulesNodes(nodes);
+                this.model.saveState();
+            });
         }
     }
 
@@ -230,6 +247,7 @@ export class NotebookPresenter{
             (cellD:CellDependencyGraph) => {
                 if (cellD) {this.view.setNotebookCells(cellD);}
                 this.view.setRulesNodes(cellD);
+                this.model.saveState();
             }
         ).catch(
             (error: any) => {
@@ -271,30 +289,35 @@ export class NotebookPresenter{
 
     public removeFunctionDependency(cell_index: number, variable_name: string){
         this.model.removeFunctionDependency(cell_index, variable_name);
+        this.model.saveState();
         this.view.setNotebookCells(this.model.cells);
         this.view.setRulesNodes(this.model.cells);
     }
 
     public addFunctionDependency(cell_index: number, variable_name: string){
         this.model.addDependencyToFunction(cell_index, variable_name);
+        this.model.saveState();
         this.view.setNotebookCells(this.model.cells);
         this.view.setRulesNodes(this.model.cells);
     }
 
     public setDependencyAsWildcard(index: number, dependency: string){
         this.model.setDependencyAsWildcard(index, dependency);
+        this.model.saveState();
         this.view.setNotebookCells(this.model.cells);
         this.view.setRulesNodes(this.model.cells);
     }
 
     public setWildcardAsDependency(index: number, dependency: string){
         this.model.setWildcardAsDependency(index, dependency);
+        this.model.saveState();
         this.view.setNotebookCells(this.model.cells);
         this.view.setRulesNodes(this.model.cells);
     }
 
     public addWildcard(index: number, dependency: string){
         this.model.setDependencyAsWildcard(index, dependency);
+        this.model.saveState();
         this.view.setNotebookCells(this.model.cells);
         this.view.setRulesNodes(this.model.cells);
     }
@@ -315,6 +338,7 @@ export class NotebookPresenter{
         const changes = data["changes"];
         this.model.apply_from_chat(changes);
         setTimeout(() => {
+            this.model.saveState();
             this.view.setNotebookCells(this.model.cells);
             this.view.setRulesNodes(this.model.cells);
         }, 1400);
@@ -328,7 +352,27 @@ export class NotebookPresenter{
         const changes = data["changes"];
         this.model.apply_from_chat_second_step(changes);
         setTimeout(() => {
+            this.model.saveState();
             this.view.setOutput(this.model.cells);
         }, 1100);
+    }
+
+    public undo(current_step: number){
+        this.model.undo();
+        if (current_step===0){
+            this.view.setNotebookCells(this.model.cells);
+            this.view.setRulesNodes(this.model.cells);
+        } else {
+            this.view.setOutput(this.model.cells);
+        }
+    }
+    public redo(current_step: number){
+        this.model.redo();
+        if (current_step===0){
+            this.view.setNotebookCells(this.model.cells);
+            this.view.setRulesNodes(this.model.cells);
+        } else {
+            this.view.setOutput(this.model.cells);
+        }
     }
 }

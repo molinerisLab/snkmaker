@@ -5,6 +5,7 @@ import { read } from 'fs';
 import { resolve } from 'path';
 import { writeFile } from 'fs/promises';
 import { ExtensionSettings } from '../utils/ExtensionSettings';
+import { UndoRedoStack } from './UndoRedoStack';
 
 
 export class DependencyError{
@@ -125,26 +126,8 @@ export class Cell {
         (logs ? `\n\tlog:\n\t\t"${this.rule.name}.log"` : "");
     }
 
-    private toSnakemakeRuleInline(logs:boolean):string{
-        return `${this.toSnakemakeRuleFirst(logs)}\n`+
-        `\trun:\n`+
-        this.toCode().split("\n").filter((line)=>line.length>0).map((line) => `\t\t${line}`).join("\n");
-    }
-
-
     toSnakemakeRule(inline_under: number, logs:boolean): {"rule": string|null, "filename": string|null, "code": string|null}{
         return {"rule": this.rule.snakemakeRule, "filename": this.rule.name+".py", "code": this.toCode()};
-        if (this.isFunctions || this.rule.type === "script"){
-            return {"rule": null, "filename": this.rule.name+".py", "code": this.toCode()};
-        }
-        if (this.code.length < inline_under){
-            return {"rule": this.toSnakemakeRuleInline(logs), "filename": null, "code": null};
-        }
-        const filename = this.rule.name + ".py";
-        const code = this.toCode();
-        const rule = `${this.toSnakemakeRuleFirst(logs)}\n`+
-        `\tscript:\n\t\t"""${filename}"""`;
-        return {"rule": rule, "filename": filename, "code": code};
     }
 
     setWritesTo(index: number, variable: string){
@@ -159,8 +142,10 @@ export class Cell {
 
 
 export class CellDependencyGraph{
-
-    constructor(public cells: Cell[]){}
+    canUndo: boolean = false;
+    canRedo: boolean = false;
+    constructor(public cells: Cell[]){
+    }
 
     public static fromCode(codeCells: string[][]){
         return new CellDependencyGraph(codeCells.map((cell) => new Cell(cell.join(""), false)));
@@ -437,11 +422,62 @@ export class CellDependencyGraph{
     
 }
 
+class JSON_Importer{
+    static reviveRulesNode(data: any): RulesNode {
+        return new RulesNode(
+            data.name,
+            data.type,
+            data.isFunction,
+            data.import_dependencies,
+            data.rule_dependencies,
+            data.undecided_dependencies,
+            data.prefixCode,
+            data.postfixCode,
+            data.saveFiles,
+            data.readFiles,
+            data.canBecomeStatic,
+            data.snakemakeRule
+        );
+    }
 
+    static reviveCell(data: any): Cell {
+        return new Cell(
+            data.code,
+            data.isFunctions,
+            data.reads,
+            data.reads_file,
+            data.writes,
+            data.imports,
+            data.declares,
+            data.calls,
+            data.missingDependencies,
+            data.dependsOn,
+            data.dependsOnFunction,
+            data.writesTo,
+            // Recreate the embedded RulesNode
+            data.rule ? JSON_Importer.reviveRulesNode(data.rule) : new RulesNode("", data.isFunctions ? "script" : "undecided", data.isFunctions, {}, {}, {}),
+            data.replacedFunctionVariables,
+            data.wildcards
+        );
+    }
+
+    static importCellDependencyGraph(json: string): CellDependencyGraph {
+        const data = JSON.parse(json);
+        if (!data.cells || !Array.isArray(data.cells)) {
+            throw new Error("Invalid JSON: expected a property 'cells' that is an array");
+        }
+        const cells = data.cells.map((cellData: any) => JSON_Importer.reviveCell(cellData));
+        return new CellDependencyGraph(cells);
+    }
+}
 
 export class NotebookController{
     cells: CellDependencyGraph = new CellDependencyGraph([]);
-    constructor(private path: vscode.Uri, private llm: LLM){}
+    undoRedoStack: UndoRedoStack; 
+
+    constructor(private path: vscode.Uri, private llm: LLM){
+        this.undoRedoStack = new UndoRedoStack();
+    }
 
     private parseJsonFromResponse(response: string): any{
         let start = response.indexOf("{");
@@ -450,6 +486,37 @@ export class NotebookController{
             response = response.substring(start, end + 1);
         }
         return JSON.parse(response);
+    }
+
+    //Undo-Redo
+    saveState(){
+        const exported = JSON.stringify(this.cells);
+        this.undoRedoStack.push(exported);
+        this.cells.canUndo = this.undoRedoStack.undoCount>0;
+        this.cells.canRedo = this.undoRedoStack.redoCount>0
+    }
+    undo(){
+        const data = this.undoRedoStack.undo();
+        if (data){
+            this.cells = JSON_Importer.importCellDependencyGraph(data);
+            this.cells.canUndo = this.undoRedoStack.undoCount>0;
+            this.cells.canRedo = this.undoRedoStack.redoCount>0
+        }
+    }
+    redo(){
+        const data = this.undoRedoStack.redo();
+        if (data){
+            this.cells = JSON_Importer.importCellDependencyGraph(data);
+            this.cells.canUndo = this.undoRedoStack.undoCount>0;
+            this.cells.canRedo = this.undoRedoStack.redoCount>0
+            return true;
+        }
+        return false;
+    }
+    resetUndoRedoStack(){
+        this.undoRedoStack = new UndoRedoStack();
+        this.cells.canUndo = false;
+        this.cells.canRedo = false;
     }
 
     apply_from_chat(changes:any){
@@ -515,6 +582,7 @@ export class NotebookController{
                 "\n\nPlease try again.";
             }
         }
+        console.log(prompt)
     }
 
     //Opens notebook, create cell graph with read/write dependencies, parse imports and functions.

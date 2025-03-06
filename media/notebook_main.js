@@ -78,6 +78,7 @@
             <p>Rules have prefix and suffix generated code, to manage imports from scripts, reading and writing files.</p>
             <p>The generated Prefix and Suffix code can be manually adjusted.</p>
             <p>Manual updates will be propagated automatically - you can modify a rule's output file and following rules will update as well.</p>
+            <p>Note: you can Undo-Redo changes you perform with the standard keybinding, Ctrl+Z, Ctrl+Y.</p>
             </div>
             <div id="proceed_button_container">
                 <button id="back_button">Back to Step 1</button>
@@ -228,6 +229,7 @@
             <p class="with_space_l">><span class="code_wildcard">Blue</span> keyword are variables readed from wildcards.</p>
             <p class="with_space_l">><span class="code_missing">Red</span> keyword are missing dependencies.</p>
             <p class="with_space_l">><span class="code_write">Underlined</span> keyword are variables written by the cell.</p>
+            <p>Note: you can Undo-Redo changes you perform with the standard keybinding, Ctrl+Z, Ctrl+Y.</p>
             <br>
             <h2>Snakemaker-Notebook Agent.</h2>
             <p>This feature includes a chat-agent that can help you review and fix your dependencies.</p>
