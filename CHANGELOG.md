@@ -5,12 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.9] - 2025-TODO
+## [0.1.9] - 2025-03-06
 
 ### Added
-
+- Notebook export: Copilot Chat can now perform actions on the exporting process such as batch-fixing code, modifying dependencies, renaming rules and more.
+- Notebook export: Snakemake rules can now be modified by hand.
+- Notebook export: added Undo/Redo functionality.
 
 ### Changed
+- Bug fixes
+- Improved user interface.
 
 ## [0.1.8] - 2025-03-04
 
