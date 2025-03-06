@@ -79,6 +79,11 @@
             <p>The generated Prefix and Suffix code can be manually adjusted.</p>
             <p>Manual updates will be propagated automatically - you can modify a rule's output file and following rules will update as well.</p>
             <p>Note: you can Undo-Redo changes you perform with the standard keybinding, Ctrl+Z, Ctrl+Y.</p>
+            <h2>Snakemaker-Notebook Agent.</h2>
+            <p>This feature includes a chat-agent that can help you review and fix your dependencies.</p>
+            <p>Open the Github Copilot Chat (Ctrl + Alt + I), tag the agent <span id="chat_tag">#@snakemaker-notebook</span> to chat with it.</p>
+            <p>In this second step, Snakemaker-Notebook can fix Snakemake rules and generated code from natural language prompt.</p>
+            <p>For example you can ask for different file formats, different filenames, rule names, wildcards etc.</p>
             <br>
             </div>
             <div id="proceed_button_container">
@@ -257,7 +262,7 @@
             <h2>Snakemaker-Notebook Agent.</h2>
             <p>This feature includes a chat-agent that can help you review and fix your dependencies.</p>
             <p>Open the Github Copilot Chat (Ctrl + Alt + I), tag the agent <span id="chat_tag">#@snakemaker-notebook</span> to chat with it.</p>
-            <p>Snakemaker-Notebook analyzes your code and the dependency graph and can fix issues from natural language prompts.</p>
+            <p>In this first step, Snakemaker-Notebook analyzes your code and the dependency graph and can fix issues from natural language prompts.</p>
             <br>
             </div>
             <div class="notice_before_proceed" id="data_dependency_errors"></div>

@@ -508,7 +508,19 @@ export class NotebookController{
         this.cells.canRedo = false;
     }
 
-    apply_from_chat(changes:any){
+    apply_from_chat(changes:any): string{
+        function arrays_diff(array_1: string[], array_2: string[], title: string){
+            const a1 = new Set(array_1);
+            const a2 = new Set(array_2);
+            const added = [...a2].filter(x => !a1.has(x));
+            const removed = [...a1].filter(x => !a2.has(x));
+            if (added.length===0 && removed.length===0){
+                return "";
+            }
+            if (added.length===0){ added.push("- ");}
+            if (removed.length===0){ removed.push("- ");}
+            return `#### ${title}\n\t* Added: ${added.join(", ")}\n\t* Removed: ${removed.join(", ")}\n`;
+        }
         //Validate input
         for (let cell of changes){
             if (typeof cell.cell_index !== 'number' ||
@@ -518,18 +530,28 @@ export class NotebookController{
                 throw new Error("Invalid response format: One or more cell properties are missing or of incorrect type. A cell changing must have cell_index, wildcards, writes and dependencies as fields.");
             }
         }
+        const diff: string[] = [];
         for (let cell of changes){
             const index = cell.cell_index;
             const target = this.cells.cells[index];
+            let diff_str = `${arrays_diff(target.reads, cell.dependencies, "Reads:")}${arrays_diff(target.writes, cell.writes,"Writes:")}${arrays_diff(target.wildcards, cell.wildcards, "Wildcards:")}`;
+            const oldType = target.rule.type;
+            target.rule.setType(cell.state);
+            if (oldType !== cell.state){
+                diff_str += `#### State:\n\t* ${oldType} -> ${cell.state}\n`;
+            }
+            if (diff_str.length>0){
+                diff.push(`\n### Cell ${index}:\n`+diff_str);
+            }
             target.reads = cell.dependencies;
             target.writes = cell.writes;
             target.wildcards = cell.wildcards;
-            target.rule.type = cell.state;
         }
         this.cells.buildDependencyGraph();
+        return "\n\n## Performed changes:\n\n" + diff.join("") + "\n*Changes can be undo with Ctrl+Z*";
     }
 
-    apply_from_chat_second_step(changes:any){
+    apply_from_chat_second_step(changes:any): string{
         //Validate input
         for (let cell of changes){
             if (typeof cell.cell_index !== 'number' ||
@@ -548,7 +570,7 @@ export class NotebookController{
             target.rule.snakemakeRule = cell.snakemakeRule.replace("#Rule...\n", "").replace("#End rule...\n", "");
             target.code = cell.code.replace("#Start code...\n", "").replace("#End code...\n", "");
         }
-
+        return "";
     }
 
 
@@ -561,6 +583,8 @@ export class NotebookController{
                 const parsed = this.parseJsonFromResponse(response);
                 return parsed;
             } catch (e:any){
+                console.log(prompt);
+                console.log(response);
                 prompt = "I asked you this:\n\n" + original_prompt + 
                 "\n\nAnd your response was: \n" + response +
                 "\n\nBut when trying to parse your response in json I got this error: \n" + e.message +

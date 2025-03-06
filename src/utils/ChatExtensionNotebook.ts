@@ -148,7 +148,7 @@ export class ChatExtensionNotebook{
     }
 
     async run_chat_json(messages: vscode.LanguageModelChatMessage[], request: vscode.ChatRequest, 
-        stream: vscode.ChatResponseStream, token: vscode.CancellationToken, run_after: (data: any) => void): Promise<any>{
+        stream: vscode.ChatResponseStream, token: vscode.CancellationToken, run_after: (data: any) => string): Promise<any>{
         let response = "";
         for (let i = 0; i < 5; i++){
             try{
@@ -170,8 +170,8 @@ export class ChatExtensionNotebook{
                 }
                 const formatted = JSON.parse(response);
                 const text_response = formatted.text;
-                run_after(formatted);
-                let markdownCommandString: vscode.MarkdownString = new vscode.MarkdownString(text_response);
+                const additional = run_after(formatted);
+                let markdownCommandString: vscode.MarkdownString = new vscode.MarkdownString(text_response + additional);
                 stream.markdown(markdownCommandString);
                 return formatted;
             } catch(e: any){

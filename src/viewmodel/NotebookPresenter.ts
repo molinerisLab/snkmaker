@@ -344,31 +344,33 @@ export class NotebookPresenter{
         return this.view.get_state();
     }
 
-    public apply_from_chat(data:any){
-        if (data["changes"].length===0){
-            return;
+    public apply_from_chat(data:any): string{
+        if (!data["changes"] || data["changes"].length===0){
+            return "";
         }
         this.view.setLoading("Applying changes from chat agent...");
         const changes = data["changes"];
-        this.model.apply_from_chat(changes);
+        const response = this.model.apply_from_chat(changes);
         setTimeout(() => {
             this.model.saveState();
             this.view.setNotebookCells(this.model.cells);
             this.view.setRulesNodes(this.model.cells);
-        }, 1400);
+        }, 1000);
+        return response;
     }
 
-    public apply_from_chat_second_step(data:any){
-        if (data["changes"].length===0){
-            return;
+    public apply_from_chat_second_step(data:any): string{
+        if (!data["changes"] || data["changes"].length===0){
+            return "";
         }
         this.view.setLoading("Applying changes from chat agent...");
         const changes = data["changes"];
-        this.model.apply_from_chat_second_step(changes);
+        const response = this.model.apply_from_chat_second_step(changes);
         setTimeout(() => {
             this.model.saveState();
             this.view.setOutput(this.model.cells);
-        }, 1100);
+        }, 1000);
+        return response;
     }
 
     public undo(current_step: number){
