@@ -227,7 +227,7 @@ button:disabled {
 .cell_rule_preview{
 	background-color: var(--vscode-notebook-cellEditorBackground);
 	border: 1px solid var(--vscode-notebook-cellBorderColor);
-	max-height: 100px;
+	max-height: 130px;
 	overflow-y: scroll;
 	overflow-x: scroll;
 	scrollbar-width: none;

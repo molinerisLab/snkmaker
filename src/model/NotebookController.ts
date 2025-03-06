@@ -543,10 +543,10 @@ export class NotebookController{
         for (let cell of changes){
             const index = cell.cell_index;
             const target = this.cells.cells[index];
-            target.rule.prefixCode = cell.prefixCode;
-            target.rule.postfixCode = cell.postfixCode;
-            target.rule.snakemakeRule = cell.snakemakeRule;
-            target.code = cell.code;
+            target.rule.prefixCode = cell.prefixCode.replace("#Start prefix code...\n", "").replace("#End prefix code...\n", "");
+            target.rule.postfixCode = cell.postfixCode.replace("#Start postfix code...\n", "").replace("#End postfix code...\n", "");
+            target.rule.snakemakeRule = cell.snakemakeRule.replace("#Rule...\n", "").replace("#End rule...\n", "");
+            target.code = cell.code.replace("#Start code...\n", "").replace("#End code...\n", "");
         }
 
     }

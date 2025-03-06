@@ -79,6 +79,7 @@
             <p>The generated Prefix and Suffix code can be manually adjusted.</p>
             <p>Manual updates will be propagated automatically - you can modify a rule's output file and following rules will update as well.</p>
             <p>Note: you can Undo-Redo changes you perform with the standard keybinding, Ctrl+Z, Ctrl+Y.</p>
+            <br>
             </div>
             <div id="proceed_button_container">
                 <button id="back_button">Back to Step 1</button>
