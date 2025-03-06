@@ -97,6 +97,20 @@ export class NotebookPresenter{
             }
         );
     }
+    public async propagateChangesSnakemakeRule(index: number, code: string){
+        this.view.setLoading("Propagating changes...");
+        this.model.updateSnakemakeRule(index, code).then(
+            (res: CellDependencyGraph) => {
+                this.model.saveState();
+                this.view.stopLoading();
+                this.view.setOutput(res);
+            }
+        ).catch(
+            (error: any) => {
+                this.view.onError(error);
+            }
+        );
+    }
     public async propagateChangesPostfix(index: number, code: string){
         this.view.setLoading("Propagating changes...");
         this.model.updateRulePostfix(index, code).then(

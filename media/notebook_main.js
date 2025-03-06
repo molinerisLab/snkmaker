@@ -95,7 +95,7 @@
             if (element.type==="rule"){
                 html += `<p>Export as: <strong>Snakemake Rule</strong></p>\n`;
                 html += "<div class='cell_rule_preview'>\n";
-                html += `<p>${element.snakemakeRule}</p>\n`;
+                html += `<p contenteditable="true" id="snakemake_rule_${index}">${element.snakemakeRule}</p>\n`;
                 html += `</div>\n`;
 
             } else if (element.type==="script"){
@@ -140,9 +140,20 @@
         });
         cells.cells.forEach((cell, index) => {
             const element = cell.rule;
+            const rule_p = document.getElementById(`snakemake_rule_${index}`)
             const prefix = document.getElementById(`prefix_content_${index}`);
             const postfix = document.getElementById(`postfix_content_${index}`);
-
+            rule_p?.addEventListener('focusout', function() {
+                const code = rule_p.innerText;
+                if (code !== cells.cells[index].rule.snakemakeRule){
+                    cells.cells[index].rule.snakemakeRule = code;
+                    vscode.postMessage({
+                        command: 'propagate_snakemake_rule',
+                        index: index,
+                        content: code
+                    });
+                }
+            });
             prefix?.addEventListener('focusout', function() {
                 const code = prefix.innerText;
                 if (code !== cells.cells[index].rule.prefixCode){
@@ -168,6 +179,17 @@
             });
         });
         document.querySelectorAll('code[contenteditable="true"]').forEach(codeEl => {
+            codeEl.addEventListener('keydown', (e) => {
+              if (e.key === 'Tab') {
+                e.preventDefault();
+                // Insert tab (or spaces) at cursor
+                const range = window.getSelection().getRangeAt(0);
+                range.insertNode(document.createTextNode('    '));
+                range.collapse(false);
+              }
+            });
+          });
+        document.querySelectorAll('p[contenteditable="true"]').forEach(codeEl => {
             codeEl.addEventListener('keydown', (e) => {
               if (e.key === 'Tab') {
                 e.preventDefault();

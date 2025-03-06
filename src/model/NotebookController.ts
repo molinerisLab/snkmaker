@@ -757,6 +757,26 @@ export class NotebookController{
         return this.cells;
     }
 
+    async updateSnakemakeRule(index: number, code: string){
+        const cell = this.cells.cells[index];
+        if (this.cells.cells[index].rule.type === "rule"){
+            const prompt = `I have a snakemake rule calling a python script. The script can be divided into prefix code, main code and suffix code.\n`+
+            `Snakemake rule:\n#Rule...\n${cell.rule.snakemakeRule}\n#End rule...\nPrefix code:\n#Start prefix code...\n${cell.rule.prefixCode}\n#End prefix code...\n` +
+            `Main code:\n#Start code...\n${cell.code}\n#End code...\n` +
+            `Suffix code:\n#Start Suffix code...\n${cell.rule.postfixCode}\n#End Suffix code...\n` +
+            `Cell uses wildcards: ${cell.wildcards.join(",")}\n\n` + 
+            `Now the user changed the Snakemake rule code. The new Snakemake rule is:\n${code}\n` +
+            `Please provide the new prefix and suffix code based on the new snakemake rule. You can not change main code.\n` +
+            `Please write the output in JSON format following this schema: { 'prefix_code': string, 'suffix_code': string }\n`+
+            "Please always output this JSON. If the code do not need changing, output the same code as before.";
+            const formatted = await this.runPromptAndParse(prompt);
+            this.cells.cells[index].rule.snakemakeRule = code;
+            this.cells.cells[index].rule.prefixCode = formatted.prefix_code;
+            this.cells.cells[index].rule.postfixCode = formatted.suffix_code;
+        }
+        return this.cells;
+    }
+
     async updateRulePrefix(index: number, code: string){
         const cell = this.cells.cells[index];
         if (this.cells.cells[index].rule.type === "rule"){
