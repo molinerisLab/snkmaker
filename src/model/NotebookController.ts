@@ -1,7 +1,7 @@
 import { json } from 'stream/consumers';
 import * as vscode from 'vscode';
 import { LLM, ModelComms } from './ModelComms';
-import { read } from 'fs';
+import { read, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { writeFile } from 'fs/promises';
 import { ExtensionSettings } from '../utils/ExtensionSettings';
@@ -503,6 +503,8 @@ export class NotebookController{
     cells: CellDependencyGraph = new CellDependencyGraph([]);
     undoRedoStack: UndoRedoStack; 
 
+    filename: string | undefined = undefined;
+
     constructor(private path: vscode.Uri, private llm: LLM){
         this.undoRedoStack = new UndoRedoStack();
     }
@@ -514,6 +516,20 @@ export class NotebookController{
             response = response.substring(start, end + 1);
         }
         return JSON.parse(response);
+    }
+
+
+    saveAs(path: string){
+        const exported = JSON.stringify(this.cells);
+        writeFileSync(path, exported);
+        this.filename = path;
+        return true;
+    }
+    save(): boolean{
+        if (!this.filename){
+            return false;
+        }
+        return this.saveAs(this.filename);
     }
 
     //Undo-Redo

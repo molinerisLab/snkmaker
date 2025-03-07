@@ -17,21 +17,20 @@ export class NotebookPresenter{
         this.buildNotebook();
     }
 
-    private saveMockedData(key: string, value: any){
-        this.memento.update(key, JSON.stringify(value));
-    }
-    private mockOrLoadData(key: string){
-        const data = this.memento.get(key, undefined);
-        if (data){
-            const c = JSON.parse(data);
-            if (key === 'notebook'){
-                c.cells.forEach((cell:any) => {
-                    cell.rule.setCanBecome= ()=>{};
-                    cell.rule.canBecomeStatic={rule: true, script: true, undecided: true};});
-                }
-            return c;
+    public save(){
+        if (!this.model.save()){
+            this.saveAs();
+            return;
         }
-        return undefined;
+    }
+    public saveAs(){
+        const path = vscode.window.showSaveDialog({
+            filters: { 'SnakemakerNotebook': ['snkmk'] }
+        }).then((path: vscode.Uri|undefined) => {
+            if (path) {
+                this.model.saveAs(path.fsPath);
+            }
+        });
     }
 
     private async buildNotebook(){
