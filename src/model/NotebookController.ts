@@ -209,7 +209,6 @@ export class CellDependencyGraph{
         let fi=0; let ci=0;
         while(fi<functions.length){
             const fun = functions[fi];
-            const cell = this.cells[ci];
             if (fun.length===0){
                 fi++; ci++;
                 continue;
@@ -261,8 +260,27 @@ export class CellDependencyGraph{
         if (!this.cells[i].isFunctions) {return};
 
         const fcell = this.cells[i];
-        const reads = fcell.reads;
-        const replaced = reads.map((read) => `__${read.toLowerCase()}__` );
+        let reads = fcell.reads;
+        //Check that reads are not already part of the function arguments
+        //(can happen both because they are named the same or because the model put them there anyway)
+        // Parse function arguments from all function definitions in the cell
+        const allArgs: Set<string> = new Set();
+        const functionRegex = /def\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/g;
+        let match;
+        if ((match = functionRegex.exec(fcell.code)) !== null) {
+            const argList = match[2];
+            const args = argList.split(',')
+            .map(arg => arg.trim().split('=')[0].trim())
+            .filter(arg => arg.length > 0)
+            .forEach(arg => allArgs.add(arg));
+        }
+        reads = reads.filter(read => !allArgs.has(read));
+
+        // Filter out reads that are already function arguments
+        const uniqueArguments = [...new Set(arguments)];
+        const replaced = reads
+            .filter(read => !uniqueArguments.includes(read))
+            .map(read => `__${read.toLowerCase()}__`);
         fcell.declares.forEach((decl, index) => {
             //Remove function name from cell writes (sometimes models put it there, but it should not)
             if (fcell.writes.includes(decl)) {
@@ -291,9 +309,6 @@ export class CellDependencyGraph{
             //Find cells that call one of these functions - replace call and add dependencies
             for (let j=i+1; j<this.cells.length; j++){
                 const cell = this.cells[j];
-                if (cell.isFunctions){
-                    continue;
-                }
                 fcell.declares.forEach((decl, index) => {
                     const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
                     if (cell.code.match(regex)){
@@ -307,7 +322,7 @@ export class CellDependencyGraph{
                     }
                 });
             }
-            fcell.replacedFunctionVariables = [...fcell.reads, ...fcell.replacedFunctionVariables];
+            fcell.replacedFunctionVariables = [...reads, ...fcell.replacedFunctionVariables];
             fcell.reads = [];
         } else {
             //Simply add dependencies to the cells that call the function
