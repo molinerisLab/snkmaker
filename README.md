@@ -12,7 +12,7 @@ Semi-automatic Snakemake workflow generation from unstructured Bash commands or 
       https://chanzuckerberg.com/eoss/</sub>
     </td>
     <td width="30%" align="left">
-      <img src="https://chanzuckerberg.com/wp-content/themes/czi/img/logo.svg" width="100px" style="background-color: white; padding: 10px;"/>
+      <img src=".img/chan_logo.png" width="100px" style="background-color: white; padding: 10px;"/>
     </td>
   </tr>
 </table>
