@@ -13,3 +13,4 @@ out/
 node_modules
 webpack.config.js
 esbuild.js
+.img/
