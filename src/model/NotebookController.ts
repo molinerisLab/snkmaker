@@ -261,6 +261,29 @@ export class CellDependencyGraph{
 
         const fcell = this.cells[i];
         let reads = fcell.reads;
+
+        //Check that the function is called in more than one cell, otherwise it's no use making it independent
+        let callers:number[] = [];
+        fcell.declares.forEach((decl, index) => {
+            for (let j=i+1; j<this.cells.length; j++){
+                const cell = this.cells[j];
+                const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
+                if (cell.code.match(regex)){
+                    callers.push(j);
+                }
+            }
+        });
+        if (callers.length < 2){
+            if (callers.length===1){
+                this.cells[callers[0]].reads = [
+                    ...new Set([...this.cells[callers[0]].reads, ...reads])
+                ]
+                this.cells[callers[0]].code = fcell.code + "\n" + this.cells[callers[0]].code;
+            }
+            this.cells[i].code = ""; //Will be cleaned up by caller function
+            return;
+        }
+
         //Check that reads are not already part of the function arguments
         //(can happen both because they are named the same or because the model put them there anyway)
         // Parse function arguments from all function definitions in the cell
