@@ -608,7 +608,7 @@ export class NotebookController{
             target.rule.snakemakeRule = cell.snakemakeRule;
             target.code = cell.code;
         }
-        return "\n\n## Performed changes:\n\n" + diffs.join("");
+        return "\n\n## Performed changes:\n\n" + diffs.join("") + "\n\n*Changes can be undo with Ctrl+Z*";
     }
 
 

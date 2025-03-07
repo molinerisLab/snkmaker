@@ -19,12 +19,13 @@ export class ChatExtensionNotebook{
     `1-Resolving data dependencies between cells. Snakemaker parses variables that each cell reads and writes, and creates a dependency graph.\n`+
     `The user can manually fix the dependencies if needed, and split, merge or delete cells.\n`+
     `2-Decide whether to export each cell as a Rule (produces files, stays in the Snakefile) or a script (is simply imported by others).\n`+
-    `3-Automatically generate the Snakefile and additional code in each cell, to read/write files, command line arguments, imports.\n`;
+    `3-Automatically generate the Snakefile and additional code in each cell, to read/write files, command line arguments, imports.\n`+
+    "Note: during the entire process, user can press Ctrl+Z and Ctrl+Y to undo/redo changes, including the ones you will do.\n"
 
     static BASE_PROMPT_NO_NOTEBOOK_OPENED = `Right now no notebook is opened, or at least not in the tab the user is looking at. Once a notebook is opened, you will have access to it and be able to help the user.`;
 
     static BASE_PROMPT_FIRST_STEP = `Right now you are in the page where steps 1 and 2 are being managed.\n`+
-    "The user is watching the cells and the dependencies between them. The user can: \n"+
+    "The user is watching the notebook's cells and the dependencies between them. The user can: \n"+
     "-Delete, Split or Merge cells.\n"+
     "-Set the type of cell: Rule or Script. Some cells can be Undecided, not a script nor a Rule yet. Cells that depends on data produced by rules can not become scripts.\n"+
     "-Observe, for each cell, what the cell writes, what the cell reads from other cells and what reads as wildcards. Keyword are highlighted in code: Red for missing dependencies, Green for dependencies from cells, Blue for wildcards, Underlined for Writes.\n"+
@@ -39,7 +40,8 @@ export class ChatExtensionNotebook{
     "-Set the state of cells when allowed by the allowed_states.\n"+
     "Note: The most likely problem of the user faces are missing dependencies. A dependency is missing if a cell reads a variable but no cell writes it previous to that. The most likely cause is an error while parsing the code, either the dependency was not a real dependency (the model allucinated a Dependency), or another cell did write it and it was missed (the model did not find the Write). It's also possible that it was an error in the user's code. "+
     "Be helpful and propositive to the user in fixing these issues. If a missing dependency is caused by a missed write in an early cell, add the write. If it is caused by an hallucinated dependency (the code does not read the variable), remove the dependency. If caused by a code error, warn the user. \n"+
-    "You cannot directly modify cells code (user will be allowed to do next step), split, merge,delete cells (user can do by hand)."+
+    "You cannot directly modify cells code (it will be allowed in the next step), split, merge,delete cells (the user can do by hand).\n"+
+    "Note, in this step filenames and formats of files are not defined yet. This is a more abstract step with the goal of connecting the cells in a graph of dependencies. In the next step code will be generated and will be changeable."+
     "\n\nNow you will receive the information about current state of the cell dependency graph:\n"
 
     static BASE_PROMPT_FIRST_STEP_FOOTER = `Please output your response in JSON format following this schema:
