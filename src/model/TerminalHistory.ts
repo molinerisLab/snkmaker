@@ -158,7 +158,7 @@ export class TerminalHistory {
         if (! (ExtensionSettings.instance.getRulesOutputFormat()==="Snakemake" && ExtensionSettings.instance.getValidateSnakemakeRules())){
             return rules;
         }
-        if (rules.length < 10){
+        if (rules.length < 5){
             return "";
         }
         //TODO: max tries should be a setting or a configuration
@@ -174,14 +174,14 @@ export class TerminalHistory {
         return rules;
     }
 
-    async getRule(command: BashCommand): Promise<string>{
+    async getRule(command: BashCommand): Promise<any>{
         if (command.getTemporary()===true){
             throw new Error("Command is being processed - please wait before exporting the rule.");
         }
         command.setTemporary(true);
         try {
             let rule = await this.queries.getRuleFromCommand(command);
-            rule = await this.validateAndCorrectRules(rule);
+            rule['rule'] = await this.validateAndCorrectRules(rule['rule']);
             return rule;
         } catch (e){
             throw e;
@@ -190,7 +190,7 @@ export class TerminalHistory {
         }
     }
 
-    async getAllRules(): Promise<string | null>{
+    async getAllRules(): Promise<any | null>{
         const important = this.history.filter(command=>command.getImportant()===true && command.getTemporary()===false);
         if (important.length === 0){
             return null;
@@ -198,7 +198,7 @@ export class TerminalHistory {
         important.forEach(command => command.setTemporary(true));
         try{
             var rules = await this.queries.getAllRulesFromCommands(important);
-            rules = await this.validateAndCorrectRules(rules);
+            rules['rule'] = await this.validateAndCorrectRules(rules['rule']);
             return rules;
         } catch (e){
             throw e;

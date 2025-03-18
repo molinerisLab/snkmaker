@@ -146,7 +146,7 @@ export class BashCommandViewModel{
       });
     }
 
-    private ruleOutputRoutine(output: Promise<string|null>, commands: BashCommandContainer[]){
+    private ruleOutputRoutine(output: Promise<any|null>, commands: BashCommandContainer[]){
       output.then((rules) => {
         if (rules !== null){
           this.writeToFiles.writeToCurrentFile(rules).then((success) => {
@@ -154,7 +154,7 @@ export class BashCommandViewModel{
                 this.archiveCommands(commands);
             }
             this.updateCanUndoCanRedo();
-            if (rules.length < 2){
+            if (rules['rule'].length < 2){
               vscode.window.showInformationMessage('No rule has been printed');
             }
           });
