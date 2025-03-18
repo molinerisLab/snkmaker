@@ -40,7 +40,9 @@ export class ChatExtensionNotebook{
     "-Set the state of cells when allowed by the allowed_states.\n"+
     "Note: The most likely problem of the user faces are missing dependencies. A dependency is missing if a cell reads a variable but no cell writes it previous to that. The most likely cause is an error while parsing the code, either the dependency was not a real dependency (the model allucinated a Dependency), or another cell did write it and it was missed (the model did not find the Write). It's also possible that it was an error in the user's code. "+
     "Be helpful and propositive to the user in fixing these issues. If a missing dependency is caused by a missed write in an early cell, add the write. If it is caused by an hallucinated dependency (the code does not read the variable), remove the dependency. If caused by a code error, warn the user. \n"+
-    "You cannot directly modify cells code (it will be allowed in the next step), split, merge,delete cells (the user can do by hand).\n"+
+    "You CAN NOT directly modify cells code (it will be allowed in the next step), split, merge,delete cells (the user can do by hand). "+
+    "If the user asks you to perform changes to the code, refuse to do so and explain it will be doable in the next step.\n" +
+    "Do not perform changes to the dependencies (Reads, Writes) when the user asks for changes in the code.\n"+
     "Note, in this step filenames and formats of files are not defined yet. This is a more abstract step with the goal of connecting the cells in a graph of dependencies. In the next step code will be generated and will be changeable."+
     "\n\nNow you will receive the information about current state of the cell dependency graph:\n"
 

@@ -3,7 +3,7 @@ import { LLM } from "../model/ModelComms";
 import { NotebookController, CellDependencyGraph, DependencyError, IllegalTypeChangeError, RulesNode, Cell } from "../model/NotebookController";
 import { NotebookViewCallbacks } from "../view/NotebookView";
 import * as vscode from 'vscode';
-import { throws } from "assert";
+import { resolve } from 'path';
 
 /**The notebook functionality uses MVP pattern instead of MVVM
  * Compared to the bash history this component is based on a limited and very ordered sequence of commands 
@@ -11,10 +11,22 @@ import { throws } from "assert";
  */
 
 export class NotebookPresenter{
+
+    public static openFromNotebook(view: NotebookViewCallbacks, model: NotebookController, memento: any, notebookPath: vscode.Uri){
+        const presenter = new NotebookPresenter(view, model, memento);
+        presenter.buildNotebook(notebookPath);
+        return presenter;
+    }
+
+    public static openFromExportedFile(view: NotebookViewCallbacks, model: NotebookController, memento: any, exportedPath: vscode.TextDocument){
+        const presenter = new NotebookPresenter(view, model, memento);
+        presenter.loadNotebook(exportedPath);
+        return presenter;
+    }
+
     constructor(private view: NotebookViewCallbacks, private model: NotebookController, private memento: any){
         this.model = model;
         this.view = view;
-        this.buildNotebook();
     }
 
     public save(){
@@ -24,8 +36,16 @@ export class NotebookPresenter{
         }
     }
     public saveAs(){
-        const path = vscode.window.showSaveDialog({
-            filters: { 'SnakemakerNotebook': ['snkmk'] }
+        let defaultUri = vscode.Uri.file(`export_process.snkmk`);
+        if (this.model.filename){
+            defaultUri = vscode.Uri.file(`${this.model.filename}`);
+        } else if (this.model.path){
+            const filename = resolve(this.model.path.fsPath).split('.').shift();
+            defaultUri = vscode.Uri.file(`${filename}.snkmk`);
+        }
+        vscode.window.showSaveDialog({
+            filters: { 'SnakemakerNotebook': ['snkmk'] },
+            defaultUri: defaultUri
         }).then((path: vscode.Uri|undefined) => {
             if (path) {
                 this.model.saveAs(path.fsPath);
@@ -33,16 +53,16 @@ export class NotebookPresenter{
         });
     }
 
-    private async buildNotebook(){
-        /*let mocked = this.mockOrLoadData('notebook');
-        if (mocked){
-            this.view.setNotebookCells(mocked);
-            this.view.setRulesNodes(mocked);
-            return;   
-        }*/
+    private async loadNotebook(exportedPath: vscode.TextDocument){
+        this.model.openFrom(exportedPath);
+        this.view.setNotebookCells(this.model.cells);
+        this.view.setRulesNodes(this.model.cells);
+    }
+
+    private async buildNotebook(notebookPath: vscode.Uri){
         try{
             this.view.setLoading("Building dependency graph...");
-            const cellD: CellDependencyGraph = await this.model.openNotebook();
+            const cellD: CellDependencyGraph = await this.model.openNotebook(notebookPath);
             this.view.setNotebookCells(cellD);
             this.view.setLoading("Building rules graph...");
             const nodes: CellDependencyGraph = await this.model.makeRulesGraph();

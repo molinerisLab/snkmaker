@@ -16,6 +16,18 @@
   "main": "./out/extension.js",
   "main_prod": "./dist/extension.js",
   "contributes": {
+    "customEditors": [
+      {
+        "viewType": "NotebookView",
+        "displayName": "Export Notebook",
+        "selector": [
+          {
+            "filenamePattern": "*.snkmk"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
     "menus": {
       "commandPalette": [
         {

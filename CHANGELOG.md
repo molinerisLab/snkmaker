@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - 2025-03-TODO
 
+### Added:
+- Notebook export process can now be saved to file and loaded back.
+
 ### Changed:
 - Improvements in management of functions in the notebook feature.
 

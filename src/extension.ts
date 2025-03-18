@@ -270,6 +270,20 @@ export function activate(context: vscode.ExtensionContext) {
 		};
 	const nb_snakemaker = vscode.chat.createChatParticipant('chat-snakemaker-notebook', notebook_chat_handler);
 	nb_snakemaker.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources/icon.svg');
+
+	//Register the customEditor for opening exported notebooks
+	class NotebookExportEditorProvider implements vscode.CustomTextEditorProvider{
+		public static register(context: vscode.ExtensionContext): vscode.Disposable {
+			const provider = new NotebookExportEditorProvider();
+			const providerRegistration = vscode.window.registerCustomEditorProvider(NotebookView.viewType, provider);
+			return providerRegistration;
+		}
+		resolveCustomTextEditor(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, token: vscode.CancellationToken): Thenable<void> | void {
+			NotebookView.openFromFile(document, webviewPanel, viewModel, context);
+		}
+
+	}
+	context.subscriptions.push(NotebookExportEditorProvider.register(context));
 }
 
 // This method is called when your extension is deactivated

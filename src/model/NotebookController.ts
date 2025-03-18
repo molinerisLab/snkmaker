@@ -504,8 +504,9 @@ export class NotebookController{
     undoRedoStack: UndoRedoStack; 
 
     filename: string | undefined = undefined;
+    public path: vscode.Uri | undefined = undefined;
 
-    constructor(private path: vscode.Uri, private llm: LLM){
+    constructor(private llm: LLM){
         this.undoRedoStack = new UndoRedoStack();
     }
 
@@ -518,6 +519,13 @@ export class NotebookController{
         return JSON.parse(response);
     }
 
+    openFrom(path: vscode.TextDocument){
+        const data = path.getText();
+        this.cells = JSON_Importer.importCellDependencyGraph(data);
+        this.cells.canUndo = this.undoRedoStack.undoCount>0;
+        this.cells.canRedo = this.undoRedoStack.redoCount>0;
+        this.filename = path.fileName;
+    }
 
     saveAs(path: string){
         const exported = JSON.stringify(this.cells);
@@ -687,7 +695,8 @@ export class NotebookController{
     }
 
     //Opens notebook, create cell graph with read/write dependencies, parse imports and functions.
-    async openNotebook(): Promise<CellDependencyGraph>{
+    async openNotebook(notebookPath: vscode.Uri): Promise<CellDependencyGraph>{
+        this.path = notebookPath;
         const opened = await vscode.workspace.openTextDocument(this.path);
         const json = await JSON.parse(opened.getText());  
         const result: string[][] = json.cells.filter((cell: any) => cell.cell_type === "code").map((cell: any) => cell.source);
@@ -1156,6 +1165,7 @@ export class NotebookController{
         });
         waiting.push(writeFile(resolve(exportPath, "Snakefile"), snakefile));
         await Promise.all(waiting);
+        this.saveAs(exportPath + "/export_notebook.snkmk");
         return vscode.Uri.file(resolve(exportPath, "Snakefile"));
     }
 

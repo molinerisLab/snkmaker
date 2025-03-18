@@ -323,7 +323,15 @@ export class BashCommandViewModel{
       if (this.openedNotebookPresenter){
         this.closeNotebook();
       }
-      this.openedNotebookPresenter = new NotebookPresenter(view, new NotebookController(notebookPath, this.llm), this.memento);
+      this.openedNotebookPresenter = NotebookPresenter.openFromNotebook(view, new NotebookController(this.llm), this.memento, notebookPath);
+      return this.openedNotebookPresenter;
+    }
+
+    openExportedNotebook(exportedDocument: vscode.TextDocument, view: NotebookViewCallbacks){
+      if (this.openedNotebookPresenter){
+        this.closeNotebook();
+      }
+      this.openedNotebookPresenter = NotebookPresenter.openFromExportedFile(view, new NotebookController(this.llm), this.memento, exportedDocument);
       return this.openedNotebookPresenter;
     }
 

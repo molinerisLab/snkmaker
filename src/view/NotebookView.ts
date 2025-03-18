@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
 import { CellDependencyGraph } from '../model/NotebookController';
 import internal from 'stream';
+import { NotebookPresenter } from '../viewmodel/NotebookPresenter';
 
 export interface NotebookViewCallbacks{
     setNotebookCells(cells: CellDependencyGraph): void;
@@ -23,6 +24,12 @@ export class NotebookView implements NotebookViewCallbacks{
     private _disposables: vscode.Disposable[] = [];
     private currentScreen = 0;
 
+    public static openFromFile(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, viewModel: BashCommandViewModel, context: vscode.ExtensionContext){
+        const panel = webviewPanel;
+        panel.webview.options = {enableScripts: true,localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')]}
+        return new NotebookView(panel, context.extensionUri, viewModel, undefined, document, context);
+    }
+
     public static create(extensionUri: vscode.Uri, viewModel: BashCommandViewModel, notebookUri: vscode.Uri, context: vscode.ExtensionContext) {
         const panel = vscode.window.createWebviewPanel(
             NotebookView.viewType,
@@ -31,7 +38,7 @@ export class NotebookView implements NotebookViewCallbacks{
             {enableScripts: true,localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')]}
         );
         panel.iconPath = vscode.Uri.joinPath(extensionUri, 'media', 'icon.svg');
-        return new NotebookView(panel, extensionUri, viewModel, notebookUri, context);
+        return new NotebookView(panel, extensionUri, viewModel, notebookUri, undefined, context);
     }
 
     public get_state(): number {
@@ -74,11 +81,16 @@ export class NotebookView implements NotebookViewCallbacks{
     saveCommand: vscode.Disposable;
     saveAsCommand: vscode.Disposable;
 
-    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, viewModel: BashCommandViewModel, notebookUri: vscode.Uri, context: vscode.ExtensionContext) {
+    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, viewModel: BashCommandViewModel, notebookUri: vscode.Uri| undefined, exportedDocument: vscode.TextDocument | undefined, context: vscode.ExtensionContext) {
         this._panel = panel;
         this._extensionUri = extensionUri;
         this._panel.onDidDispose(() => {viewModel.openedNotebookPresenter=null; this.dispose();}, null, this._disposables);
-        const presenter = viewModel.openNotebook(notebookUri, this);
+        let presenter: NotebookPresenter;
+        if (notebookUri){
+            presenter = viewModel.openNotebook(notebookUri, this);
+        } else if (exportedDocument){
+            presenter = viewModel.openExportedNotebook(exportedDocument, this);
+        }
         this._panel.webview.onDidReceiveMessage(
             message => {
                 switch (message.command) {
