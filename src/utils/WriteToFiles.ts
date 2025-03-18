@@ -68,4 +68,30 @@ export class WriteToFiles{
     hasEditorOpen(): boolean{
         return vscode.window.activeTextEditor !== undefined;
     }
+
+    //If a Snakefile is open, try to focus on it
+    tryToFocusOnSnakefile(){
+        //Check if user is already in a Snakefile, even if not saved
+        if (vscode.window.activeTextEditor){
+            if (vscode.window.activeTextEditor.document.fileName.toLowerCase().endsWith('snakefile')){
+                return;
+            }
+            const content = vscode.window.activeTextEditor.document.getText();
+            if (/rule\s+[a-zA-Z0-9_]+\s*:/.test(content)) {
+                // This is likely a Snakefile
+                return;
+            }
+        }
+        vscode.window.tabGroups.all.forEach((tabGroup) => {
+            tabGroup.tabs.forEach((tab) => {
+                if (tab.label.toLowerCase().endsWith('snakefile')){
+                    vscode.window.showTextDocument(tab.input as vscode.TextDocument).then(() => {
+                        // Focus is now on the Snakefile
+                    }, (error) => {
+                        vscode.window.showErrorMessage(`Failed to focus on Snakefile: ${error}`);
+                    });
+                }
+            });
+        });
+    }
 }

@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improvements in management of functions in the notebook feature.
 - New rules added to the bottom of the Snakefile.
 - Improved rule: all generation.
-
+- Exporting rule: now Snakemaker looks for Snakefile(s) opened in the editor's tabs.
 
 ## [0.2.0] - 2025-03-07
 

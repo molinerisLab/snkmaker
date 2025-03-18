@@ -169,10 +169,12 @@ export class BashCommandViewModel{
     }
 
     printRule(command: BashCommandContainer){
+      this.writeToFiles.tryToFocusOnSnakefile();
       this.ruleOutputRoutine(this.terminalHistory.getRule(command), [command]);
     }
 
     printAllRules(){
+      this.writeToFiles.tryToFocusOnSnakefile();
       this.ruleOutputRoutine(this.terminalHistory.getAllRules(), []);
     }
 
