@@ -22,7 +22,8 @@ export class WriteToFiles{
             vscode.window.showInformationMessage('Please open a file in the editor to print the rules');
             return false;
         }
-        const position = editor.selection.end;
+        //const position = editor.selection.end;
+        const position = new vscode.Position(editor.document.lineCount+1, 0);
         editor.edit(editBuilder => {
             editBuilder.insert(position, "\n\n"+value);
         });
