@@ -91,6 +91,17 @@
                 <button id="export_snakefile">Export Snakefile</button>
             </div>
         `;
+        //Config
+        html += `<div class="cell_container" id="cell_container_CONFIG">\n`;
+        html += `<div class="cell_output_container" id="cellCONFIG">\n`;
+        html += `<div class="biglabel">config.yaml</div>`;
+        html += `<div id="config_container" class="cell">\n`;
+        html += `<pre><code id="config_content" contenteditable="true">${hljs.highlight(cells.config, { language: 'python' }).value}</code></pre>\n`;
+        html += "</div>\n";
+        html += "</div>\n";
+        html += "</div>\n";
+        
+
         cells.cells.forEach((cell, index) => {
             const element = cell.rule;
             html += `<div class="cell_container" id="cell_container_${index}">\n`;
@@ -143,6 +154,17 @@
             vscode.postMessage({
                 command: 'back'
             });
+        });
+        const config_content_editor = document.getElementById(`config_content`)
+        config_content_editor?.addEventListener('focusout', function() {
+            const code = config_content_editor.innerText;
+            if (code !== cells.config){
+                cells.config = code;
+                vscode.postMessage({
+                    command: 'config_changed',
+                    content: code
+                });
+            }
         });
         cells.cells.forEach((cell, index) => {
             const element = cell.rule;

@@ -384,7 +384,11 @@ export class NotebookPresenter{
         }
         this.view.setLoading("Applying changes from chat agent...");
         const changes = data["changes"];
-        const response = this.model.apply_from_chat_second_step(changes);
+        let newConfig = undefined;
+        if (data["config"]){
+            newConfig = data["config"];
+        }
+        const response = this.model.apply_from_chat_second_step(changes, newConfig);
         setTimeout(() => {
             this.model.saveState();
             this.view.setOutput(this.model.cells);
@@ -409,5 +413,16 @@ export class NotebookPresenter{
         } else {
             this.view.setOutput(this.model.cells);
         }
+    }
+
+    public configChanged(config: string){
+
+        this.view.setLoading("Propagating changes");
+        this.model.configUpdatedByUser(config).then(() => {
+            this.model.saveState();
+            this.view.setOutput(this.model.cells);
+        }).catch((error: any) => {
+            this.view.onError(error);
+        });
     }
 }

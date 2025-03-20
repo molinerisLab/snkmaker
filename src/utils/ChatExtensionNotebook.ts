@@ -79,7 +79,7 @@ export class ChatExtensionNotebook{
     static BASE_PROMPT_SECOND_STEP_FOOTER = `Please output your response in JSON format following this schema:
     {
         "text": string #REQUIRED: the textual response to show the user in the chat,
-        "changes": [ #List with one entry for each cell you want to change. Empty if nyou want to change no cell. Note: once a cell is included in the changes, all fields will be replaced with the ones you provide. If you want to keep some fields, you have to provide them again.
+        "changes": [ #List with one entry for each cell you want to change. Only changes to cells here Empty if nyou want to change no cell. Note: once a cell is included in the changes, all fields will be replaced with the ones you provide. If you want to keep some fields, you have to provide them again.
             {
                 "cell_index": number, #index of the cell modified
                 "snakemakeRule": string #The snakemake rule associated to the cell
@@ -87,7 +87,8 @@ export class ChatExtensionNotebook{
                 "code": string, #Main body of the code
                 "postfixCode": string #Part after main body, where output files are saved.
             }
-        ]
+        ],
+        "config": string #Will go in the config.yaml. If there is already a config.yaml, it will be replaced by this one.
     }
     Remember that you need to keep the entire structure coherent. If you modify an output, you must modify the cells that read this output to make them compatible with the new one. You must keep the Snakemake rules, its input and output fields coherent with the code.
     You can perform actions as you want, but if the action has many changes maybe first ask the user if he wants to perform it.\n
@@ -131,6 +132,9 @@ export class ChatExtensionNotebook{
 
     get_prompt_step_2(presenter: NotebookPresenter): string{
         let prompt = ChatExtensionNotebook.BASE_PROMPT_SECOND_STEP;
+        if (presenter.getCells().config.length>0){
+            prompt += "config.yaml: \n" + presenter.getCells().config + "\n\n";
+        }
         prompt += presenter.getCells().cells.map((cell: Cell, index:number) => {
             if (cell.rule.type!=="rule"){return "";}
             return `Cell n. ${index}:\nSnakemake rule:\n#Rule...\n${cell.rule.snakemakeRule}\n#End rule...\nPrefix code:\n#Start prefix code...\n${cell.rule.prefixCode}\n#End prefix code...\n` +

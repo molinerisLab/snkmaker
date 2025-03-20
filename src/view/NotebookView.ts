@@ -151,6 +151,8 @@ export class NotebookView implements NotebookViewCallbacks{
                     case 'remove_function_dependency':
                         presenter.removeFunctionDependency(message.index, message.keyword);
                         break;
+                    case 'config_changed':
+                        presenter.configChanged(message.content);
                 }
             },
             null,

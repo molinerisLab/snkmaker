@@ -345,9 +345,6 @@ export class BashCommandViewModel{
     }
 
     getOpenedNotebook(): NotebookPresenter|null{
-      if (vscode.window.tabGroups.activeTabGroup.activeTab?.label != "Export notebook"){
-        return null;
-      }
       return this.openedNotebookPresenter;
     }
 

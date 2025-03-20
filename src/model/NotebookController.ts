@@ -136,6 +136,7 @@ export class Cell {
 export class CellDependencyGraph{
     canUndo: boolean = false;
     canRedo: boolean = false;
+    config: string = "";
     constructor(public cells: Cell[]){
     }
 
@@ -638,7 +639,7 @@ export class NotebookController{
         return `\n\n\`\`\`diff\n#### Changes in ${title}:\n${formatted_changes}\n\`\`\`\n`;
     }
 
-    apply_from_chat_second_step(changes:any): string{
+    apply_from_chat_second_step(changes:any, newConfig: string|undefined): string{
         //Validate input
         for (let cell of changes){
             if (typeof cell.cell_index !== 'number' ||
@@ -649,7 +650,15 @@ export class NotebookController{
                  throw new Error("Invalid response format: One or more cell properties are missing or of incorrect type");
             }
         }
+
         const diffs: string[] = []
+        if (newConfig){
+            diffs.push(
+                `### config.yaml:\n`,
+                NotebookController.diffCode(this.cells.config, newConfig, `config`)
+            );
+            this.cells.config = newConfig;
+        }
         for (let cell of changes){
             const index = cell.cell_index;
             const target = this.cells.cells[index];
@@ -674,13 +683,19 @@ export class NotebookController{
     }
 
 
-    private async runPromptAndParse(original_prompt: string): Promise<any> {
+    private async runPromptAndParse(original_prompt: string, validate_function: ((response: any) => string|null)|undefined=undefined): Promise<any> {
         let prompt = original_prompt;
         let response = "";
         for (let i=0; i<5; i++){
             try{
                 response = await this.llm.runQuery(prompt);
                 const parsed = this.parseJsonFromResponse(response);
+                if (validate_function){
+                    const validationError = validate_function(parsed);
+                    if (validationError) {
+                        throw new Error(validationError);
+                    }
+                }
                 return parsed;
             } catch (e:any){
                 console.log(prompt);
@@ -921,6 +936,140 @@ export class NotebookController{
         return this.cells;
     }
 
+    async finalizeRulesCodeAndCreateConfig(){
+        const prompt = "I have a jupyter notebook that is being processed into a snakemake pipeline. "+
+        "The process is almost completed. Cells have been divided into rules (called from the Snakefile) and scripts "+
+        "(used with imports). The Snakefile has been written, and pieces of code have been enriched with " +
+        "prefix and suffix code to manage input and output files, wildcards and other dependencies.\n" +
+        "The last step is to finalize the code and the Snakefile and manage the config file.\n" +
+        "Your goals are:\n" +
+        "1- Read the code and the Snakefile, if you find errors fix them.\n" + 
+        "2- If you find some repeating patterns, or some hardcoded data that would be better as a configuration, " + 
+        "add it to the configuration. \nAdding to a configuration involves both defining the config.yaml and "+
+        "changing the code to access it. Remember, from the python scripts you can access the " +
+        "configuration with snakemake.config['variable_name'].\n" +
+        "Also remember only rules can access the snakemake access. Scripts can not.\n" +
+        "This is the code of the cells:\n" +
+        this.cells.cells.map((cell, index) => {
+            let base = `Cell n. ${index}:\nType: ${cell.rule.type}\n`;
+            if (cell.rule.type === "rule"){
+                base += `Snakemake rule:\n ${cell.rule.snakemakeRule}\n`+
+                `Prefix code:\n${cell.rule.prefixCode}\n`+
+                `Main code:\n${cell.code}\n`+
+                `Suffix code:\n${cell.rule.postfixCode}\n`;
+            } else {
+                base += `Prefix code:\n${cell.rule.prefixCode}\n`
+                base += `Code:\n${cell.code}\n`;
+            }
+            return base;
+        }) +
+        `\nPlease answer this prompt with a JSON that follows this schema:\n`+
+        `{ 'config': string (the config file), cells: [{cell_index: number, prefix_code: string, postfix_code: string, snakemake_rule: string, code: string }] }\n`+
+        `You DO NOT have to put all the cells and all the fields in the 'cell' objects, only what you want to change.\n`+
+        `For example if you want only to modify cell N and only its postfix_code field, just return one object with cell_index: N and postfix_code: new_code\n`+
+        "Also, you can not change the type of a cell (from rule to script or vice versa) and you can only change fields that "+
+        "exist already, you can not add new fields.\n";
+        const validate = (response: any) => {
+            if (!response['config']){
+                return "Missing field config";
+            }
+            if (typeof response['config'] !== 'string') {
+                return "Invalid response format: 'config' must be a string";
+            }
+            if (response['cells'] && !Array.isArray(response['cells'])) {
+                return "Invalid response format: 'cells' must be an array";
+            }
+            return null;
+        }
+        const formatted = await this.runPromptAndParse(prompt, validate);
+        if (formatted.config){
+            this.cells.config = formatted.config;
+        }
+        if (formatted.cells){
+            formatted.cells.forEach((cell: any) => {
+                if (cell.cell_index && cell.cell_index < this.cells.cells.length){
+                    if (cell.snakemake_rule){
+                        this.cells.cells[cell.cell_index].rule.snakemakeRule = cell.snakemake_rule;
+                    }
+                    if (cell.prefix_code){
+                        this.cells.cells[cell.cell_index].rule.prefixCode = cell.prefix_code;
+                    }
+                    if (cell.postfix_code){
+                        this.cells.cells[cell.cell_index].rule.postfixCode = cell.postfix_code;
+                    }
+                    if (cell.code){
+                        this.cells.cells[cell.cell_index].code = cell.code;
+                    }
+                }
+            });
+        }        
+    }
+
+    async configUpdatedByUser(newConfig: string){
+        const oldConfig = this.cells.config;
+        const prompt = "I have a jupyter notebook that is being processed into a snakemake pipeline. "+
+        "The process is almost completed. Cells have been divided into rules (called from the Snakefile) and scripts "+
+        "(used with imports). The Snakefile has been written, and pieces of code have been enriched with " +
+        "prefix and suffix code to manage input and output files, wildcards and other dependencies. " +
+        "Finally, a config.yaml file has been defined.\n" +
+        "Now the user has just manually updated the config file and you might need to update something " +
+        "in the code or in the snakefile.\n" +
+        "This was the old config.yaml:\n" + oldConfig + "\n" +
+        "This is the new config.yaml:\n" + newConfig + "\n" +
+        "This is the code of the cells:\n" +
+        this.cells.cells.map((cell, index) => {
+            let base = `Cell n. ${index}:\nType: ${cell.rule.type}\n`;
+            if (cell.rule.type === "rule"){
+                base += `Snakemake rule:\n ${cell.rule.snakemakeRule}\n`+
+                `Prefix code:\n${cell.rule.prefixCode}\n`+
+                `Main code:\n${cell.code}\n`+
+                `Suffix code:\n${cell.rule.postfixCode}\n`;
+            } else {
+                base += `Prefix code:\n${cell.rule.prefixCode}\n`
+                base += `Code:\n${cell.code}\n`;
+            }
+            return base;
+        }) +
+        "Please provide the changes needed. Do not perform changes that are not required by the new config.\n"+
+        "Remember, from the python scripts you can access the " +
+        "configuration with snakemake.config['variable_name'].\n" +
+        "Also remember only rules can access the snakemake access. Scripts can not.\n" +
+        `\nPlease answer this prompt with a JSON that follows this schema:\n`+
+        `{ 'config': string (the config file), cells: {cell_index: number, prefix_code: string, postfix_code: string, snakemake_rule: string, code: string } }\n`+
+        `You DO NOT have to put all the cells and all the fields in the 'cell' objects, only what you want to change.\n`+
+        `For example if you want only to modify cell N and only its postfix_code field, just return one object with cell_index: N and postfix_code: new_code\n`+
+        "Also, you can not change the type of a cell (from rule to script or vice versa) and you can only change fields that "+
+        "exist already, you can not add new fields.\n";
+        const validate = (response: any) => {
+            if (response.cells && !Array.isArray(response.cells)) {
+                return "Invalid response format: 'cells' must be an array";
+            }
+            return null;
+        }
+        const formatted = await this.runPromptAndParse(prompt, validate);
+        this.cells.config = newConfig;
+        if (formatted.cells){
+            formatted.cells.forEach((cell: any) => {
+                if (cell.cell_index && cell.cell_index < this.cells.cells.length){
+                    if (cell.snakemake_rule){
+                        this.cells.cells[cell.cell_index].rule.snakemakeRule = cell.snakemake_rule;
+                    }
+                    if (cell.prefix_code){
+                        this.cells.cells[cell.cell_index].rule.prefixCode = cell.prefix_code;
+                    }
+                    if (cell.postfix_code){
+                        this.cells.cells[cell.cell_index].rule.postfixCode = cell.postfix_code;
+                    }
+                    if (cell.code){
+                        this.cells.cells[cell.cell_index].code = cell.code;
+                    }
+                }
+            });
+        }        
+
+    }
+
+
     async buildRulesAdditionalCode(targets:number[]=[]): Promise<CellDependencyGraph>{
         function getImportStatementsFromScripts(node: Cell, cells: Cell[]): string{
             const dependencies: Set<string> = new Set();
@@ -957,9 +1106,12 @@ export class NotebookController{
                 " I will also provide the name of the output files to write and the variables to save there.\n"+
                 " And I will provide the variables that need to be valorized from wildcards.\n\n"+
                 " From this, please write for me three things:\n"+
-                "1- A snakemake rule, with input, output, logs and shell directives. Manage wildcards and arguments of the script. Always pass to the script arguments the names of the input files, and the wildcards.\n"+
-                "2- A prefix code, that will be appended before the actual code in the script, that reads command line arguments, read files and initializes variables (from files and wildcards). Please always use the filenames provided as command line arguments for the filenames.\n"+
-                "3- A suffix code, that will be appended after the script, that saves the variables to the output files.\n"+
+                "1- A snakemake rule, with input, output, logs and script directives. "+
+                "As the python scripts are run inside the 'script' directive of Snakemake, they have access to "+
+                "input and output filenames, wildcards, config and params. The script can read them as: "+
+                "snakemake.input[0], [1].. snakemake.output[0], [1] .. snakemake.wildcards['wildcard_name']  (for example, from filename test_run_{N} you can access snakemake.wildcards['N'])\n"+
+                "2- A prefix code, that will be appended before the actual code in the script, that reads snakemake data, initialize variables, read files. Please always use the snakemake.input, snakemake.wildcards etc to initialize variables and filenames.\n"+
+                "3- A suffix code, that will be appended after the script, that saves the variables to the output files. Use snakemake.output for the filenames.\n"+
 
                 "\nMy script is:\n#Begin script...\n" + cell.code + "\n#End of script...\nThe Script is named: " + cell.rule.name + "\n"+
                 "The variables it needs to valorize by reading files are:\n" +
@@ -978,6 +1130,7 @@ export class NotebookController{
                 "The variables that needs to be saved to files are: \n" +
                 ((exportsTo.length===0) ? " - no variable actually needed for saving -\n" : exportsTo.map((entry:[string,number[]]) => "Variable: " + entry[0] + " must be saved and will be readed by the script(s) " + entry[1].map((index:number)=>this.cells.cells[index].rule.name).join(", ")).join("\n")) + "\n\n"+
                 ((wildcards.length===0) ? " - no wildcard needed -" : "Wildcards: " + wildcards.join(", ") + "\n\n") +
+                ((this.cells.config.length>0) ? `This is the config file of the Snakemake pipeline:\n${this.cells.config}\n\n` : '') +
                 "When saving files, you can decide the name, format and number of files. Consider the number of scripts that will read them to make a good decision.\n" +
                 "\nPlease write the output in JSON format following this schema:\n"+
                 "{ 'prefix_code': string 'code to read arguments, files', 'suffix_code': string 'code to save each file', 'rule': string (snakemake rule) }\n"+
@@ -988,6 +1141,7 @@ export class NotebookController{
                 node.snakemakeRule = formatted.rule.trim().replace("#Rule...\n", "").replace("#End rule...", "");
             }
         }
+        await this.finalizeRulesCodeAndCreateConfig();
         return this.cells;
     }
 
