@@ -6,16 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [0.2.0] - 2025-03-TODO
+## [0.2.1] - 2025-03-20
 
 ### Added:
 - Notebook export process can now be saved to file and loaded back.
+- Notebook export: now a config.yaml file is generated and updated with the notebook export process.
 
 ### Changed:
 - Improvements in management of functions in the notebook feature.
 - New rules added to the bottom of the Snakefile.
 - Improved rule: all generation.
 - Exporting rule: now Snakemaker looks for Snakefile(s) opened in the editor's tabs.
+- Improved notebook export: better code generation.
+- Improved notebook export: using script directive to allow scripts accessing Snakemake state.
 
 ## [0.2.0] - 2025-03-07
 
