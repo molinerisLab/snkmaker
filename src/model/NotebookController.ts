@@ -703,7 +703,8 @@ export class NotebookController{
                 prompt = "I asked you this:\n\n" + original_prompt + 
                 "\n\nAnd your response was: \n" + response +
                 "\n\nBut when trying to parse your response in json I got this error: \n" + e.message +
-                "\n\nPlease try again.";
+                "\n\nPlease try again. Remember your response is parsed by a script, "+
+                "so it must be in the correct format. Do not write an example json before the real one or the parser will fail.";
             }
         }
         console.log(prompt)
@@ -760,9 +761,27 @@ export class NotebookController{
         "When deciding if changing an undecided cell state consider this: small pieces of code that do not produce significant data are good candidates for scripts. Pieces of code that produce meaningful data, or that produce data that is readed by many other cells are good candidates to be rules. If you are undecided, let it undecided and the user will choose himself.\n"+
         "Please output your response in the following JSON schema:\n"+
         `{"rules": [ {"cell_index": <number>, "rule_name": <string>, "type": <string>} for each cell... ] } \n`+
-        (changeFrom===0 ? "Please provide at least a name for every cell, even if you don't want to change the state." : 
+        (changeFrom===0 ? "Please provide at least a name for every cell, even if you don't want to change the state and even if it's a script." : 
             "You can change the state of the cells from " + changeFrom + " onward. For those, please provide at least a name for every cell, even if you don't want to change the state.");
-        const formatted = await this.runPromptAndParse(prompt);
+        
+        const validate = (response: any) => {
+            if (!response.rules || !Array.isArray(response.rules)) {
+                return "Invalid response format: 'rules' is missing or not an array";
+            }
+            for (let rule of response.rules){
+                if (typeof rule.cell_index !== 'number'){
+                    return "Invalid response format: 'cell_index' is not a number";
+                }
+                if (!rule.type || !["rule", "script", "undecided"].includes(rule.type)) {
+                    return "Invalid response format: Rule type missing or not in ['rule', 'script', 'undecided']";
+                }
+                if (!rule.rule_name || typeof rule.rule_name !== 'string') {
+                    return "Invalid response format: Rule name missing";
+                }
+            }
+            return null;
+        }
+        const formatted = await this.runPromptAndParse(prompt, validate);
         if (formatted){
             this.cells.setRulesTypesAndNames(formatted, changeFrom);
         }
@@ -795,7 +814,22 @@ export class NotebookController{
         "Please provide to me the list of READED variables, WRITTEN variables and READED file for each cell. For each variable use the same name used in the code without changing it.\n"+
         "\n\nPlease write the output in JSON format following this schema:\n"+
         `{ "cells": [ {"cell_index": <number>, "reads": [<strings>], "writes": [<indexes>], "reads_file": [<indexes>]}  for each rule... ] }`;
-        const formatted = await this.runPromptAndParse(prompt);
+        
+        const validate = (response: any) => {
+            if (!response.cells || !Array.isArray(response.cells)) {
+                return "Invalid response format: 'cells' is missing or not an array";
+            }
+            for (let cell of response.cells){
+                if (typeof cell.cell_index !== 'number' ||
+                !Array.isArray(cell.reads) ||
+                !Array.isArray(cell.writes) ||
+                !Array.isArray(cell.reads_file)) {
+                    return "Invalid response format: One or more cell properties are missing or of incorrect type";
+                }
+            }
+            return null;
+        }
+        const formatted = await this.runPromptAndParse(prompt, validate);
         if (!formatted || !formatted.cells || !Array.isArray(formatted.cells)) {
             throw new Error("Invalid response format: 'rules' is missing or not an array");
         }
@@ -827,7 +861,18 @@ export class NotebookController{
         "Please write the needed imports as a list of indexes (example: import 0, 1, 5).\n"+
         "Please write the output in JSON format following this schema:\n"+
         "{'cells': [cell_index: number, imports: [index of import for each import needed]]}";
-        const formatted = await this.runPromptAndParse(prompt);
+        const validate = (response: any) => {
+            if (!response.cells || !Array.isArray(response.cells)) {
+                return "Invalid response format: 'cells' is missing or not an array";
+            }
+            for (let cell of response.cells){
+                if (typeof cell.cell_index !== 'number' || !Array.isArray(cell.imports)) {
+                    return "Invalid response format: One or more cell properties are missing or of incorrect type";
+                }
+            }
+            return null;
+        }
+        const formatted = await this.runPromptAndParse(prompt, validate);
         if (!formatted || !formatted.cells || !Array.isArray(formatted.cells)) {
             throw new Error("Invalid response format: 'rules' is missing or not an array");
         }

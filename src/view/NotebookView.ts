@@ -62,7 +62,7 @@ export class NotebookView implements NotebookViewCallbacks{
     onError(error: string): void {
         console.log(error);
         vscode.window.showErrorMessage(error);
-        this.disposeDelayed();
+        this.dispose();
     }
     onSoftError(error: string): void {
         this.stopLoading();
@@ -200,12 +200,6 @@ export class NotebookView implements NotebookViewCallbacks{
                 x.dispose();
             }
         }
-    }
-
-    private disposeDelayed(){
-        setTimeout(() => {
-            this.dispose();
-        }, 5000);
     }
 
     private _getHtmlForWebview(webview: vscode.Webview) {
