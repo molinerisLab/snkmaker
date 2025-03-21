@@ -81,12 +81,6 @@ export class NotebookPresenter{
     }
 
     public produceSnakefile(){
-        /*let mocked = this.mockOrLoadData('secondstep');
-        if (mocked){
-            this.view.stopLoading();
-            this.view.setOutput(mocked);
-            return;   
-        }*/
         this.view.setLoading("Building Snakemake rules...");
         this.model.buildRulesAdditionalCode().then(
             (res: CellDependencyGraph) => {
@@ -97,7 +91,7 @@ export class NotebookPresenter{
             }
         ).catch(
             (error: any) => {
-                this.view.onError(error);
+                this.view.onSoftError(error);
             }
         );
     }
@@ -112,7 +106,7 @@ export class NotebookPresenter{
             }
         ).catch(
             (error: any) => {
-                this.view.onError(error);
+                this.view.onSoftError("Model could not propagate changes made in the code");
             }
         );
     }
@@ -126,7 +120,7 @@ export class NotebookPresenter{
             }
         ).catch(
             (error: any) => {
-                this.view.onError(error);
+                this.view.onSoftError("Model could not propagate changes made in the code");
             }
         );
     }
@@ -140,7 +134,7 @@ export class NotebookPresenter{
             }
         ).catch(
             (error: any) => {
-                this.view.onError(error);
+                this.view.onSoftError("Model could not propagate changes made in the code");
             }
         );
     }
@@ -270,6 +264,8 @@ export class NotebookPresenter{
             rules.then((nodes: CellDependencyGraph) => {
                 this.view.setRulesNodes(nodes);
                 this.model.saveState();
+            }).catch((error: any) => {
+                this.view.onError(error);
             });
         }
     }
@@ -313,7 +309,7 @@ export class NotebookPresenter{
                     }
                 ).catch(
                     (error: any) => {
-                        this.view.onError(error);
+                        this.view.onSoftError("Could not export Snakefile: " + error);
                     }
                 );
             }
