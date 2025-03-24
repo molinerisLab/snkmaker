@@ -49,13 +49,13 @@ export class OpenedSnakefileContent{
 
 
         if (includeKeys.length > 0 || configKeys.length > 0) {
-            content = "Snakefile:\n" + content;
+            content = "\n\n#.....................\n#Snakefile:\n" + content;
         }
         if (configKeys.length > 0) {
-            content = "Included configuration files (use the configurations inside the rules if needed!): \n\n" + 
+            content = "\n\n#.....................\n#Included configuration files:\n" + 
                 (
                     Object.keys(configPaths).map((key) => {
-                        return "Config file: " + key + ":\n" + configPaths[key];
+                        return "#Config file name: " + key + ":\n" + configPaths[key];
                     }).join("\n")
                 ) + 
                 content; 

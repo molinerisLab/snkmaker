@@ -94,27 +94,31 @@ class ModelPrompts{
     static rulesFromCommandsBasicPrompt(formattedRules: string[], ruleFormat: string, extraPrompt: string, rulesContext:string="", ruleAll: string|null = null): string{
         let prompt =  `I have the following set of bash commands. Can you convert them into ${ruleFormat} rules? `+
         `Note that Estimated inputs and outputs are just guesses and could be wrong.\n`+
-        `${formattedRules.join("\n")}\n${rulesContext}`+
-        `Please do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary. `+
+        `${formattedRules.join("\n")}\n${rulesContext}\n`+
+        `When producing the new rules, follow these instructions:\n`+
+        `-Do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary. \n`+
         extraPrompt;
         if (ruleFormat==="Snakemake"){
-            prompt += "Please use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n" +
-            `If one of the rules contains some type of loop - like a for loop - acting on multiple files, generate`+
+            prompt += "- If the rules contains some pattern that could be caught in a config, or some "+
+            "values or names that could be put in a config, please use configuration['name'] and output a string that will be added to the config file. "+
+            "If available, consider the config already present before repeating values, and integrate its values in the rules when needed.\n";
+            prompt += "-Use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n" +
+            `-If one of the rules contains some type of loop - like a for loop - acting on multiple files, generate`+
             ` one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' to generate all output files. `+
-            `The name of the second rule should should NOT be 'all', it should be a meaningful name connected to the original rule.`;
+            `Note: The name of the second rule should should NOT be 'all', it should be a meaningful name connected to the original rule.`;
             if (ruleAll){
-                prompt += "\nThe Snakefile already contains a rule all: " + ruleAll + ".\n" +
+                prompt += "\n-The Snakefile already contains a rule all:\n " + ruleAll + "\n" +
                 "Please add the new rules to the rule all.\n" +
                 "Please return the rules in JSON format. The JSON contains a field 'rule' which is a string, that contains the entire "+
-                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}";
+                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}";
                 if (rulesContext.length>0){
-                    prompt += "\nNote: the rule all must be written entirely, so take the one existing and add inputs to it.\n"+
+                    prompt += "\nNote: the rule 'all' must be written entirely, so take the one existing and add inputs to it.\n"+
                     "The other rules on the other hand must not repeat the rules already existing in the file.";
                 }
             } else {
                 prompt += "Please also write a 'rule all' to produce all files.\n" +
                 "Please return the rules in JSON format. The JSON contains a field 'rule' which is a string, that contains the entire "+
-                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}";
+                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}";
                 if (rulesContext.length>0){
                     prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
                     "but their outputs must be included in the 'rule_all'.";
@@ -131,9 +135,6 @@ class ModelPrompts{
         const logDirective: boolean = ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules();
         const commentEveryLine: boolean = ExtensionSettings.instance.getCommentEveryRule();
         let extraPrompt = "";
-        if (useWildcards || logDirective){
-            extraPrompt += `Please write the Snakemake rules following these guidelines:\n`;
-        }
         if (useWildcards){
             extraPrompt += `- Prefer the usage of generic names for input-outputs using wildcards, when possible. `+
             `For example input: "data.csv", output: "transformed_data.csv" could be written as input: "{file}.csv", `+
@@ -158,10 +159,12 @@ class ModelPrompts{
     static rulesContextPrompt(currentRules: string){
         if (currentRules.length <= 20){return "";} //Skip prompt if file has a few characters inside
         return `\nFor context, these are the rules already present:\n${currentRules}\n`+
-        "Please consider these rules as a context when writing the new rules. Follow their style and formalism. "+
-        "If a command results in a rule equal to one already present, do not output it. "+
-        "If you need to return no rule at all, because they are all already present, return a newline instead. "+
-        "DO NOT write the already present rules them back in your response or the user will find them twice in his file.";
+        "Please use the existing rules and config for:\n" +
+        "1- Avoid repeating existing rules. If a rule is already present, do not write it again." +
+        "If you need to return no rule at all, because they are all already present, return a newline instead.\n"+
+        "2- Follow the style, formalisms and naming conventions of the rules already present.\n"+
+        "3- If a command results in a rule equal to one already present, do not output it.\n"+
+        "4- Consider the existing config, if available, for the new rules. If rules similar to the one you are generating use some configuration, use it in the new ones too.\n";
     }
 
 }
@@ -186,6 +189,9 @@ export class Queries{
         }
         if (json["rule_all"]){
             result['rule_all'] = json["rule_all"];
+        }
+        if (json["add_to_config"]){
+            console.log(json["add_to_config"]);
         }
         return result;
     }
