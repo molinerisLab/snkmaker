@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import { TestRules } from "../utils/TestRules";
 import { ExtensionSettings } from "../utils/ExtensionSettings";
 import { UndoRedoStack } from './UndoRedoStack';
+import { SnakefileContext } from "../utils/OpenendSnakefileContent";
 
 
 export class TerminalHistory {
@@ -153,13 +154,13 @@ export class TerminalHistory {
         SnkmakerLogger.instance()?.setCommandImportance(command, importance);
     }
 
-    private async validateAndCorrectRules(rules: string){
+    private async validateAndCorrectRules(rules: SnakefileContext): Promise<SnakefileContext>{
         //Only if it is in Snakemake format and the user has not disabled the setting
         if (! (ExtensionSettings.instance.getRulesOutputFormat()==="Snakemake" && ExtensionSettings.instance.getValidateSnakemakeRules())){
             return rules;
         }
-        if (rules.length < 5){
-            return "";
+        if (rules["rule"] && rules["rule"].length < 5){
+            return rules;
         }
         //TODO: max tries should be a setting or a configuration
         for (let i = 0; i < 3; i++){
@@ -181,7 +182,7 @@ export class TerminalHistory {
         command.setTemporary(true);
         try {
             let rule = await this.queries.getRuleFromCommand(command);
-            rule['rule'] = await this.validateAndCorrectRules(rule['rule']);
+            await this.validateAndCorrectRules(rule);
             return rule;
         } catch (e){
             throw e;
@@ -198,7 +199,7 @@ export class TerminalHistory {
         important.forEach(command => command.setTemporary(true));
         try{
             var rules = await this.queries.getAllRulesFromCommands(important);
-            rules['rule'] = await this.validateAndCorrectRules(rules['rule']);
+            await this.validateAndCorrectRules(rules);
             return rules;
         } catch (e){
             throw e;

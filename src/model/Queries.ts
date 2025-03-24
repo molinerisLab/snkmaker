@@ -2,7 +2,7 @@ import { LLM } from "./ModelComms";
 import { BashCommand } from "./TerminalHistory";
 import { ExtensionSettings } from '../utils/ExtensionSettings';
 import * as vscode from 'vscode';
-import { OpenedSnakefileContent } from "../utils/OpenendSnakefileContent";
+import { OpenedSnakefileContent, SnakefileContext } from "../utils/OpenendSnakefileContent";
 
 class ModelPrompts{
     static ruleDetailsPrompt(command: string): string{
@@ -99,8 +99,8 @@ class ModelPrompts{
         `-Do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary. \n`+
         extraPrompt;
         if (ruleFormat==="Snakemake"){
-            prompt += "- If the rules contains some pattern that could be caught in a config, or some "+
-            "values or names that could be put in a config, please use configuration['name'] and output a string that will be added to the config file. "+
+            prompt += "- If rules to be created contain values or names or absolute paths that could be put in a configuration instead of being hardcoded, "+
+            "please use a configuration: use configuration['name'] to access it and output a string that will be added to the config file: name: value. "+
             "If available, consider the config already present before repeating values, and integrate its values in the rules when needed.\n";
             prompt += "-Use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n" +
             `-If one of the rules contains some type of loop - like a for loop - acting on multiple files, generate`+
@@ -127,6 +127,7 @@ class ModelPrompts{
         } else {
             prompt += "\nPlease return the rules in JSON format. The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}";
         }
+        console.log(prompt);
         return prompt;
     }
 
@@ -159,7 +160,7 @@ class ModelPrompts{
     static rulesContextPrompt(currentRules: string){
         if (currentRules.length <= 20){return "";} //Skip prompt if file has a few characters inside
         return `\nFor context, these are the rules already present:\n${currentRules}\n`+
-        "Please use the existing rules and config for:\n" +
+        "Please use the existing rules and config to:\n" +
         "1- Avoid repeating existing rules. If a rule is already present, do not write it again." +
         "If you need to return no rule at all, because they are all already present, return a newline instead.\n"+
         "2- Follow the style, formalisms and naming conventions of the rules already present.\n"+
@@ -174,26 +175,26 @@ export class Queries{
         this.modelComms = modelComms;
     }
 
-    private parseJsonFromResponse(response: string): any{
+    private parseJsonFromResponse(response: string, context: SnakefileContext): SnakefileContext{
         let start = response.indexOf("{");
         let end = response.lastIndexOf("}");
         if (start !== -1 && end !== -1){
             response = response.substring(start, end + 1);
         }
-        let result = {'rule': '', 'rule_all': null, 'remove': null};
+        let result = {'rule': '', 'rule_all': null, 'remove': null, 'add_to_config': null};
         const json = JSON.parse(response);
         if (json["rule"]){
-            result['rule'] = json["rule"];
+            context["rule"] = json["rule"];
         } else {
             throw new Error("No field named rule in the JSON");
         }
         if (json["rule_all"]){
-            result['rule_all'] = json["rule_all"];
+            context['rule_all'] = json["rule_all"];
         }
         if (json["add_to_config"]){
-            console.log(json["add_to_config"]);
+            context['add_to_config'] = json["add_to_config"];
         }
-        return result;
+        return context;
     }
     private parseJsonFromResponseGeneric(response: string): any{
         let start = response.indexOf("{");
@@ -289,17 +290,33 @@ Please write the documentation as a string in a JSON in this format: {documentat
         if (output === "-"){ output = "No output";}
         let context = "";
         let ruleAll = null;
+        let currentSnakefileContext: SnakefileContext = {
+            snakefile_path: null,
+            snakefile_content: null,
+            content: null,
+            config_paths: [],
+            config_content: [],
+            include_paths: [],
+            include_content: [],
+            rule: null,
+            rule_all: null,
+            add_to_config: null,
+            remove: null,
+        };
         if (ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt()){
-            const currentSnakefileContext = await OpenedSnakefileContent.getCurrentEditorContent();
-            context = ModelPrompts.rulesContextPrompt(currentSnakefileContext);
-            ruleAll = this.extractAllRule(currentSnakefileContext);
+            const c = await OpenedSnakefileContent.getCurrentEditorContent();
+            if (c){
+                currentSnakefileContext = c;
+                context = ModelPrompts.rulesContextPrompt(currentSnakefileContext["content"]||"");
+                ruleAll = this.extractAllRule(currentSnakefileContext["content"]||"");
+            }
         }
         const prompt_original = ModelPrompts.ruleFromCommandPrompt(command, bashCommand.getRuleName(), ruleFormat, inputs, output, context, ruleAll);
         let prompt = prompt_original;
         for (let i = 0; i < 5; i++){
             const response = await this.modelComms.runQuery(prompt);
             try{
-                let r = this.parseJsonFromResponse(response);
+                let r = this.parseJsonFromResponse(response, currentSnakefileContext);
                 r['remove'] = ruleAll;
                 return r;
             } catch (e){
@@ -307,10 +324,10 @@ Please write the documentation as a string in a JSON in this format: {documentat
                 + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
             }
         }
-        return null;
+        return currentSnakefileContext;
     }
 
-    async getAllRulesFromCommands(commands: BashCommand[]){
+    async getAllRulesFromCommands(commands: BashCommand[]): Promise<SnakefileContext>{
         const ruleFormat = ExtensionSettings.instance.getRulesOutputFormat();
         let extraPrompt = "";
         if (ruleFormat==="Snakemake"){
@@ -321,10 +338,26 @@ Please write the documentation as a string in a JSON in this format: {documentat
         );
         let context = "";
         let ruleAll = null;
+        let currentSnakefileContext: SnakefileContext = {
+            snakefile_path: null,
+            snakefile_content: null,
+            content: null,
+            config_paths: [],
+            config_content: [],
+            include_paths: [],
+            include_content: [],
+            rule: null,
+            rule_all: null,
+            add_to_config: null,
+            remove: null,
+        };
         if (ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt()){
-            const currentSnakefileContext = await OpenedSnakefileContent.getCurrentEditorContent();
-            context = ModelPrompts.rulesContextPrompt(currentSnakefileContext);
-            ruleAll = this.extractAllRule(currentSnakefileContext);
+            const c = await OpenedSnakefileContent.getCurrentEditorContent();
+            if (c){
+                currentSnakefileContext = c;
+                context = ModelPrompts.rulesContextPrompt(currentSnakefileContext["content"]||"");
+                ruleAll = this.extractAllRule(currentSnakefileContext["content"]||"");
+            }
         }
 
         const prompt_original = ModelPrompts.rulesFromCommandsBasicPrompt(formatted, ruleFormat, extraPrompt, context, ruleAll);
@@ -333,7 +366,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
         for (let i = 0; i < 5; i++){
             const response = await this.modelComms.runQuery(prompt);
             try{
-                let r = this.parseJsonFromResponse(response);
+                let r = this.parseJsonFromResponse(response, currentSnakefileContext);
                 r['remove'] = ruleAll;
                 return r;
             } catch (e){
@@ -341,7 +374,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
                 + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
             }
         }
-        return null;
+        return currentSnakefileContext;
     }
 
     async guessOnlyName(command: BashCommand){

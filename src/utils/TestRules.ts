@@ -3,6 +3,7 @@ const tmp = require("tmp");
 import * as vscode from "vscode";
 import { SnkmakerLogger } from "./SnkmakerLogger";
 import { ExtensionSettings } from "./ExtensionSettings";
+import { SnakefileContext } from "./OpenendSnakefileContent";
 
 export class TestRules {
   constructor() {
@@ -32,9 +33,7 @@ export class TestRules {
       });
   }
 
-  async validateRules(
-    rules: string
-  ): Promise<{ success: boolean; message?: string }> {
+  async validateRules(rules: SnakefileContext): Promise<{ success: boolean; message?: string }> {
     let snakemakePath = ExtensionSettings.instance.getSnakemakeAbsolutePath();
     if (snakemakePath === "") {
       snakemakePath = "snakemake";

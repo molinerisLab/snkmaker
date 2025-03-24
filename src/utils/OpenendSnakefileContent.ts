@@ -5,13 +5,28 @@ import * as vscode from 'vscode';
 
 configfile: "config_DGE.yaml" */
 
+export interface SnakefileContext{
+    snakefile_path: string|null,
+    snakefile_content: string|null,
+    content: string|null,
+    config_paths: string[],
+    config_content: string[],
+    include_paths: string[],
+    include_content: string[],
+    rule: string|null,
+    rule_all: string|null,
+    add_to_config: string|null,
+    remove: string|null,
+}
+
 export class OpenedSnakefileContent{
 
-    static async manageInclude(content: string, includePath: string): Promise<string> {
+    static async manageInclude(original_content: string, original_path: string): Promise<SnakefileContext> {
         const includePaths:any = {};
         const configPaths:any = {};
+        const includePath = original_path.slice(0, original_path.lastIndexOf("/"))
 
-        const lines = content.replaceAll(";", "\n").split("\n");
+        const lines = original_content.replaceAll(";", "\n").split("\n");
         for (let line of lines) {
             const trimmed_line = line.replaceAll(' ', "");
             if (trimmed_line.includes("include:")) {
@@ -47,7 +62,7 @@ export class OpenedSnakefileContent{
             configPaths[key] = configContent;
         }
 
-
+        let content = original_content;
         if (includeKeys.length > 0 || configKeys.length > 0) {
             content = "\n\n#.....................\n#Snakefile:\n" + content;
         }
@@ -66,13 +81,25 @@ export class OpenedSnakefileContent{
                 content; 
         }
 
-        return content;
+        return {
+            snakefile_path: original_path,
+            snakefile_content: original_content,
+            content: content,
+            config_paths: configKeys.map((key) => includePath + "/" + key),
+            config_content: configKeys.map((key) => configPaths[key]),
+            include_paths: includeKeys.map((key) => includePath + "/" + key),
+            include_content: includeKeys.map((key) => includePaths[key]),
+            rule: null,
+            rule_all: null,
+            add_to_config: null,
+            remove: null,
+        }
     }
 
-    static async getCurrentEditorContent(){
+    static async getCurrentEditorContent():Promise<SnakefileContext|null>{
         const editor = vscode.window.activeTextEditor;
         if (!editor) { 
-            return  ""; 
+            return  null; 
         }
         let activeEditorCurrentPath = editor.document.fileName;
         activeEditorCurrentPath = activeEditorCurrentPath.slice(0, activeEditorCurrentPath.lastIndexOf("/"));
@@ -84,7 +111,7 @@ export class OpenedSnakefileContent{
         return content;
     }
     
-    static async getFilePathContent(filePath: string): Promise<string> {
+    static async getFilePathContent(filePath: string): Promise<SnakefileContext> {
         const document = await vscode.workspace.openTextDocument(filePath);
         const content = await OpenedSnakefileContent.manageInclude(
             document.getText(),
