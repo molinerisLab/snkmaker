@@ -45,23 +45,33 @@ export class OpenedSnakefileContent{
 
         for (let key of includeKeys) {
             const path = includePath + "/" + key;
-            const includeContent = await vscode.workspace.fs.readFile
-                (vscode.Uri.file(path)).then((data) => {
-                    const decoder = new TextDecoder("utf-8");
-                    return decoder.decode(data);
-                }
-            );
-            includePaths[key] = includeContent;
+            try{
+                const includeContent = await vscode.workspace.fs.readFile
+                    (vscode.Uri.file(path)).then((data) => {
+                        const decoder = new TextDecoder("utf-8");
+                        return decoder.decode(data);
+                    }
+                );
+                includePaths[key] = includeContent;
+            } catch (e) {
+                console.log("Error reading include file: ", e);
+                includeKeys.splice(includeKeys.indexOf(key), 1);
+            }
         }
         for (let key of configKeys) {
             const path = includePath + "/" + key;
-            const configContent = await vscode.workspace.fs.readFile
-                (vscode.Uri.file(path)).then((data) => {
-                    const decoder = new TextDecoder("utf-8");
-                    return decoder.decode(data);
-                }
-            );
-            configPaths[key] = configContent;
+            try{
+                const configContent = await vscode.workspace.fs.readFile
+                    (vscode.Uri.file(path)).then((data) => {
+                        const decoder = new TextDecoder("utf-8");
+                        return decoder.decode(data);
+                    }
+                );
+                configPaths[key] = configContent;
+            } catch (e) {
+                console.log("Error reading config file: ", e);
+                configKeys.splice(configKeys.indexOf(key), 1);
+            }
         }
 
         let content = original_content;

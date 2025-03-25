@@ -162,7 +162,6 @@ export class TerminalHistory {
         if (rules["rule"] && rules["rule"].length < 5){
             return rules;
         }
-        return rules; //TODO
         //TODO: max tries should be a setting or a configuration
         for (let i = 0; i < 3; i++){
             const valid: { success: boolean; message?: string;} = await this.testRules.validateRules(rules);
@@ -170,7 +169,7 @@ export class TerminalHistory {
                 return rules;
             }
             SnkmakerLogger.instance()?.log(`Generated rule not valid: ${valid.message}`);
-            //rules = await this.queries.autoCorrectRulesFromError(rules, valid.message||"");
+            rules = await this.queries.autoCorrectRulesFromError(rules, valid.message||"");
             SnkmakerLogger.instance()?.log(`Corrected rule: ${rules}`);
         }
         return rules;
