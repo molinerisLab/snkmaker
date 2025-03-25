@@ -5,18 +5,20 @@ import * as vscode from 'vscode';
 
 configfile: "config_DGE.yaml" */
 
-export interface SnakefileContext{
-    snakefile_path: string|null,
-    snakefile_content: string|null,
-    content: string|null,
-    config_paths: string[],
-    config_content: string[],
-    include_paths: string[],
-    include_content: string[],
-    rule: string|null,
-    rule_all: string|null,
-    add_to_config: string|null,
-    remove: string|null,
+export class SnakefileContext{
+    constructor(
+        public snakefile_path: string | null,
+        public snakefile_content: string | null,
+        public content: string | null,
+        public config_paths: string[],
+        public config_content: string[],
+        public include_paths: string[],
+        public include_content: string[],
+        public rule: string | null,
+        public rule_all: string | null,
+        public add_to_config: string | null,
+        public remove: string | null
+    ) {}
 }
 
 export class OpenedSnakefileContent{
@@ -102,7 +104,6 @@ export class OpenedSnakefileContent{
             return  null; 
         }
         let activeEditorCurrentPath = editor.document.fileName;
-        activeEditorCurrentPath = activeEditorCurrentPath.slice(0, activeEditorCurrentPath.lastIndexOf("/"));
         const document = editor.document;
         const content = await OpenedSnakefileContent.manageInclude(
             document.getText(),

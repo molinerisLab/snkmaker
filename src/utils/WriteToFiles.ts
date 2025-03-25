@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { SnakefileContext } from './OpenendSnakefileContent';
 
 export class WriteToFiles{
 
@@ -50,8 +51,10 @@ export class WriteToFiles{
         });
     }
 
-    async writeToCurrentFile(value: any): Promise<boolean>{
-        let rules = value['rule'];
+    
+
+    async writeToCurrentFile(value: SnakefileContext): Promise<boolean>{
+        let rules = value['rule']||"";
         let rule_all = value['rule_all'] || "";
         let remove = value['remove'];
         //Write to the file currently in focus, if any
@@ -62,7 +65,14 @@ export class WriteToFiles{
                 return this.writeToEditor(rules, rule_all, editor);
             });
         } else {
-            return this.writeToEditor(rules, rule_all, editor, remove);
+            const success = this.writeToEditor(rules, rule_all, editor, remove);
+            if (!success){
+                return false;
+            }
+            if (value['add_to_config']){
+                this.writeToFile(value['config_paths'][0], value['config_content'][0] + "\n" + value['add_to_config']);
+            }
+            return true;
         }
     }
     hasEditorOpen(): boolean{
