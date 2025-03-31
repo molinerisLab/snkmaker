@@ -49,8 +49,10 @@ export class TerminalHistory {
         SnkmakerLogger.instance()?.addCommand(tempCommand);
         
         //Get positive and negative examples
-        let positiveExamples = this.history.filter(command => command.getImportant() === true && command.getTemporary()===false).map(command => command.getCommand());
-        let negativeExamples = this.history.filter(command => command.getImportant() === false && command.getTemporary()===false).map(command => command.getCommand());
+        let positiveExamples = this.history.filter(command => command.getImportant() === true && command.getTemporary()===false && command.is_manually_changed()).map(command => command.getCommand());
+        positiveExamples = positiveExamples.concat(this.history.filter(command => command.getImportant() === true && command.getTemporary()===false && !command.is_manually_changed()).map(command => command.getCommand()));
+        let negativeExamples = this.history.filter(command => command.getImportant() === false && command.getTemporary()===false && command.is_manually_changed()).map(command => command.getCommand());
+        negativeExamples = negativeExamples.concat(this.history.filter(command => command.getImportant() === false && command.getTemporary()===false && !command.is_manually_changed()).map(command => command.getCommand()));
         //Don't send more than 15 examples each
         positiveExamples = positiveExamples.slice(0, 15);
         negativeExamples = negativeExamples.slice(0, 15);
@@ -150,7 +152,7 @@ export class TerminalHistory {
     }
 
     setCommandImportance(command: BashCommand, importance: boolean) {
-        command.setImportance(importance);
+        command.setImportance(importance, true);
         this.saveState();
         SnkmakerLogger.instance()?.setCommandImportance(command, importance);
     }
@@ -367,19 +369,24 @@ export interface BashCommand{
     getNumChildren(): number;
     getChildren(index: number): BashCommand | null;
     getIndex(): number;
-    setImportance(important: boolean): void;
+    setImportance(important: boolean, manually_changed: boolean): void;
     setTemporary(temporary: boolean): void;
     setInput(input: string): void;
     setOutput(output: string): void;
     setRuleName(rule_name: string): void;
+    is_manually_changed(): boolean
 }
 export class BashCommandContainer implements BashCommand{
     commands: SingleBashCommand[];
     index: number;
     private rule_name = "";
+    private manually_changed: boolean = false;
     constructor(command: SingleBashCommand, index: number){
         this.commands = [command];
         this.index = index;
+    }
+    is_manually_changed(): boolean {
+        return this.manually_changed;
     }
     getRuleName(): string {
         if (this.commands.length === 1){
@@ -449,10 +456,11 @@ export class BashCommandContainer implements BashCommand{
     getIndex(): number {
         return this.index;
     }
-    setImportance(important: boolean){
+    setImportance(important: boolean, manually_changed: boolean = false): void {
         this.commands.forEach((c) => c.important = important);
+        this.manually_changed ||= manually_changed;
     }
-    setTemporary(temporary: boolean): void {
+    setTemporary(temporary: boolean): void { 
         this.commands.forEach((c) => c.temporary = temporary);
     }
     setInput(input: string): void {
@@ -480,6 +488,7 @@ class SingleBashCommand implements BashCommand{
     public index: number;
     public temporary: boolean;
     public rule_name: string;
+    private manually_changed: boolean = false;
     constructor(command: string, exitStatus: number, input: string, output: string, important: boolean, index: number, temporary: boolean = false, ruleName?: string){ 
         this.command = command;
         if (ruleName){
@@ -493,6 +502,9 @@ class SingleBashCommand implements BashCommand{
         this.important = important;
         this.index = index;
         this.temporary = temporary;
+    }
+    is_manually_changed(): boolean {
+        return this.manually_changed;
     }
     getCommand(): string {
         return this.command;
@@ -524,8 +536,9 @@ class SingleBashCommand implements BashCommand{
     getIndex(): number {
         return this.index;
     }
-    setImportance(important: boolean){
+    setImportance(important: boolean, manually_changed: boolean = false): void {
         this.important = important;
+        this.manually_changed ||= manually_changed;
     }
     setTemporary(temporary: boolean): void {
         this.temporary = temporary;
