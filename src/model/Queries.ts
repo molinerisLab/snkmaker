@@ -3,6 +3,7 @@ import { BashCommand } from "./TerminalHistory";
 import { ExtensionSettings } from '../utils/ExtensionSettings';
 import * as vscode from 'vscode';
 import { OpenedSnakefileContent, SnakefileContext } from "../utils/OpenendSnakefileContent";
+import { assert } from "console";
 
 class ModelPrompts{
     static ruleDetailsPrompt(command: string): string{
@@ -15,11 +16,22 @@ class ModelPrompts{
         `Please write: INPUT=[...]; OUTPUT=[...]; NAME=[...]. DO NOT, EVER output other things, only INPUT=[...]; OUTPUT=[...]; NAME=[...]. Do not forget the = symbol.`;
     }
 
-    static commandImportancePrompt(command: string, examplesPrompt: string): string{
+    static inferCommandInfoPrompt(command: string, examplesPrompt: string): string{
         return `I have the following bash command: ${command}.\n`+
-        `It might need to be translated into a snakemake or a Make rule, but it could be just a one-time command from the user. `+
-        `Generally, things that for sure do not write to files are not worth making into rules.\n${examplesPrompt}`+
-        `Please write "YES" if it's worth making into a rule, "NO" if it's a one-time command. DO NOT, EVER output other things, only YES or NO.`;
+        `It might need to be translated into a snakemake or a Make rule, but it could be just a one-time command from the user.\n`+
+        "For example the user might run commands as 'dir', 'cd ..' to navigate his environment. "+
+        `Generally, commands that for sure do not write to files are not worth making into rules.\n${examplesPrompt}\n`+
+        `Please try to infer if this command is worth making into a rule or not.\n\n`+
+        "If the command becomes a rule, please also try to guess:\n"+
+        "-A possible name for the rule. The name should be short and meaningful given what the command does.\n"+
+        `-The name of the of input and output files used or written by the command. Only the names of read or written files are important`+ 
+        `, the things in between (es pipe operator), stdin, stdout and stderr are NOT considered inputs or outputs.\n`+
+        `It is possible that the command itself calls some executable and you are not able to find out the names `+
+        "of the input or output files. In this case, write 'Unknown'. If you are sure there is no input or output, please write '-'\n"+
+        "Please output your response following this JSON schema:\n"+
+        "{is_rule: boolean, rule_name: string, input: string, output: string}\n"+
+        "If there are multiple input or output names, write them in a single string separated by comma, es input: 'a.txt, b.txt'.\n"+
+        "If the command is not a rule, set is_rule to false and leave the other fields empty.\n";
         }
 
     static ruleFromCommandPrompt(command: string, ruleName: string, ruleFormat: string, inputs: string, output: string, rulesContext:string="", ruleAll: string | null = null): string{
@@ -262,7 +274,7 @@ export class Queries{
         return response;
     }
 
-    async guessRuleDetails(command: string){
+    async TEMPguessRuleDetails(command: string){
         const query = ModelPrompts.ruleDetailsPrompt(command);
         const response = await this.modelComms.runQuery(query);
         const split = response.split(";");
@@ -281,7 +293,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
         return parsed["documentation"];
     }
 
-    async guessIfCommandImportant(command: string, positive_examples: string[], negative_examples: string[]){
+    private parseExamples(positive_examples: string[], negative_examples: string[]){
         var examples_query = "";
         if (positive_examples.length > 0){
             examples_query += `Examples of commands that are worth making into rules: ${positive_examples.join("; ")}\n`;
@@ -292,11 +304,31 @@ Please write the documentation as a string in a JSON in this format: {documentat
         if (examples_query.length > 0){
             examples_query = `Use these examples to better understand what the user wants to convert into rule:\n${examples_query}`;
         }
-        const query = ModelPrompts.commandImportancePrompt(command, examples_query);
-        let response = await this.modelComms.runQuery(query);
-        response = response.toLowerCase();
-        return !response.includes("no");
+        return examples_query;
     }
+
+    async inferCommandInfo(command: string, positive_examples: string[], negative_examples: string[]){
+        const examples = this.parseExamples(positive_examples, negative_examples);
+        let prompt = ModelPrompts.inferCommandInfoPrompt(command, examples);
+        for(let i=0; i<5; i++){
+            const response = await this.modelComms.runQuery(prompt);
+            try{
+                let r = this.parseJsonFromResponseGeneric(response);
+                if (r["is_rule"]){
+                    assert (r["rule_name"] !== undefined, "Rule name is undefined");
+                    assert (r["input"] !== undefined, "Input is undefined");
+                    assert (r["output"] !== undefined, "Output is undefined");
+                    return r;
+                } else {
+                    return {'is_rule': false, 'rule_name': '', 'input': '', 'output': ''};
+                }
+            } catch (e){
+                prompt = "I asked you this:\n" + prompt + "\nBut you gave me this:\n" + response
+                + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
+            }
+        }
+        return {'is_rule': false, 'rule_name': '', 'input': '', 'output': ''};
+    }   
 
     extractAllRule(snakefileContent: string): string | null {
         const lines = snakefileContent.split('\n');

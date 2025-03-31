@@ -51,16 +51,17 @@ export class TerminalHistory {
         //Get positive and negative examples
         let positiveExamples = this.history.filter(command => command.getImportant() === true && command.getTemporary()===false).map(command => command.getCommand());
         let negativeExamples = this.history.filter(command => command.getImportant() === false && command.getTemporary()===false).map(command => command.getCommand());
-        //Don't send more than 35 examples each
-        positiveExamples = positiveExamples.slice(0, 35);
-        negativeExamples = negativeExamples.slice(0, 35);
-
-        const important = this.queries.guessIfCommandImportant(value, positiveExamples, negativeExamples);
-        const guesses = this.queries.guessRuleDetails(value);
-        //Wait for both promises to resolve
-        await Promise.all([important, guesses]).then((values) => {
-            const important = values[0];
-            const guesses = values[1];
+        //Don't send more than 15 examples each
+        positiveExamples = positiveExamples.slice(0, 15);
+        negativeExamples = negativeExamples.slice(0, 15);
+        try{
+            const commandInfo = await this.queries.inferCommandInfo(value, positiveExamples, negativeExamples);
+            const important = commandInfo['is_rule'];
+            const guesses = [
+                commandInfo['input'],
+                commandInfo['output'],
+                commandInfo['rule_name']
+            ]
             singleTempCommand.setInput(guesses[0]);
             singleTempCommand.setOutput(guesses[1]);
             singleTempCommand.setRuleName(guesses[2]);
@@ -68,10 +69,10 @@ export class TerminalHistory {
             tempCommand.setTemporary(false);
             this.saveState();
             SnkmakerLogger.instance()?.commandDetails(tempCommand);
-        }).catch((e) => {;
+        } catch(e) {
             this.history.splice(this.history.indexOf(tempCommand), 1);
             throw e;
-        });
+        };
     }
 
     //Returns index of the command in the history, -1 if not found
