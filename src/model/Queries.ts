@@ -3,6 +3,7 @@ import { BashCommand } from "./TerminalHistory";
 import { ExtensionSettings } from '../utils/ExtensionSettings';
 import * as vscode from 'vscode';
 import { OpenedSnakefileContent, SnakefileContext } from "../utils/OpenendSnakefileContent";
+import { assert } from "console";
 
 class ModelPrompts{
     static ruleDetailsPrompt(command: string): string{
@@ -15,11 +16,22 @@ class ModelPrompts{
         `Please write: INPUT=[...]; OUTPUT=[...]; NAME=[...]. DO NOT, EVER output other things, only INPUT=[...]; OUTPUT=[...]; NAME=[...]. Do not forget the = symbol.`;
     }
 
-    static commandImportancePrompt(command: string, examplesPrompt: string): string{
+    static inferCommandInfoPrompt(command: string, examplesPrompt: string): string{
         return `I have the following bash command: ${command}.\n`+
-        `It might need to be translated into a snakemake or a Make rule, but it could be just a one-time command from the user. `+
-        `Generally, things that for sure do not write to files are not worth making into rules.\n${examplesPrompt}`+
-        `Please write "YES" if it's worth making into a rule, "NO" if it's a one-time command. DO NOT, EVER output other things, only YES or NO.`;
+        `It might need to be translated into a snakemake or a Make rule, but it could be just a one-time command from the user.\n`+
+        "For example the user might run commands as 'dir', 'cd ..' to navigate his environment. "+
+        `Generally, commands that for sure do not write to files are not worth making into rules.\n${examplesPrompt}\n`+
+        `Please try to infer if this command is worth making into a rule or not.\n\n`+
+        "If the command becomes a rule, please also try to guess:\n"+
+        "-A possible name for the rule. The name should be short and meaningful given what the command does.\n"+
+        `-The name of the of input and output files used or written by the command. Only the names of read or written files are important`+ 
+        `, the things in between (es pipe operator), stdin, stdout and stderr are NOT considered inputs or outputs.\n`+
+        `It is possible that the command itself calls some executable and you are not able to find out the names `+
+        "of the input or output files. In this case, write 'Unknown'. If you are sure there is no input or output, please write '-'\n"+
+        "Please output your response following this JSON schema:\n"+
+        "{is_rule: boolean, rule_name: string, input: string, output: string}\n"+
+        "If there are multiple input or output names, write them in a single string separated by comma, es input: 'a.txt, b.txt'.\n"+
+        "If the command is not a rule, set is_rule to false and leave the other fields empty.\n";
         }
 
     static ruleFromCommandPrompt(command: string, ruleName: string, ruleFormat: string, inputs: string, output: string, rulesContext:string="", ruleAll: string | null = null): string{
@@ -136,6 +148,40 @@ class ModelPrompts{
         return prompt; 
     }
 
+    static rulesMakeConfig(rules: SnakefileContext){
+        let prompt = ``;
+        if (rules.snakefile_content){
+            let preSnakefilePrompt = "";
+            rules.config_content.forEach((config) => {
+                preSnakefilePrompt += `\nConfig:\n${config}\n`;
+            });
+            rules.include_content.forEach((include) => {
+                preSnakefilePrompt += `\nInclude:\n${include}\n`;
+            });
+            prompt += `I have a Snakefile formed like that:\n${preSnakefilePrompt}\n${rules.snakefile_content}\n`+
+            `To which these new rules have just been added:\n${rules.rule}\n`+
+            "Considering ONLY the new rules, ";
+        } else {
+            prompt += `I have the following Snakemake rules:\n${rules.rule}\n`+
+            "Considering the rules, "
+        }
+        prompt += "please check if some values inside these rules can be moved to a configuration field.\n" +
+        "Generally, the config must contains stuff like hardcoded absolute paths, hardcoded values that the user might want to change "+
+        "on different runs of the Snakemake pipeline. Output files generally should not be in the config.\n"+
+        "Also, if the Snakefile has a config already, consider its values to see if they fit in the new rules.\n"+
+        "Please output your response in JSON following this schema:\n"+
+        "{rules: string, add_to_config: string}\n";
+        if (rules.snakefile_content){
+            prompt += "Where 'rules' are the newly added rules with your changed applied, ";
+        } else {
+            prompt += "Where 'rules' are the rules you just received with your changes applied, ";
+        }
+        prompt += "and 'add_to_config' is a string that contains the new lines to be added to the config file.\n"+
+        "You do not have to use a config if it's not needed, do it only if it's worth it.\n"+
+        "If you don't want to add new configs, or you don't need to, just set add_to_config to an empty string and 'rules' to the same rules you received.\n";
+        return prompt;
+    }
+
     static rulesFromCommandsBasicPrompt(formattedRules: string[], ruleFormat: string, extraPrompt: string, rulesContext:string="", ruleAll: string|null = null): string{
         let prompt =  `I have the following set of bash commands. Can you convert them into ${ruleFormat} rules? `+
         `Note that Estimated inputs and outputs are just guesses and could be wrong.\n`+
@@ -144,9 +190,6 @@ class ModelPrompts{
         `-Do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary. \n`+
         extraPrompt;
         if (ruleFormat==="Snakemake"){
-            prompt += "- If rules to be created contain values or names or absolute paths that could be put in a configuration instead of being hardcoded, "+
-            "please use a configuration: use configuration['name'] to access it and output a string that will be added to the config file: name: value. "+
-            "If available, consider the config already present before repeating values, and integrate its values in the rules when needed.\n";
             prompt += "-Use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n" +
             `-If one of the rules contains some type of loop - like a for loop - acting on multiple files, generate`+
             ` one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' to generate all output files. `+
@@ -235,9 +278,6 @@ export class Queries{
         if (json["rule_all"]){
             context['rule_all'] = json["rule_all"];
         }
-        if (json["add_to_config"]){
-            context['add_to_config'] = json["add_to_config"];
-        }
         return context;
     }
     private parseJsonFromResponseGeneric(response: string): any{
@@ -262,7 +302,7 @@ export class Queries{
         return response;
     }
 
-    async guessRuleDetails(command: string){
+    async TEMPguessRuleDetails(command: string){
         const query = ModelPrompts.ruleDetailsPrompt(command);
         const response = await this.modelComms.runQuery(query);
         const split = response.split(";");
@@ -281,7 +321,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
         return parsed["documentation"];
     }
 
-    async guessIfCommandImportant(command: string, positive_examples: string[], negative_examples: string[]){
+    private parseExamples(positive_examples: string[], negative_examples: string[]){
         var examples_query = "";
         if (positive_examples.length > 0){
             examples_query += `Examples of commands that are worth making into rules: ${positive_examples.join("; ")}\n`;
@@ -292,11 +332,31 @@ Please write the documentation as a string in a JSON in this format: {documentat
         if (examples_query.length > 0){
             examples_query = `Use these examples to better understand what the user wants to convert into rule:\n${examples_query}`;
         }
-        const query = ModelPrompts.commandImportancePrompt(command, examples_query);
-        let response = await this.modelComms.runQuery(query);
-        response = response.toLowerCase();
-        return !response.includes("no");
+        return examples_query;
     }
+
+    async inferCommandInfo(command: string, positive_examples: string[], negative_examples: string[]){
+        const examples = this.parseExamples(positive_examples, negative_examples);
+        let prompt = ModelPrompts.inferCommandInfoPrompt(command, examples);
+        for(let i=0; i<5; i++){
+            const response = await this.modelComms.runQuery(prompt);
+            try{
+                let r = this.parseJsonFromResponseGeneric(response);
+                if (r["is_rule"]){
+                    assert (r["rule_name"] !== undefined, "Rule name is undefined");
+                    assert (r["input"] !== undefined, "Input is undefined");
+                    assert (r["output"] !== undefined, "Output is undefined");
+                    return r;
+                } else {
+                    return {'is_rule': false, 'rule_name': '', 'input': '', 'output': ''};
+                }
+            } catch (e){
+                prompt = "I asked you this:\n" + prompt + "\nBut you gave me this:\n" + response
+                + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
+            }
+        }
+        return {'is_rule': false, 'rule_name': '', 'input': '', 'output': ''};
+    }   
 
     extractAllRule(snakefileContent: string): string | null {
         const lines = snakefileContent.split('\n');
@@ -362,6 +422,17 @@ Please write the documentation as a string in a JSON in this format: {documentat
             try{
                 let r = this.parseJsonFromResponse(response, currentSnakefileContext);
                 r['remove'] = ruleAll;
+                if (ExtensionSettings.instance.getRulesOutputFormat() === "Snakemake"){
+                    const prompt = ModelPrompts.rulesMakeConfig(r);
+                    const response = await this.modelComms.runQuery(prompt);
+                    const parsed = this.parseJsonFromResponseGeneric(response);
+                    if (parsed["rules"]){
+                        r["rule"] = parsed["rules"];
+                    }
+                    if (parsed["add_to_config"]){
+                        r["add_to_config"] = parsed["add_to_config"];
+                    }
+                }
                 return r;
             } catch (e){
                 prompt = "I asked you this:\n" + prompt_original + "\nBut you gave me this:\n" + response
@@ -412,6 +483,17 @@ Please write the documentation as a string in a JSON in this format: {documentat
             try{
                 let r = this.parseJsonFromResponse(response, currentSnakefileContext);
                 r['remove'] = ruleAll;
+                if (ExtensionSettings.instance.getRulesOutputFormat() === "Snakemake"){
+                    const prompt = ModelPrompts.rulesMakeConfig(r);
+                    const response = await this.modelComms.runQuery(prompt);
+                    const parsed = this.parseJsonFromResponseGeneric(response);
+                    if (parsed["rules"]){
+                        r["rule"] = parsed["rules"];
+                    }
+                    if (parsed["add_to_config"]){
+                        r["add_to_config"] = parsed["add_to_config"];
+                    }
+                }
                 return r;
             } catch (e){
                 prompt = "I asked you this:\n" + prompt_original + "\nBut you gave me this:\n" + response
