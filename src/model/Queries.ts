@@ -172,7 +172,6 @@ class ModelPrompts{
         } else {
             prompt += "\nPlease return the rules in JSON format. The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}";
         }
-        console.log(prompt);
         return prompt;
     }
 
@@ -447,12 +446,13 @@ Please write the documentation as a string in a JSON in this format: {documentat
                 if (r["additional_config"]){
                     rules["add_to_config"] = r["additional_config"];
                 }
-                return r;
+                return rules;
             } catch (e){
                 prompt = "I asked you this:\n" + original_prompt + "\nBut you gave me this:\n" + response
                 + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
             }
         }
+        return rules;
     }
 
 }

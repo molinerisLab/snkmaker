@@ -20,7 +20,7 @@ export class SnakefileContext{
         public remove: string | null
     ) {}
     get_snakefile(){
-        return (this.rule_all || "") + (this.snakefile_content?.replaceAll(this.remove||"","") || "") + this.rule;
+        return (this.snakefile_content?.replaceAll(this.remove||"","") || "") + "\n" + this.rule + "\n" + (this.rule_all || "");
     }
 }
 

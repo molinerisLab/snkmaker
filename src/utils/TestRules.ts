@@ -61,6 +61,14 @@ export class TestRules {
       );
       snakefile = snakefile.replaceAll(filename || "", tmpobj.name);
     });
+    if (rules.add_to_config) {
+      const tmpobj = tmp.fileSync();
+      fs.writeFileSync(
+        tmpobj.name, 
+        rules.add_to_config
+      );
+      snakefile = "configfile: '" + tmpobj.name + "'\n" + snakefile;
+    }
     //Write the snakefile to a temporary file
     const tmpobj = tmp.fileSync();
     fs.writeFileSync(
