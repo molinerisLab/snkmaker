@@ -3,6 +3,7 @@ const tmp = require("tmp");
 import * as vscode from "vscode";
 import { SnkmakerLogger } from "./SnkmakerLogger";
 import { ExtensionSettings } from "./ExtensionSettings";
+import { SnakefileContext } from "./OpenendSnakefileContent";
 
 export class TestRules {
   constructor() {
@@ -32,16 +33,49 @@ export class TestRules {
       });
   }
 
-  async validateRules(
-    rules: string
-  ): Promise<{ success: boolean; message?: string }> {
+  async validateRules(rules: SnakefileContext): Promise<{ success: boolean; message?: string }> {
     let snakemakePath = ExtensionSettings.instance.getSnakemakeAbsolutePath();
     if (snakemakePath === "") {
       snakemakePath = "snakemake";
     }
-    const tmpobj = tmp.fileSync();
-    fs.writeFileSync(tmpobj.name, rules);
+
     const cp = require("child_process");
+
+    //Build rules file
+    let snakefile = rules.get_snakefile();
+    rules.config_paths.forEach((path: string, index: number) => {
+      const filename = path.split("/").pop();
+      const tmpobj = tmp.fileSync();
+      fs.writeFileSync(
+        tmpobj.name, 
+        rules.config_content[index]
+      );
+      snakefile = snakefile.replaceAll(filename || "", tmpobj.name);
+    });
+    rules.include_paths.forEach((path: string, index: number) => {
+      const filename = path.split("/").pop();
+      const tmpobj = tmp.fileSync();
+      fs.writeFileSync(
+        tmpobj.name, 
+        rules.include_content[index]
+      );
+      snakefile = snakefile.replaceAll(filename || "", tmpobj.name);
+    });
+    if (rules.add_to_config) {
+      const tmpobj = tmp.fileSync();
+      fs.writeFileSync(
+        tmpobj.name, 
+        rules.add_to_config
+      );
+      snakefile = "configfile: '" + tmpobj.name + "'\n" + snakefile;
+    }
+    //Write the snakefile to a temporary file
+    const tmpobj = tmp.fileSync();
+    fs.writeFileSync(
+      tmpobj.name, 
+      snakefile
+    );
+    
     const child = cp.spawn(snakemakePath, ["--list", "-s", tmpobj.name]);
     var stdout = "";
     var stderr = "";

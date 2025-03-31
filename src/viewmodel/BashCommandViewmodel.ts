@@ -6,7 +6,7 @@ import { WriteToFiles } from "../utils/WriteToFiles";
 import * as vscode from 'vscode';
 import { NotebookViewCallbacks } from "../view/NotebookView";
 import { NotebookPresenter } from "./NotebookPresenter";
-import { OpenedSnakefileContent } from "../utils/OpenendSnakefileContent";
+import { OpenedSnakefileContent, SnakefileContext } from "../utils/OpenendSnakefileContent";
 
 export class BashCommandViewModel{
     llm: LLM;
@@ -146,7 +146,7 @@ export class BashCommandViewModel{
       });
     }
 
-    private ruleOutputRoutine(output: Promise<any|null>, commands: BashCommandContainer[]){
+    private ruleOutputRoutine(output: Promise<SnakefileContext|null>, commands: BashCommandContainer[]){
       output.then((rules) => {
         if (rules !== null){
           this.writeToFiles.writeToCurrentFile(rules).then((success) => {
@@ -154,7 +154,7 @@ export class BashCommandViewModel{
                 this.archiveCommands(commands);
             }
             this.updateCanUndoCanRedo();
-            if (rules['rule'].length < 2){
+            if (!rules['rule'] || rules['rule'].length < 2){
               vscode.window.showInformationMessage('No rule has been printed');
             }
           });

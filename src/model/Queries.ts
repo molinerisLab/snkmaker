@@ -2,7 +2,7 @@ import { LLM } from "./ModelComms";
 import { BashCommand } from "./TerminalHistory";
 import { ExtensionSettings } from '../utils/ExtensionSettings';
 import * as vscode from 'vscode';
-import { OpenedSnakefileContent } from "../utils/OpenendSnakefileContent";
+import { OpenedSnakefileContent, SnakefileContext } from "../utils/OpenendSnakefileContent";
 
 class ModelPrompts{
     static ruleDetailsPrompt(command: string): string{
@@ -82,39 +82,88 @@ class ModelPrompts{
         `Please output only the name. DO NOT, EVER output other things.`;
     }
 
-    static correctRulesFromErrorPrompt(rules: string, error: string): string{
-        return `I have the following rules:\n\n${rules}\n\n`+
-        `I tried to run them in Snakemake, but I got the following error:\n\n${error}\n\n`+
-        `Can you fix the rules so that they run correctly?\n`+
-        `Please output only the corrected rules. What you output goes entirely in the Snakefile, so `+
-        `DO NOT, EVER, OUTPUT ANYTHING OTHER THAN THE RULES. Example of good output: "<NEW_RULES>". `+
-        `Examples of bad output: "Here are the corrected rules <NEW_RULES>"`;
+    static correctRulesFromErrorPrompt(rules: SnakefileContext, error: string): string{
+        let prompt = `I have a Snakfile formed like that:\n`+
+        `Snakefile:\n${rules.get_snakefile()}\n`;
+        if (rules.snakefile_content){
+            prompt += `Snakefile content, first part (fixed):\n${rules.snakefile_content.replaceAll(
+                rules.rule_all || "", ""
+            )})}\n` +
+            `Rules, second part (can modify):\n${rules.rule_all}\n${rules.rule}\n`;
+        } else {
+            prompt += `Rules:\n${rules.rule}\n`;
+        }
+        if (rules.config_paths.length > 0){
+            prompt += `Base config:\n${rules.config_content.join("\n")}\n`;
+        }
+        if (rules.include_paths.length > 0){
+            prompt += `Includes:\n${rules.include_content.join("\n")}\n`;
+        }
+        if (rules.add_to_config){
+            prompt += `Additional config part:\n${rules.add_to_config}\n`;
+        }
+        prompt += `\nI have the following error:\n\n${error}\n\n`+
+        `I would like to correct the rules so that they run correctly.\n`;
+        if (rules.snakefile_content && rules.snakefile_content.length > 0){
+            prompt += `Note: you can not modify all snakefile; the first part is fixed. `+
+            `You can modify the second part of it`;
+            if (rules.rule_all){
+                prompt += `, and you can also modify the rule 'all'\n`;
+            }
+            if (rules.add_to_config){
+                prompt += `Regarding the config, you can only modify the 'Additional config part'\n`;
+                prompt += `You can add or remove lines from it, but you can not remove from the rest of the config.\n`;
+            } else {
+                prompt += `Regarding the config, you can add lines to it, but you can not remove them\n`;
+            }
+        }
+        prompt += `Please output the corrected rules in JSON format following this schema:`+
+        ` {can_correct: boolean, rules: string, rule_all: string, additional_config: string}\n`;
+        prompt += `If you are not able to correct this snakefile just set can_correct to false.`;
+        if (rules.rule_all){
+            prompt += `Please write the updated rule all in the rule_all field.\n`;
+        }
+        if (rules.snakefile_content && rules.snakefile_content.length > 0){
+            prompt += `Please write the updated rules corresponding to the second part of the snakefile in the rules field.\n`;
+        } else {
+            prompt += `Please write the updated rules in the rules field.\n`;
+        }
+        if (rules.add_to_config){
+            prompt += `Please write the updated 'Additional config' in the additional_config field. You can add new lines, or remove existing ones by simply not outputting them.\n`;
+        } else {
+            prompt += "If you want to add new config lines, use the additional_config field.\n";
+        }
+        return prompt; 
     }
 
     static rulesFromCommandsBasicPrompt(formattedRules: string[], ruleFormat: string, extraPrompt: string, rulesContext:string="", ruleAll: string|null = null): string{
         let prompt =  `I have the following set of bash commands. Can you convert them into ${ruleFormat} rules? `+
         `Note that Estimated inputs and outputs are just guesses and could be wrong.\n`+
-        `${formattedRules.join("\n")}\n${rulesContext}`+
-        `Please do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary. `+
+        `${formattedRules.join("\n")}\n${rulesContext}\n`+
+        `When producing the new rules, follow these instructions:\n`+
+        `-Do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary. \n`+
         extraPrompt;
         if (ruleFormat==="Snakemake"){
-            prompt += "Please use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n" +
-            `If one of the rules contains some type of loop - like a for loop - acting on multiple files, generate`+
+            prompt += "- If rules to be created contain values or names or absolute paths that could be put in a configuration instead of being hardcoded, "+
+            "please use a configuration: use configuration['name'] to access it and output a string that will be added to the config file: name: value. "+
+            "If available, consider the config already present before repeating values, and integrate its values in the rules when needed.\n";
+            prompt += "-Use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n" +
+            `-If one of the rules contains some type of loop - like a for loop - acting on multiple files, generate`+
             ` one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' to generate all output files. `+
-            `The name of the second rule should should NOT be 'all', it should be a meaningful name connected to the original rule.`;
+            `Note: The name of the second rule should should NOT be 'all', it should be a meaningful name connected to the original rule.`;
             if (ruleAll){
-                prompt += "\nThe Snakefile already contains a rule all: " + ruleAll + ".\n" +
+                prompt += "\n-The Snakefile already contains a rule all:\n " + ruleAll + "\n" +
                 "Please add the new rules to the rule all.\n" +
                 "Please return the rules in JSON format. The JSON contains a field 'rule' which is a string, that contains the entire "+
-                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}";
+                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}";
                 if (rulesContext.length>0){
-                    prompt += "\nNote: the rule all must be written entirely, so take the one existing and add inputs to it.\n"+
+                    prompt += "\nNote: the rule 'all' must be written entirely, so take the one existing and add inputs to it.\n"+
                     "The other rules on the other hand must not repeat the rules already existing in the file.";
                 }
             } else {
                 prompt += "Please also write a 'rule all' to produce all files.\n" +
                 "Please return the rules in JSON format. The JSON contains a field 'rule' which is a string, that contains the entire "+
-                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}";
+                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}";
                 if (rulesContext.length>0){
                     prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
                     "but their outputs must be included in the 'rule_all'.";
@@ -131,9 +180,6 @@ class ModelPrompts{
         const logDirective: boolean = ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules();
         const commentEveryLine: boolean = ExtensionSettings.instance.getCommentEveryRule();
         let extraPrompt = "";
-        if (useWildcards || logDirective){
-            extraPrompt += `Please write the Snakemake rules following these guidelines:\n`;
-        }
         if (useWildcards){
             extraPrompt += `- Prefer the usage of generic names for input-outputs using wildcards, when possible. `+
             `For example input: "data.csv", output: "transformed_data.csv" could be written as input: "{file}.csv", `+
@@ -158,10 +204,12 @@ class ModelPrompts{
     static rulesContextPrompt(currentRules: string){
         if (currentRules.length <= 20){return "";} //Skip prompt if file has a few characters inside
         return `\nFor context, these are the rules already present:\n${currentRules}\n`+
-        "Please consider these rules as a context when writing the new rules. Follow their style and formalism. "+
-        "If a command results in a rule equal to one already present, do not output it. "+
-        "If you need to return no rule at all, because they are all already present, return a newline instead. "+
-        "DO NOT write the already present rules them back in your response or the user will find them twice in his file.";
+        "Please use the existing rules and config to:\n" +
+        "1- Avoid repeating existing rules. If a rule is already present, do not write it again." +
+        "If you need to return no rule at all, because they are all already present, return a newline instead.\n"+
+        "2- Follow the style, formalisms and naming conventions of the rules already present.\n"+
+        "3- If a command results in a rule equal to one already present, do not output it.\n"+
+        "4- Consider the existing config, if available, for the new rules. If rules similar to the one you are generating use some configuration, use it in the new ones too.\n";
     }
 
 }
@@ -171,23 +219,26 @@ export class Queries{
         this.modelComms = modelComms;
     }
 
-    private parseJsonFromResponse(response: string): any{
+    private parseJsonFromResponse(response: string, context: SnakefileContext): SnakefileContext{
         let start = response.indexOf("{");
         let end = response.lastIndexOf("}");
         if (start !== -1 && end !== -1){
             response = response.substring(start, end + 1);
         }
-        let result = {'rule': '', 'rule_all': null, 'remove': null};
+        let result = {'rule': '', 'rule_all': null, 'remove': null, 'add_to_config': null};
         const json = JSON.parse(response);
         if (json["rule"]){
-            result['rule'] = json["rule"];
+            context["rule"] = json["rule"];
         } else {
             throw new Error("No field named rule in the JSON");
         }
         if (json["rule_all"]){
-            result['rule_all'] = json["rule_all"];
+            context['rule_all'] = json["rule_all"];
         }
-        return result;
+        if (json["add_to_config"]){
+            context['add_to_config'] = json["add_to_config"];
+        }
+        return context;
     }
     private parseJsonFromResponseGeneric(response: string): any{
         let start = response.indexOf("{");
@@ -283,17 +334,33 @@ Please write the documentation as a string in a JSON in this format: {documentat
         if (output === "-"){ output = "No output";}
         let context = "";
         let ruleAll = null;
+        let currentSnakefileContext: SnakefileContext = new SnakefileContext(
+            null,
+            null,
+            null,
+            [],
+            [],
+            [],
+            [],
+            null,
+            null,
+            null,
+            null
+        );
         if (ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt()){
-            const currentSnakefileContext = await OpenedSnakefileContent.getCurrentEditorContent();
-            context = ModelPrompts.rulesContextPrompt(currentSnakefileContext);
-            ruleAll = this.extractAllRule(currentSnakefileContext);
+            const c = await OpenedSnakefileContent.getCurrentEditorContent();
+            if (c){
+                currentSnakefileContext = c;
+                context = ModelPrompts.rulesContextPrompt(currentSnakefileContext["content"]||"");
+                ruleAll = this.extractAllRule(currentSnakefileContext["content"]||"");
+            }
         }
         const prompt_original = ModelPrompts.ruleFromCommandPrompt(command, bashCommand.getRuleName(), ruleFormat, inputs, output, context, ruleAll);
         let prompt = prompt_original;
         for (let i = 0; i < 5; i++){
             const response = await this.modelComms.runQuery(prompt);
             try{
-                let r = this.parseJsonFromResponse(response);
+                let r = this.parseJsonFromResponse(response, currentSnakefileContext);
                 r['remove'] = ruleAll;
                 return r;
             } catch (e){
@@ -301,10 +368,10 @@ Please write the documentation as a string in a JSON in this format: {documentat
                 + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
             }
         }
-        return null;
+        return currentSnakefileContext;
     }
 
-    async getAllRulesFromCommands(commands: BashCommand[]){
+    async getAllRulesFromCommands(commands: BashCommand[]): Promise<SnakefileContext>{
         const ruleFormat = ExtensionSettings.instance.getRulesOutputFormat();
         let extraPrompt = "";
         if (ruleFormat==="Snakemake"){
@@ -315,10 +382,26 @@ Please write the documentation as a string in a JSON in this format: {documentat
         );
         let context = "";
         let ruleAll = null;
+        let currentSnakefileContext: SnakefileContext = new SnakefileContext(
+            null,
+            null,
+            null,
+            [],
+            [],
+            [],
+            [],
+            null,
+            null,
+            null,
+            null
+        );
         if (ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt()){
-            const currentSnakefileContext = await OpenedSnakefileContent.getCurrentEditorContent();
-            context = ModelPrompts.rulesContextPrompt(currentSnakefileContext);
-            ruleAll = this.extractAllRule(currentSnakefileContext);
+            const c = await OpenedSnakefileContent.getCurrentEditorContent();
+            if (c){
+                currentSnakefileContext = c;
+                context = ModelPrompts.rulesContextPrompt(currentSnakefileContext["content"]||"");
+                ruleAll = this.extractAllRule(currentSnakefileContext["content"]||"");
+            }
         }
 
         const prompt_original = ModelPrompts.rulesFromCommandsBasicPrompt(formatted, ruleFormat, extraPrompt, context, ruleAll);
@@ -327,7 +410,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
         for (let i = 0; i < 5; i++){
             const response = await this.modelComms.runQuery(prompt);
             try{
-                let r = this.parseJsonFromResponse(response);
+                let r = this.parseJsonFromResponse(response, currentSnakefileContext);
                 r['remove'] = ruleAll;
                 return r;
             } catch (e){
@@ -335,7 +418,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
                 + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
             }
         }
-        return null;
+        return currentSnakefileContext;
     }
 
     async guessOnlyName(command: BashCommand){
@@ -344,10 +427,32 @@ Please write the documentation as a string in a JSON in this format: {documentat
         return response;
     }
 
-    async autoCorrectRulesFromError(rules: string, error: string){
-        const prompt = ModelPrompts.correctRulesFromErrorPrompt(rules, error);
-        const response = await this.modelComms.runQuery(prompt);
-        return response;
+    async autoCorrectRulesFromError(rules: SnakefileContext, error: string){
+        const original_prompt = ModelPrompts.correctRulesFromErrorPrompt(rules, error);
+        let prompt = original_prompt;
+        for (let i = 0; i < 5; i++){
+            const response = await this.modelComms.runQuery(prompt);
+            try{
+                let r = this.parseJsonFromResponseGeneric(response);
+                if (r["can_correct"] === false){
+                    return rules;
+                }
+                if (r["rules"]){
+                    rules["rule"] = r["rules"];
+                }
+                if (r["rule_all"]){
+                    rules["rule_all"] = r["rule_all"];
+                }
+                if (r["additional_config"]){
+                    rules["add_to_config"] = r["additional_config"];
+                }
+                return rules;
+            } catch (e){
+                prompt = "I asked you this:\n" + original_prompt + "\nBut you gave me this:\n" + response
+                + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
+            }
+        }
+        return rules;
     }
 
 }
