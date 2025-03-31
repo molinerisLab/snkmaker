@@ -19,6 +19,9 @@ export class SnakefileContext{
         public add_to_config: string | null,
         public remove: string | null
     ) {}
+    get_snakefile(){
+        return (this.rule_all || "") + (this.snakefile_content?.replaceAll(this.remove||"","") || "") + this.rule;
+    }
 }
 
 export class OpenedSnakefileContent{
@@ -93,19 +96,19 @@ export class OpenedSnakefileContent{
                 content; 
         }
 
-        return {
-            snakefile_path: original_path,
-            snakefile_content: original_content,
-            content: content,
-            config_paths: configKeys.map((key) => includePath + "/" + key),
-            config_content: configKeys.map((key) => configPaths[key]),
-            include_paths: includeKeys.map((key) => includePath + "/" + key),
-            include_content: includeKeys.map((key) => includePaths[key]),
-            rule: null,
-            rule_all: null,
-            add_to_config: null,
-            remove: null,
-        }
+        return new SnakefileContext(
+            original_path,
+            original_content,
+            content,
+            configKeys.map((key) => includePath + "/" + key),
+            configKeys.map((key) => configPaths[key]),
+            includeKeys.map((key) => includePath + "/" + key),
+            includeKeys.map((key) => includePaths[key]),
+            null,
+            null,
+            null,
+            null
+        );
     }
 
     static async getCurrentEditorContent():Promise<SnakefileContext|null>{

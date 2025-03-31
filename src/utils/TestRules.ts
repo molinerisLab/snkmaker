@@ -38,9 +38,36 @@ export class TestRules {
     if (snakemakePath === "") {
       snakemakePath = "snakemake";
     }
-    const tmpobj = tmp.fileSync();
-    fs.writeFileSync(tmpobj.name, rules);
+
     const cp = require("child_process");
+
+    //Build rules file
+    let snakefile = rules.get_snakefile();
+    rules.config_paths.forEach((path: string, index: number) => {
+      const filename = path.split("/").pop();
+      const tmpobj = tmp.fileSync();
+      fs.writeFileSync(
+        tmpobj.name, 
+        rules.config_content[index]
+      );
+      snakefile = snakefile.replaceAll(filename || "", tmpobj.name);
+    });
+    rules.include_paths.forEach((path: string, index: number) => {
+      const filename = path.split("/").pop();
+      const tmpobj = tmp.fileSync();
+      fs.writeFileSync(
+        tmpobj.name, 
+        rules.include_content[index]
+      );
+      snakefile = snakefile.replaceAll(filename || "", tmpobj.name);
+    });
+    //Write the snakefile to a temporary file
+    const tmpobj = tmp.fileSync();
+    fs.writeFileSync(
+      tmpobj.name, 
+      snakefile
+    );
+    
     const child = cp.spawn(snakemakePath, ["--list", "-s", tmpobj.name]);
     var stdout = "";
     var stderr = "";

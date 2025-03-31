@@ -159,7 +159,7 @@ export class TerminalHistory {
         if (! (ExtensionSettings.instance.getRulesOutputFormat()==="Snakemake" && ExtensionSettings.instance.getValidateSnakemakeRules())){
             return rules;
         }
-        if (rules["rule"] && rules["rule"].length < 5){
+        if (!rules["rule"] || rules["rule"].length < 5){
             return rules;
         }
         //TODO: max tries should be a setting or a configuration
