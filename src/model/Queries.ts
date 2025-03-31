@@ -148,6 +148,40 @@ class ModelPrompts{
         return prompt; 
     }
 
+    static rulesMakeConfig(rules: SnakefileContext){
+        let prompt = ``;
+        if (rules.snakefile_content){
+            let preSnakefilePrompt = "";
+            rules.config_content.forEach((config) => {
+                preSnakefilePrompt += `\nConfig:\n${config}\n`;
+            });
+            rules.include_content.forEach((include) => {
+                preSnakefilePrompt += `\nInclude:\n${include}\n`;
+            });
+            prompt += `I have a Snakefile formed like that:\n${preSnakefilePrompt}\n${rules.snakefile_content}\n`+
+            `To which these new rules have just been added:\n${rules.rule}\n`+
+            "Considering ONLY the new rules, ";
+        } else {
+            prompt += `I have the following Snakemake rules:\n${rules.rule}\n`+
+            "Considering the rules, "
+        }
+        prompt += "please check if some values inside these rules can be moved to a configuration field.\n" +
+        "Generally, the config must contains stuff like hardcoded absolute paths, hardcoded values that the user might want to change "+
+        "on different runs of the Snakemake pipeline. Output files generally should not be in the config.\n"+
+        "Also, if the Snakefile has a config already, consider its values to see if they fit in the new rules.\n"+
+        "Please output your response in JSON following this schema:\n"+
+        "{rules: string, add_to_config: string}\n";
+        if (rules.snakefile_content){
+            prompt += "Where 'rules' are the newly added rules with your changed applied, ";
+        } else {
+            prompt += "Where 'rules' are the rules you just received with your changes applied, ";
+        }
+        prompt += "and 'add_to_config' is a string that contains the new lines to be added to the config file.\n"+
+        "You do not have to use a config if it's not needed, do it only if it's worth it.\n"+
+        "If you don't want to add new configs, or you don't need to, just set add_to_config to an empty string and 'rules' to the same rules you received.\n";
+        return prompt;
+    }
+
     static rulesFromCommandsBasicPrompt(formattedRules: string[], ruleFormat: string, extraPrompt: string, rulesContext:string="", ruleAll: string|null = null): string{
         let prompt =  `I have the following set of bash commands. Can you convert them into ${ruleFormat} rules? `+
         `Note that Estimated inputs and outputs are just guesses and could be wrong.\n`+
@@ -156,9 +190,6 @@ class ModelPrompts{
         `-Do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary. \n`+
         extraPrompt;
         if (ruleFormat==="Snakemake"){
-            prompt += "- If rules to be created contain values or names or absolute paths that could be put in a configuration instead of being hardcoded, "+
-            "please use a configuration: use configuration['name'] to access it and output a string that will be added to the config file: name: value. "+
-            "If available, consider the config already present before repeating values, and integrate its values in the rules when needed.\n";
             prompt += "-Use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n" +
             `-If one of the rules contains some type of loop - like a for loop - acting on multiple files, generate`+
             ` one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' to generate all output files. `+
@@ -246,9 +277,6 @@ export class Queries{
         }
         if (json["rule_all"]){
             context['rule_all'] = json["rule_all"];
-        }
-        if (json["add_to_config"]){
-            context['add_to_config'] = json["add_to_config"];
         }
         return context;
     }
@@ -394,6 +422,17 @@ Please write the documentation as a string in a JSON in this format: {documentat
             try{
                 let r = this.parseJsonFromResponse(response, currentSnakefileContext);
                 r['remove'] = ruleAll;
+                if (ExtensionSettings.instance.getRulesOutputFormat() === "Snakemake"){
+                    const prompt = ModelPrompts.rulesMakeConfig(r);
+                    const response = await this.modelComms.runQuery(prompt);
+                    const parsed = this.parseJsonFromResponseGeneric(response);
+                    if (parsed["rules"]){
+                        r["rule"] = parsed["rules"];
+                    }
+                    if (parsed["add_to_config"]){
+                        r["add_to_config"] = parsed["add_to_config"];
+                    }
+                }
                 return r;
             } catch (e){
                 prompt = "I asked you this:\n" + prompt_original + "\nBut you gave me this:\n" + response
@@ -444,6 +483,17 @@ Please write the documentation as a string in a JSON in this format: {documentat
             try{
                 let r = this.parseJsonFromResponse(response, currentSnakefileContext);
                 r['remove'] = ruleAll;
+                if (ExtensionSettings.instance.getRulesOutputFormat() === "Snakemake"){
+                    const prompt = ModelPrompts.rulesMakeConfig(r);
+                    const response = await this.modelComms.runQuery(prompt);
+                    const parsed = this.parseJsonFromResponseGeneric(response);
+                    if (parsed["rules"]){
+                        r["rule"] = parsed["rules"];
+                    }
+                    if (parsed["add_to_config"]){
+                        r["add_to_config"] = parsed["add_to_config"];
+                    }
+                }
                 return r;
             } catch (e){
                 prompt = "I asked you this:\n" + prompt_original + "\nBut you gave me this:\n" + response
