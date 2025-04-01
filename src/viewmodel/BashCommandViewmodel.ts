@@ -298,6 +298,10 @@ export class BashCommandViewModel{
       }
     }
 
+    testModel(url: string, name: string, max_tokens: number, token: string){
+      return this.llm.testModel(url, token, name, max_tokens);
+    }
+
     addModel(url: string, name: string, max_tokens: number, token: string){
       this.llm.addModel(url, token, name, max_tokens);
       this.observableModel.next(this.llm);

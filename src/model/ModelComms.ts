@@ -80,6 +80,12 @@ export class LLM{
         this.copilotActive = true;
     }
 
+    async testModel(url: string, apiKey: string, model: string, max_tokens: number){
+        const new_model: ModelComms = new OpenAI_Models(url, apiKey, model, max_tokens);
+        const query = "Please say hi to the user!";
+        return new_model.runQuery(query);
+    }
+
     addModel(url: string, apiKey: string, model:string, max_tokens: number){
         const new_model: ModelComms = new OpenAI_Models(url, apiKey, model, max_tokens);
         this.models = [new_model].concat(this.models);

@@ -38,8 +38,28 @@ export class AddModelView{
 							vscode.window.showErrorMessage('Max tokens must be a number');
 							return;
 						}
-						viewModel.addModel(data.url, data.model_name, max_tokens, data.api_key);
-						panel.dispose();
+
+						viewModel.testModel(data.url, data.model_name, max_tokens, data.api_key).then((response) => {
+							viewModel.addModel(data.url, data.model_name, max_tokens, data.api_key);
+							vscode.window.showInformationMessage(`Model ${data.model_name} added successfully! Use the Snakemaker panel to select and activate it.`);
+							panel.dispose();
+						}).catch((error) => {
+							let parsed = "Error connecting to model: ";
+							if (error.code){
+								parsed += error.code + " - ";
+							}
+							if (error.cause){
+								if (error.cause.code){
+									parsed += error.cause.code + " - ";
+								}
+								if (error.cause.message){
+									parsed += error.cause.message;
+								}
+							} else {
+								parsed += error.message;
+							}
+							vscode.window.showErrorMessage(parsed);
+						});
 						return;
 				}
 			},
@@ -102,7 +122,7 @@ export class AddModelView{
 							<p>Fill the form below to connect to an API endpoint.</p>
 							<form id="modelForm">
 								<label for="url">API URL:</label>
-								<input type="url" id="url" name="url" required placeholder="http://localhost:8080/v1/chat/completions"><br><br>
+								<input type="url" id="url" name="url" required placeholder="http://localhost:8080/v1"><br><br>
 
 								<label for="model_name">Model name:</label>
 								<input type="text" id="model_name" name="model_name" required placeholder="meta/llama3-70b-instruct"><br><br>
