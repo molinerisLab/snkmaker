@@ -12,6 +12,7 @@ import { AddModelView } from './view/AddModelView';
 import { AddHistoryView } from './view/AddHistoryView';
 import { NotebookView } from './view/NotebookView';
 import { ChatExtensionNotebook } from './utils/ChatExtensionNotebook';
+import { ChatPanelView } from './view/ChatPanelView';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -284,6 +285,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 	}
 	context.subscriptions.push(NotebookExportEditorProvider.register(context));
+	
+	const provider = new ChatPanelView(context.extensionUri, viewModel);
+	context.subscriptions.push(vscode.window.registerWebviewViewProvider(ChatPanelView.viewType, provider));
 }
 
 // This method is called when your extension is deactivated
