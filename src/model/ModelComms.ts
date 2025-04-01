@@ -36,8 +36,21 @@ export class LLM{
         });
     }
 
-    async useModel(id: string, skip_message: boolean = false): Promise<string>{
-        const index = this.models.findIndex(model => model.getId() === id);
+    async useModel(id: string | null, skip_message: boolean = false): Promise<string>{
+        let index = -1;
+        if (id === null){
+            const index_4o_mini = this.models.findIndex(model => model.getId().indexOf("gpt-4o-mini") !== -1);
+            const index_4o = this.models.findIndex(model => model.getId().indexOf("gpt-4o") !== -1 && model.getId().indexOf("mini") === -1);
+            if (index_4o !== -1){
+                index = index_4o;
+            } else if (index_4o_mini !== -1){
+                index = index_4o_mini;
+            } else {
+                index = this.models.length - 1;
+            }
+        } else {
+            index = this.models.findIndex(model => model.getId() === id);
+        }
         if (index === -1 || index === this.current_model){
             throw new Error("Model not found");
         }

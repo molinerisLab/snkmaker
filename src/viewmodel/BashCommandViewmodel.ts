@@ -178,7 +178,7 @@ export class BashCommandViewModel{
       this.ruleOutputRoutine(this.terminalHistory.getAllRules(), []);
     }
 
-    async useModel(id: string, skipMessage: boolean = false, skipErrorMessage: boolean = false){
+    async useModel(id: string|null, skipMessage: boolean = false, skipErrorMessage: boolean = false){
       if (this.isChangingModel){
           return;
       }
@@ -220,7 +220,7 @@ export class BashCommandViewModel{
 
       this.llm.activateCopilot(models);
       if (this.llm.current_model === -1){
-        const modelId = this.memento.get<string>('current_model', 'gpt-4o');
+        const modelId: string | null = this.memento.get<string|null>('current_model', null);
         this.useModel(modelId, true);
       }
       this.observableModel.next(this.llm);
