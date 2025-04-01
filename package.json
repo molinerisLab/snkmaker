@@ -232,6 +232,11 @@
           "name": "Archived bash commands"
         },
         {
+          "type": "webview",
+          "id": "snakemaker-chat",
+          "name": "Snakemaker Chat"
+        },
+        {
           "id": "llm-models",
           "name": "Models",
           "visibility": "collapsed"
@@ -540,6 +545,7 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
+    "@vscode/codicons": "^0.0.36",
     "diff": "^7.0.0",
     "openai": "^4.73.1",
     "tmp": "^0.2.3"
