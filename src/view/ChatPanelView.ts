@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
 import { ChatExtension, MarkDownChatResponseStream } from '../utils/ChatExtension';
 import { request } from 'http';
+const markdown = require('markdown-it')
 
 class CustomChatResponseStream implements MarkDownChatResponseStream {
 	acc: string = "";
@@ -37,15 +38,18 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 
 	private userPrompt(prompt: string) {
 		//In history, first message is always the user message
+		const md = markdown()
 		const stream = new CustomChatResponseStream((value) => {
-			this._view?.webview.postMessage({ type: 'model_response_part', response: value });
+			const result = md.render(value);
+			this._view?.webview.postMessage({ type: 'model_response_part', response: result });
 		});
 		this._disposable_stream = stream;
 		this.chatExtension.process_chat_tab(prompt, this.history, this.viewModel.llm, stream).then((response) => {
 			if (stream.cancelled) {
 				return;
 			}
-			this._view?.webview.postMessage({ type: 'model_response_end', response: stream.acc });
+			const result = md.render(stream.acc);
+			this._view?.webview.postMessage({ type: 'model_response_end', response: result });
 			this.history.push(prompt);
 			this.history.push(stream.acc);
 		}).catch((error) => {
@@ -125,7 +129,7 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 							<strong>Snakemaker</strong>
 							<p class="loading_text"><em> (Loading...)</em></p>
 						</div>
-						<p class="response-text-container">I'm fine, thank you!</p>
+						<div class="response-text-container">I'm fine, thank you!</div>
 					</div>
 				</div>
 
