@@ -296,6 +296,11 @@ export function activate(context: vscode.ExtensionContext) {
 		chatExtension,
 	);
 	context.subscriptions.push(vscode.window.registerWebviewViewProvider(ChatPanelView.viewType, provider));
+
+	const resetChat = vscode.commands.registerCommand('chat-new-chat', () => {
+		provider.resetChat();
+	});
+	context.subscriptions.push(resetChat);
 }
 
 // This method is called when your extension is deactivated

@@ -114,6 +114,11 @@
       ],
       "view/title": [
         {
+          "command": "chat-new-chat",
+          "when": "view == snakemaker-chat",
+          "group": "navigation@1"
+        },
+        {
           "command": "open-snakemaker-settings",
           "when": "view == bash-commands",
           "group": "navigation@1"
@@ -265,6 +270,11 @@
       }
     ],
     "commands": [
+      {
+        "command": "chat-new-chat",
+        "title": "New chat",
+        "icon": "$(terminal-new)"
+      },
       {
         "command": "open-loging-details",
         "title": "Snakemaker: Open Logging Feature Details"

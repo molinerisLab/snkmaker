@@ -5,33 +5,53 @@ import { request } from 'http';
 
 class CustomChatResponseStream implements MarkDownChatResponseStream {
 	acc: string = "";
+	cancelled: boolean = false;
 	constructor(private readonly callback: (value: string) => void) {
 	}
 	markdown(value: string | vscode.MarkdownString): void {
 		this.acc += typeof value === 'string' ? value : value.value;
-		this.callback(this.acc);
+		if (!this.cancelled) {
+			this.callback(this.acc);
+		}
+	}
+	cancel(): void {
+		this.cancelled = true;
 	}
 }
 
 export class ChatPanelView implements vscode.WebviewViewProvider {
 
 	history: string[] = [];
+	private _disposable_stream?:CustomChatResponseStream = undefined;
 
 	public static readonly viewType = 'snakemaker-chat';
 
 	private _view?: vscode.WebviewView;
+
+	public resetChat(){
+		this._disposable_stream?.cancel();
+		this._disposable_stream = undefined;
+		this.history = [];
+		this._view?.webview.postMessage({ type: 'reset_chat' });
+	}
 
 	private userPrompt(prompt: string) {
 		//In history, first message is always the user message
 		const stream = new CustomChatResponseStream((value) => {
 			this._view?.webview.postMessage({ type: 'model_response_part', response: value });
 		});
-
+		this._disposable_stream = stream;
 		this.chatExtension.process_chat_tab(prompt, this.history, this.viewModel.llm, stream).then((response) => {
+			if (stream.cancelled) {
+				return;
+			}
 			this._view?.webview.postMessage({ type: 'model_response_end', response: stream.acc });
 			this.history.push(prompt);
 			this.history.push(stream.acc);
 		}).catch((error) => {
+			if (stream.cancelled) {
+				return;
+			}
 			this._view?.webview.postMessage({ type: 'model_error' });
 		});
 	}
@@ -74,6 +94,7 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
         const style = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'chat_panel_style.css'));
         const codiconsUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'node_modules', '@vscode/codicons', 'dist', 'codicon.css'));
 		const snakemakerIcon = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'resources', 'icon.png'));
+		const snakemakerIconSvg = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'resources', 'icon.svg'));
         // Use a nonce to only allow a specific script to be run.
 		const nonce = getNonce();
 
@@ -106,6 +127,14 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 						</div>
 						<p class="response-text-container">I'm fine, thank you!</p>
 					</div>
+				</div>
+
+				<div id="chat-header">
+					<img src="${snakemakerIconSvg}"></img>
+					<h4>Snakemaker Chat</h4>
+					<p>The chat assistant can help you understand how to use the extension,
+					answer queries related to the current history, assist you during the notebook export
+					process and perform batch operations.</p>
 				</div>
 
 				<div id="chat-messages-container">
