@@ -49,6 +49,8 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 				return;
 			}
 			const result = md.render(stream.acc);
+			//const result = md.render(`ciao\n[Set new history](command:history-set?{"history":[{"commands":[{"command":"cat%20index.html.1%20|%20wc%20-l%20>%20temp/w_count.txt","exitStatus":0,"output":"temp/w_count.txt","inputs":"index.html.1","important":true,"rule_name":"MEAWWWW","manually_changed":true}],"index":277,"rule_name":"","manually_changed":false}]});`)
+			//const result = md.render([Set new history](command:history-set?{"history":[{"commands":[{"command":"cat%20index.html.1%20|%20wc%20-l%20>%20temp/w_count.txt","exitStatus":0,"output":"temp/w_count.txt","inputs":"index.html.1","important":true,"rule_name":"ciao","manually_changed":true}],"index":289,"rule_name":"","manually_changed":false}]});)
 			this._view?.webview.postMessage({ type: 'model_response_end', response: result });
 			this.history.push(prompt);
 			this.history.push(stream.acc);
@@ -86,6 +88,20 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 			switch (data.type) {
 				case 'user_submit':
 					this.userPrompt(data.prompt);
+					break;
+				case 'command':
+					//TODO validate the commands
+					const command_and_args = decodeURIComponent(data.command).split('?');
+					const command = command_and_args[0];
+					let args = (command_and_args[1] ? command_and_args[1] : "")
+						.replace(/^"|"$/g, '');
+					if (args.startsWith("{") && args.endsWith("}")) {
+						args = JSON.parse(args);
+					}
+					vscode.commands.executeCommand(
+						command,
+						args
+					);
 					break;
 			}
 		});

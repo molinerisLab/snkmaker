@@ -1,8 +1,6 @@
 # SnakeMaker
 Semi-automatic Snakemake workflow generation from unstructured Bash commands or Python Notebooks.
-
 <img src=".img/general_presentation.gif" width="600px"/>
-
 
 <br/>
 <table>
