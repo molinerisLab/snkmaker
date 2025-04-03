@@ -48,6 +48,7 @@ As the AI assistant of this extension, you have these responsabilities:
     [Generate documentation of current work](command:generate-documentation) #Generate a markdown file with the documentation of the current work, using history and optionally the current snakefile.
 
 The command history-set?NEW_HISTORY_JSON sets a new history. Use it if the user asks to perform changes. You have to: 1- Briefly tell the user which changes you are performing; DO NOT show the entire JSON of the new history, it is too much text. 2-Valorize NEW_HISTORY_JSON as the modified version of the history you are provided as HISTORY OF RECORDED BASH COMMANDS. You can also use this example as a template of how the history is organized:EXAMPLE OF HISTORY, with one unimportant command, one important command and one composite, important command: {"history":[{"commands":[{"command":"dir","exitStatus":0,"output":"-","inputs":"-","important":false,"index":2,"temporary":false,"rule_name":"list_directory"}],"index":3,"rule_name":""},{"commands":[{"command":"catinput.txt|wc-l>output.txt","exitStatus":0,"output":"\"output.txt\"","inputs":"\"input.txt\"","important":true,"index":15,"temporary":false,"rule_name":"count_lines"}],"index":16,"rule_name":""},{"commands":[{"command":"mkdirresults","exitStatus":0,"output":"results","inputs":"-","important":true,"index":10,"temporary":false,"rule_name":"create_results_directory"},{"command":"catinput.txt|wc-l>results/output.txt","exitStatus":0,"output":"\"results/output.txt\"","inputs":"\"input.txt\"","important":true,"index":13,"temporary":false,"rule_name":"\"count_lines\""}],"index":9,"rule_name":"make_results_and_outputs"}]}
+Remember you can't directly perform changes to the history, but you can build commands with history-set?NEW_HISTORY to apply changes.
 If the user asks to add stuff to the history, you need to set the current history plus the new things he asks to add.
 Please note the command history-set can be used only through the chat, not manually from command palette.
 If the user asks you to do something not doable with these commands, tell him you can't do it yourself and explain how he can do it himself.
@@ -106,7 +107,10 @@ HERE IS THE HISTORY:`;
         return -1;
       }
 
-    processCommandURI(F: string){
+    processCommandURI(F: string, skip_url_processing: boolean = false): string {
+        if (skip_url_processing) {
+            return F;
+        }
         const r = encodeURIComponent(F);
         return r;
     }
@@ -132,7 +136,8 @@ HERE IS THE HISTORY:`;
         });
     }
 
-    private async processChatResponse(chatResponse: vscode.LanguageModelChatResponse|ChatResponseIterator,stream: MarkDownChatResponseStream) {
+    private async processChatResponse(chatResponse: vscode.LanguageModelChatResponse|ChatResponseIterator,
+        stream: MarkDownChatResponseStream, skip_url_processing: boolean = false): Promise<string> {
         var accumulator = "";
         var accumulating = false;
         var response_for_logger: string = "";
@@ -142,7 +147,11 @@ HERE IS THE HISTORY:`;
             if (!accumulating){
                 //1-Replace entire commands
                 f = fragment.replace(/\(command:history-set\?\s*(.*?)\)/g, (match, p1) => {
-                  return `(command:history-set?${this.processCommandURI(p1)});`;
+                    if (skip_url_processing){
+                        return `(command:history-set?${this.processCommandURI(p1, skip_url_processing)});`.replaceAll(" ", "%20");
+                    } else {
+                        return `(<command:history-set?${this.processCommandURI(p1, skip_url_processing)}>);`;
+                    }
                 }); 
                 //Check if there is a substring of the command
                 const unmatched = this.findUnmatchedCommand(f);
@@ -155,7 +164,11 @@ HERE IS THE HISTORY:`;
                 accumulator += fragment;
                 if (/\(command:history-set\?\s*(.*?)\)/g.test(accumulator)) {
                     f = accumulator.replace(/\(command:history-set\?\s*(.*?)\)/g, (match, p1) => {
-                        return `(command:history-set?${this.processCommandURI(p1)});`;
+                        if (skip_url_processing){
+                            return `(command:history-set?${this.processCommandURI(p1, skip_url_processing)});`.replaceAll(" ", "%20");
+                        } else {
+                            return `(<command:history-set?${this.processCommandURI(p1, skip_url_processing)}>);`;
+                        }
                     }); 
                     //Check if there is a substring of the command
                     const unmatched = this.findUnmatchedCommand(f);
@@ -229,7 +242,7 @@ HERE IS THE HISTORY:`;
         messages.push(...previousMessages);
         messages.push(vscode.LanguageModelChatMessage.User(request));
         const chatResponse = await llm.runChatQuery(messages);
-        const response_for_logger = await this.processChatResponse(chatResponse, stream);
+        const response_for_logger = await this.processChatResponse(chatResponse, stream, true);
         SnkmakerLogger.instance()?.log(`
             Chat prompt: ${request}
             Chat response: ${response_for_logger}
