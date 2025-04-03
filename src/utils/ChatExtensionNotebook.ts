@@ -204,13 +204,13 @@ export class ChatExtensionNotebook{
         if (!presenter){
             //No notebook opened
             const history_and_prompt = this.get_history(context);
+            messages.push(
+                vscode.LanguageModelChatMessage.User(ChatExtensionNotebook.BASE_PROMPT+"\n"+ChatExtensionNotebook.BASE_PROMPT_NO_NOTEBOOK_OPENED)
+            );
             if (history_and_prompt.length===0){
-                messages.push(
-                    vscode.LanguageModelChatMessage.User(ChatExtensionNotebook.BASE_PROMPT+"\n"+ChatExtensionNotebook.BASE_PROMPT_NO_NOTEBOOK_OPENED)
-                );
                 messages.push(vscode.LanguageModelChatMessage.User(request.prompt));
             } else {
-                messages = [...history_and_prompt, vscode.LanguageModelChatMessage.User(request.prompt)]
+                messages = [...messages, ...history_and_prompt, vscode.LanguageModelChatMessage.User(request.prompt)]
             }
             return this.run_chat_streaming(messages, request, stream, token);
 

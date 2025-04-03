@@ -103,6 +103,31 @@ HERE IS THE HISTORY:`;
         const r = encodeURIComponent(F);
         return r;
     }
+
+    get_history(context: vscode.ChatContext){
+        const previousMessages = context.history.filter(h => {
+            return h instanceof vscode.ChatResponseTurn || !h.prompt.startsWith("UPDATED_CONTEXT");
+        })
+        return previousMessages.map(m => {
+            if (m instanceof vscode.ChatResponseTurn){
+                let fullMessage = '';
+                m.response.forEach(r => {
+                    const mdPart = r as vscode.ChatResponseMarkdownPart;
+                    fullMessage += mdPart.value.value;
+                });
+                if (fullMessage.includes("## Performed changes:")) {
+                    fullMessage = fullMessage.split("## Performed changes:")[0];
+                }
+                return vscode.LanguageModelChatMessage.Assistant(fullMessage);
+            } else {
+                return vscode.LanguageModelChatMessage.User(m.prompt);
+            }
+        });
+    }
+
+    async process_chat_tab(request: string, history: string[]){
+        
+    }
     
     async process(request: vscode.ChatRequest,context: vscode.ChatContext,
     stream: vscode.ChatResponseStream,token: vscode.CancellationToken){
@@ -122,20 +147,13 @@ HERE IS THE HISTORY:`;
             )
         ];
         // get the previous messages
-        const previousMessages = context.history.filter(h => h instanceof vscode.ChatResponseTurn);
+        const previousMessages = this.get_history(context);
         if (previousMessages.length > 10) {
             previousMessages.splice(0, previousMessages.length - 10);
         }
-        previousMessages.forEach(m => {
-            let fullMessage = '';
-            m.response.forEach(r => {
-                const mdPart = r as vscode.ChatResponseMarkdownPart;
-                fullMessage += mdPart.value.value;
-            });
-            messages.push(vscode.LanguageModelChatMessage.Assistant(fullMessage));
-        });
-
+        messages.push(...previousMessages);
         messages.push(vscode.LanguageModelChatMessage.User(request.prompt));
+
         const chatResponse = await request.model.sendRequest(messages, {}, token);
         var accumulator = "";
         var accumulating = false;
