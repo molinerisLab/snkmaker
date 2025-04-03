@@ -102,7 +102,7 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 						<div class="bot-header">
 							<img src="${snakemakerIcon}" class="bot-icon"></img>
 							<strong>Snakemaker</strong>
-							<p class="loading_text"><em>Loading...</em></p>
+							<p class="loading_text"><em> (Loading...)</em></p>
 						</div>
 						<p class="response-text-container">I'm fine, thank you!</p>
 					</div>

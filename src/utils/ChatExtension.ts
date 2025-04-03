@@ -3,7 +3,9 @@ import * as vscode from 'vscode';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
 import { SnkmakerLogger } from './SnkmakerLogger';
 import { ExtensionSettings } from './ExtensionSettings';
-import { LLM } from '../model/ModelComms';
+import { ChatResponseIterator, LLM } from '../model/ModelComms';
+import { Stream } from 'openai/streaming.mjs';
+import OpenAI from 'openai';
 
 export interface MarkDownChatResponseStream{
     markdown(value: string | vscode.MarkdownString): void;
@@ -130,7 +132,7 @@ HERE IS THE HISTORY:`;
         });
     }
 
-    private async processChatResponse(chatResponse: vscode.LanguageModelChatResponse, stream: MarkDownChatResponseStream) {
+    private async processChatResponse(chatResponse: vscode.LanguageModelChatResponse|ChatResponseIterator,stream: MarkDownChatResponseStream) {
         var accumulator = "";
         var accumulating = false;
         var response_for_logger: string = "";
