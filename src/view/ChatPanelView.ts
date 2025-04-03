@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
+import { ChatExtension } from '../utils/ChatExtension';
 
 export class ChatPanelView implements vscode.WebviewViewProvider {
 
@@ -18,9 +19,14 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 		}
 	}
 
+	private userPrompt(prompt: string) {
+		
+	}
+
 	constructor(
 		private readonly _extensionUri: vscode.Uri,
-        private readonly viewModel: BashCommandViewModel
+        private readonly viewModel: BashCommandViewModel,
+		private readonly chatExtension: ChatExtension
 	) { }
 
 	public resolveWebviewView(
@@ -42,8 +48,7 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 		webviewView.webview.onDidReceiveMessage(data => {
 			switch (data.type) {
 				case 'user_submit':
-					console.log(data.prompt);
-					this.modelResponse("You just said " +data.prompt);
+					this.userPrompt(data.prompt);
 					break;
 			}
 		});

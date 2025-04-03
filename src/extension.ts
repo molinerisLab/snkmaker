@@ -286,7 +286,11 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 	context.subscriptions.push(NotebookExportEditorProvider.register(context));
 	
-	const provider = new ChatPanelView(context.extensionUri, viewModel);
+	const provider = new ChatPanelView(
+		context.extensionUri, 
+		viewModel,
+		chatExtension
+	);
 	context.subscriptions.push(vscode.window.registerWebviewViewProvider(ChatPanelView.viewType, provider));
 }
 
