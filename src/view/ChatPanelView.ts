@@ -1,26 +1,39 @@
 import * as vscode from 'vscode';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
-import { ChatExtension } from '../utils/ChatExtension';
+import { ChatExtension, MarkDownChatResponseStream } from '../utils/ChatExtension';
+import { request } from 'http';
+
+class CustomChatResponseStream implements MarkDownChatResponseStream {
+	acc: string = "";
+	constructor(private readonly callback: (value: string) => void) {
+	}
+	markdown(value: string | vscode.MarkdownString): void {
+		this.acc += typeof value === 'string' ? value : value.value;
+		this.callback(this.acc);
+	}
+}
 
 export class ChatPanelView implements vscode.WebviewViewProvider {
+
+	history: string[] = [];
 
 	public static readonly viewType = 'snakemaker-chat';
 
 	private _view?: vscode.WebviewView;
 
-	public modelResponse(response: string) {
-		if (this._view) {
-			this._view.webview.postMessage({ type: 'model_response', response: response });
-		}
-	}
-	public modelError(error: string) {
-		if (this._view) {
-			this._view.webview.postMessage({ type: 'model_error' });
-		}
-	}
-
 	private userPrompt(prompt: string) {
-		
+		//In history, first message is always the user message
+		const stream = new CustomChatResponseStream((value) => {
+			this._view?.webview.postMessage({ type: 'model_response_part', response: value });
+		});
+
+		this.chatExtension.process_chat_tab(prompt, this.history, this.viewModel.llm, stream).then((response) => {
+			this._view?.webview.postMessage({ type: 'model_response_end', response: stream.acc });
+			this.history.push(prompt);
+			this.history.push(stream.acc);
+		}).catch((error) => {
+			this._view?.webview.postMessage({ type: 'model_error' });
+		});
 	}
 
 	constructor(
@@ -89,8 +102,9 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 						<div class="bot-header">
 							<img src="${snakemakerIcon}" class="bot-icon"></img>
 							<strong>Snakemaker</strong>
+							<p class="loading_text"><em>Loading...</em></p>
 						</div>
-						<p>I'm fine, thank you!</p>
+						<p class="response-text-container">I'm fine, thank you!</p>
 					</div>
 				</div>
 

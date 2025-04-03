@@ -36,6 +36,26 @@ export class LLM{
         });
     }
 
+    async runChatQuery(queries: vscode.LanguageModelChatMessage[]): Promise<vscode.LanguageModelChatResponse>{
+        let tries = 0;
+        if (this.isCopilotWaiting){
+            while (this.current_model === -1){
+                await new Promise(r => setTimeout(r, 3000));
+                SnkmakerLogger.instance()?.log("User tried running query but copilot still unactive and no model selected - sleeping");
+            }
+        }
+        while(this.current_model === -1 && tries < 15){
+            await new Promise(r => setTimeout(r, 1000));
+            tries += 1;
+        }
+        if (this.current_model === -1){
+            throw new Error("No model currently selected - please select a model to use Snakemaker");
+        }
+        return this.models[this.current_model].runChatQuery(queries).then(response => {
+            return response;
+        });
+    }
+
     async useModel(id: string | null, skip_message: boolean = false): Promise<string>{
         let index = -1;
         if (id === null){
@@ -140,6 +160,7 @@ export interface ModelComms{
     setParams(key: string, value: string): void;
     isUserAdded(): boolean;
     export(): string;
+    runChatQuery(queries: vscode.LanguageModelChatMessage[]): Promise<vscode.LanguageModelChatResponse>;
 }
 
 class CopilotModel implements ModelComms{
@@ -162,6 +183,9 @@ class CopilotModel implements ModelComms{
         response = response.replace(/```python/g, '');
         response = response.replace(/```/g, '');
         return response;
+    }
+    async runChatQuery(queries: vscode.LanguageModelChatMessage[]): Promise<vscode.LanguageModelChatResponse> {
+        return this.model.sendRequest(queries, {});
     }
     isUserAdded(): boolean {
         return false;
@@ -194,6 +218,9 @@ class OpenAI_Models implements ModelComms{
         this.name = model + "-max_t_"+max_tokens;
         this.max_tokens = max_tokens;
         this.id = new Date().getTime() + model;
+    }
+    runChatQuery(queries: vscode.LanguageModelChatMessage[]): Promise<vscode.LanguageModelChatResponse> {
+        throw new Error('Method not implemented.');
     }
     getName(): string{
         return this.name;

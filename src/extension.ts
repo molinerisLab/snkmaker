@@ -289,7 +289,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const provider = new ChatPanelView(
 		context.extensionUri, 
 		viewModel,
-		chatExtension
+		chatExtension,
 	);
 	context.subscriptions.push(vscode.window.registerWebviewViewProvider(ChatPanelView.viewType, provider));
 }
