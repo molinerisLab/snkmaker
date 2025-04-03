@@ -136,6 +136,22 @@ HERE IS THE HISTORY:`;
         });
     }
 
+    getEnabledCommands(): string[] {
+        return [
+            'load-workspace',
+            'save-workspace',
+            'start-listening',
+            'stop-listening',
+            'history-set',
+            'history-undo',
+            'workbench.action.openSettings',
+            'disable-logs-session',
+            'open-loging-details',
+            'add-history-manually',
+            'generate-documentation'
+        ];
+    }
+
     private async processChatResponse(chatResponse: vscode.LanguageModelChatResponse|ChatResponseIterator,
         stream: MarkDownChatResponseStream, skip_url_processing: boolean = false): Promise<string> {
         var accumulator = "";
@@ -190,19 +206,7 @@ HERE IS THE HISTORY:`;
             }
 
             let markdownCommandString: vscode.MarkdownString = new vscode.MarkdownString(f);
-            markdownCommandString.isTrusted = { enabledCommands: [
-                'load-workspace',
-                'save-workspace',
-                'start-listening',
-                'stop-listening',
-                'history-set',
-                'history-undo',
-                'workbench.action.openSettings',
-                'disable-logs-session',
-                'open-loging-details',
-                'add-history-manually',
-                'generate-documentation'
-            ] };
+            markdownCommandString.isTrusted = { enabledCommands: this.getEnabledCommands() };
             stream.markdown(markdownCommandString);
         }
         return response_for_logger;

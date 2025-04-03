@@ -95,6 +95,9 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 					//TODO validate the commands
 					const command_and_args = decodeURIComponent(data.command).split('?');
 					const command = command_and_args[0];
+					if (this.chatExtension.getEnabledCommands().indexOf(command) === -1) {
+						return;
+					}
 					let args = (command_and_args[1] ? command_and_args[1] : "")
 						.replace(/^"|"$/g, '');
 					if (args.startsWith("{") && args.endsWith("}")) {
