@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
 import { ChatExtension, MarkDownChatResponseStream } from '../utils/ChatExtension';
 import { request } from 'http';
+import { ChatExtensionNotebook } from '../utils/ChatExtensionNotebook';
 const markdown = require('markdown-it')
 
 class CustomChatResponseStream implements MarkDownChatResponseStream {
@@ -64,10 +65,13 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 		});
 	}
 
+	currentMode: "bash" | "notebook" = "bash";
+
 	constructor(
 		private readonly _extensionUri: vscode.Uri,
         private readonly viewModel: BashCommandViewModel,
-		private readonly chatExtension: ChatExtension
+		private readonly chatExtension: ChatExtension,
+		private readonly notebookChatExtension: ChatExtensionNotebook,
 	) { }
 
 	public resolveWebviewView(
@@ -107,6 +111,15 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 						command,
 						args
 					);
+					break;
+				case 'switch_mode':
+					if (this.currentMode === "bash") {
+						this.currentMode = "notebook";
+						this._view?.webview.postMessage({ type: 'switch_to_notebook' });
+					} else {
+						this.currentMode = "bash";
+						this._view?.webview.postMessage({ type: 'switch_to_bash' });
+					}
 					break;
 			}
 		});
@@ -167,8 +180,12 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 				</div>
 
                 <div id="chat-textarea-container">
-                    <textarea id="input" rows="10" cols="30"></textarea>
-                    <div id="send-button" class="codicon codicon-send"></div>
+                    <textarea id="input" rows="10" cols="30" laceholder="Type your prompt here..."></textarea>
+					<div id="chat-control-area">
+						<div id="switch_to_notebook" class="codicon codicon-book" title="Currently in Bash mode \n Switch to Notebook mode"></div>
+						<div id="switch_to_bash" class="codicon codicon-terminal" title="Currently in Notebook mode \n Switch to Bash mode"></div>
+                    	<div id="send-button" class="codicon codicon-send"></div>
+					</div>
                 </div>
                 <script nonce="${nonce}" src="${scriptUri}"></script>
             </body>

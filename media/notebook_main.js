@@ -682,7 +682,25 @@
             case 'set_output':
                 set_output(message.data);
                 break;
+            case 'switch_to_bash':
+                document.getElementById('switch_to_bash').style.display = 'none';
+                document.getElementById('switch_to_notebook').style.display = 'block';
+                break;
+            case 'switch_to_notebook':
+                document.getElementById('switch_to_bash').style.display = 'block';
+                document.getElementById('switch_to_notebook').style.display = 'none';
+                break;
         }
+    });
+    document.getElementById('switch_to_bash').addEventListener('click', () => {
+        vscode.postMessage({
+            command: 'switch_mode'
+        });
+    });
+    document.getElementById('switch_to_notebook').addEventListener('click', () => {
+        vscode.postMessage({
+            command: 'switch_mode'
+        });
     });
 
     function buildDependencyLines(cells){

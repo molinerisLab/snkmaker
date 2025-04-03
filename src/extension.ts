@@ -294,6 +294,7 @@ export function activate(context: vscode.ExtensionContext) {
 		context.extensionUri, 
 		viewModel,
 		chatExtension,
+		notebookChatExtension
 	);
 	context.subscriptions.push(vscode.window.registerWebviewViewProvider(ChatPanelView.viewType, provider));
 
