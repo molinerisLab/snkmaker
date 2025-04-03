@@ -48,6 +48,8 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 			if (stream.cancelled) {
 				return;
 			}
+			//Remove plaintext from the response - it breaks commands
+			const regex = /```plaintext([\s\S]*?)```/g;
 			const result = md.render(stream.acc);
 			//const result = md.render(`ciao\n[Set new history](command:history-set?{"history":[{"commands":[{"command":"cat%20index.html.1%20|%20wc%20-l%20>%20temp/w_count.txt","exitStatus":0,"output":"temp/w_count.txt","inputs":"index.html.1","important":true,"rule_name":"MEAWWWW","manually_changed":true}],"index":277,"rule_name":"","manually_changed":false}]});`)
 			//const result = md.render([Set new history](command:history-set?{"history":[{"commands":[{"command":"cat%20index.html.1%20|%20wc%20-l%20>%20temp/w_count.txt","exitStatus":0,"output":"temp/w_count.txt","inputs":"index.html.1","important":true,"rule_name":"ciao","manually_changed":true}],"index":289,"rule_name":"","manually_changed":false}]});)
