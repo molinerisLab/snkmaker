@@ -3,6 +3,13 @@ import * as vscode from 'vscode';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
 import { SnkmakerLogger } from './SnkmakerLogger';
 import { ExtensionSettings } from './ExtensionSettings';
+import { ChatResponseIterator, LLM } from '../model/ModelComms';
+import { Stream } from 'openai/streaming.mjs';
+import OpenAI from 'openai';
+
+export interface MarkDownChatResponseStream{
+    markdown(value: string | vscode.MarkdownString): void;
+}
 
 export class ChatExtension{
 
@@ -125,36 +132,7 @@ HERE IS THE HISTORY:`;
         });
     }
 
-    async process_chat_tab(request: string, history: string[]){
-        
-    }
-    
-    async process(request: vscode.ChatRequest,context: vscode.ChatContext,
-    stream: vscode.ChatResponseStream,token: vscode.CancellationToken){
-        const rule_format = ExtensionSettings.instance.getRulesOutputFormat();
-        const mustStash = ExtensionSettings.instance.getKeepHistoryBetweenSessions();
-        const containsLogField = ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules();
-        const preferGenericRules = ExtensionSettings.instance.getSnakemakeBestPracticesPreferGenericFilenames();
-        const snakemakeValidation = ExtensionSettings.instance.getValidateSnakemakeRules();
-        const messages = [
-            vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT),
-            vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT_EXTENSION_USAGE),
-            vscode.LanguageModelChatMessage.User(
-                ChatExtension.BASH_HISTORY_INTRODUCTION + this.history.getHistoryFormattedForChat()
-            ),
-            vscode.LanguageModelChatMessage.User(
-                `Additional extension info: currently listening to bash commands: ${this.viewModel.isListening}. Copilot active: ${this.viewModel.isCopilotActive()}  Currently changing model: ${this.viewModel.isChangingModel}. Models available: ${this.viewModel.llm.models.map((m) => m.getName())}. Active model: ${this.viewModel.llm.models[this.viewModel.llm.current_model]?.getName()||'none'} - Logging status: ${SnkmakerLogger.loggerStatus()} - Current rule format: ${rule_format} - Snakemake rules contains Log directive: ${containsLogField} - Snakemake rules uses generic filenames and wildcards: ${preferGenericRules} - automatic validation of snakemake rules: ${snakemakeValidation} - Keep history between sessions: ${mustStash} - Current file included in prompt: ${ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt()} - CommentEveryRule: ${ExtensionSettings.instance.getCommentEveryRule()}`
-            )
-        ];
-        // get the previous messages
-        const previousMessages = this.get_history(context);
-        if (previousMessages.length > 10) {
-            previousMessages.splice(0, previousMessages.length - 10);
-        }
-        messages.push(...previousMessages);
-        messages.push(vscode.LanguageModelChatMessage.User(request.prompt));
-
-        const chatResponse = await request.model.sendRequest(messages, {}, token);
+    private async processChatResponse(chatResponse: vscode.LanguageModelChatResponse|ChatResponseIterator,stream: MarkDownChatResponseStream) {
         var accumulator = "";
         var accumulating = false;
         var response_for_logger: string = "";
@@ -214,10 +192,67 @@ HERE IS THE HISTORY:`;
             ] };
             stream.markdown(markdownCommandString);
         }
+        return response_for_logger;
+    }
+
+    private getBasePrompt(){
+        const rule_format = ExtensionSettings.instance.getRulesOutputFormat();
+        const mustStash = ExtensionSettings.instance.getKeepHistoryBetweenSessions();
+        const containsLogField = ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules();
+        const preferGenericRules = ExtensionSettings.instance.getSnakemakeBestPracticesPreferGenericFilenames();
+        const snakemakeValidation = ExtensionSettings.instance.getValidateSnakemakeRules();
+        return [
+            vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT),
+            vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT_EXTENSION_USAGE),
+            vscode.LanguageModelChatMessage.User(
+                ChatExtension.BASH_HISTORY_INTRODUCTION + this.history.getHistoryFormattedForChat()
+            ),
+            vscode.LanguageModelChatMessage.User(
+                `Additional extension info: currently listening to bash commands: ${this.viewModel.isListening}. Copilot active: ${this.viewModel.isCopilotActive()}  Currently changing model: ${this.viewModel.isChangingModel}. Models available: ${this.viewModel.llm.models.map((m) => m.getName())}. Active model: ${this.viewModel.llm.models[this.viewModel.llm.current_model]?.getName()||'none'} - Logging status: ${SnkmakerLogger.loggerStatus()} - Current rule format: ${rule_format} - Snakemake rules contains Log directive: ${containsLogField} - Snakemake rules uses generic filenames and wildcards: ${preferGenericRules} - automatic validation of snakemake rules: ${snakemakeValidation} - Keep history between sessions: ${mustStash} - Current file included in prompt: ${ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt()} - CommentEveryRule: ${ExtensionSettings.instance.getCommentEveryRule()}`
+            )
+        ];
+    }
+
+    async process_chat_tab(request: string, history: string[], llm: LLM, stream: MarkDownChatResponseStream) {
+        const messages = this.getBasePrompt();
+        // get the previous messages
+        const previousMessages = history.map((message: string, index: number) => {
+            if (index % 2 === 0) {
+                return vscode.LanguageModelChatMessage.User(message);
+            } else {
+                return vscode.LanguageModelChatMessage.Assistant(message);
+            }
+        });
+        if (previousMessages.length > 10) {
+            previousMessages.splice(0, previousMessages.length - 10);
+        }
+        messages.push(...previousMessages);
+        messages.push(vscode.LanguageModelChatMessage.User(request));
+        const chatResponse = await llm.runChatQuery(messages);
+        const response_for_logger = await this.processChatResponse(chatResponse, stream);
         SnkmakerLogger.instance()?.log(`
-Chat prompt: ${request.prompt}
-Chat response: ${response_for_logger}
-            `);
+            Chat prompt: ${request}
+            Chat response: ${response_for_logger}
+                        `);
+        return;
+    }
+    
+    async process(request: vscode.ChatRequest,context: vscode.ChatContext,
+    stream: vscode.ChatResponseStream, token: vscode.CancellationToken){
+        const messages = this.getBasePrompt();
+        // get the previous messages
+        const previousMessages = this.get_history(context);
+        if (previousMessages.length > 10) {
+            previousMessages.splice(0, previousMessages.length - 10);
+        }
+        messages.push(...previousMessages);
+        messages.push(vscode.LanguageModelChatMessage.User(request.prompt));
+        const chatResponse = await request.model.sendRequest(messages, {}, token);
+        const response_for_logger = await this.processChatResponse(chatResponse, stream);
+        SnkmakerLogger.instance()?.log(`
+            Chat prompt: ${request.prompt}
+            Chat response: ${response_for_logger}
+                        `);
         return;
     }
 }

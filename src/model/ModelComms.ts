@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import * as vscode from 'vscode';
 import { SnkmakerLogger } from '../utils/SnkmakerLogger';
+import { Stream } from 'openai/streaming.mjs';
 
 export class LLM{
     models: ModelComms[];
@@ -32,6 +33,26 @@ export class LLM{
         }
         return this.models[this.current_model].runQuery(query).then(response => {
             SnkmakerLogger.instance()?.query(this.models[this.current_model].getName(), query, response);
+            return response;
+        });
+    }
+
+    async runChatQuery(queries: vscode.LanguageModelChatMessage[]): Promise<ChatResponseIterator>{
+        let tries = 0;
+        if (this.isCopilotWaiting){
+            while (this.current_model === -1){
+                await new Promise(r => setTimeout(r, 3000));
+                SnkmakerLogger.instance()?.log("User tried running query but copilot still unactive and no model selected - sleeping");
+            }
+        }
+        while(this.current_model === -1 && tries < 15){
+            await new Promise(r => setTimeout(r, 1000));
+            tries += 1;
+        }
+        if (this.current_model === -1){
+            throw new Error("No model currently selected - please select a model to use Snakemaker");
+        }
+        return this.models[this.current_model].runChatQuery(queries).then(response => {
             return response;
         });
     }
@@ -128,6 +149,32 @@ export class LLM{
 
 }
 
+export interface ChatResponseIterator {
+    text: AsyncIterable<string>;
+}
+
+class OpenAiChatResponseIterator implements ChatResponseIterator {
+    text: AsyncIterable<string>;
+    constructor(completion: Stream<OpenAI.Chat.Completions.ChatCompletionChunk> & {_request_id?: string | null;}){
+        const iterator = completion[Symbol.asyncIterator]();
+        this.text = {
+            [Symbol.asyncIterator]: () => {
+                return {
+                    next: async () => {
+                        const chunk = await iterator.next();
+                        if (chunk.done) {
+                            return { done: true, value: "" };
+                        } else {
+                            const text = chunk.value.choices[0]?.delta?.content || '';
+                            return { done: false, value: text };
+                        }
+                    }
+                }
+            }
+        };
+    }
+}
+
 export interface ModelParameters{
     key: string; value: string;
 }
@@ -140,6 +187,7 @@ export interface ModelComms{
     setParams(key: string, value: string): void;
     isUserAdded(): boolean;
     export(): string;
+    runChatQuery(queries: vscode.LanguageModelChatMessage[]): Promise<ChatResponseIterator>;
 }
 
 class CopilotModel implements ModelComms{
@@ -162,6 +210,9 @@ class CopilotModel implements ModelComms{
         response = response.replace(/```python/g, '');
         response = response.replace(/```/g, '');
         return response;
+    }
+    async runChatQuery(queries: vscode.LanguageModelChatMessage[]): Promise<vscode.LanguageModelChatResponse> {
+        return this.model.sendRequest(queries, {});
     }
     isUserAdded(): boolean {
         return false;
@@ -238,5 +289,37 @@ class OpenAI_Models implements ModelComms{
             response += chunk.choices[0]?.delta?.content || '';
         }
         return response;
+    }
+
+    private static chatContentToString(content: (vscode.LanguageModelTextPart | vscode.LanguageModelToolResultPart | vscode.LanguageModelToolCallPart)[]){
+        return content.map((part)=>{
+            if (part instanceof vscode.LanguageModelTextPart){
+                return part.value;
+            }
+            return "";
+        }).join("");
+    }
+
+    async runChatQuery(queries: vscode.LanguageModelChatMessage[]): Promise<ChatResponseIterator>{ 
+        const openai = new OpenAI({
+            apiKey: this.apiKey,
+            baseURL: this.url,
+        });
+        const completion = await openai.chat.completions.create({
+            model: this.model,
+            messages: queries.map(
+                (query: vscode.LanguageModelChatMessage) => {
+                    return {
+                        "role": query.role === vscode.LanguageModelChatMessageRole.User ? "user" : "assistant",
+                        "content": OpenAI_Models.chatContentToString(query.content)
+                    }
+                }
+            ),
+            temperature: 0.5,
+            top_p: 1,
+            max_tokens: this.max_tokens,
+            stream: true,
+        });
+        return new OpenAiChatResponseIterator(completion);
     }
 }

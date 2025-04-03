@@ -238,6 +238,10 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 	context.subscriptions.push(deleteModel);
+	const openSettings = vscode.commands.registerCommand('open-snakemaker-settings', () => {
+		vscode.commands.executeCommand('workbench.action.openSettings', 'snakemaker');
+	});
+	context.subscriptions.push(openSettings);
 	const exportDocs = vscode.commands.registerCommand('generate-documentation', () => {
 		viewModel.generateDocumentation();
 	});
@@ -289,9 +293,14 @@ export function activate(context: vscode.ExtensionContext) {
 	const provider = new ChatPanelView(
 		context.extensionUri, 
 		viewModel,
-		chatExtension
+		chatExtension,
 	);
 	context.subscriptions.push(vscode.window.registerWebviewViewProvider(ChatPanelView.viewType, provider));
+
+	const resetChat = vscode.commands.registerCommand('chat-new-chat', () => {
+		provider.resetChat();
+	});
+	context.subscriptions.push(resetChat);
 }
 
 // This method is called when your extension is deactivated
