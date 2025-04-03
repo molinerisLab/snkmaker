@@ -238,6 +238,10 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 	context.subscriptions.push(deleteModel);
+	const openSettings = vscode.commands.registerCommand('open-snakemaker-settings', () => {
+		vscode.commands.executeCommand('workbench.action.openSettings', 'snakemaker');
+	});
+	context.subscriptions.push(openSettings);
 	const exportDocs = vscode.commands.registerCommand('generate-documentation', () => {
 		viewModel.generateDocumentation();
 	});

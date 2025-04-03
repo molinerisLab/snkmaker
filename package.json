@@ -114,14 +114,19 @@
       ],
       "view/title": [
         {
+          "command": "open-snakemaker-settings",
+          "when": "view == bash-commands",
+          "group": "navigation@1"
+        },
+        {
           "command": "print-all-rules",
           "when": "view == bash-commands",
-          "group": "navigation@6"
+          "group": "navigation@7"
         },
         {
           "command": "delete-all-commands",
           "when": "view == bash-commands",
-          "group": "navigation@5"
+          "group": "navigation@6"
         },
         {
           "command": "delete-all-archived-commands",
@@ -131,22 +136,22 @@
         {
           "command": "archive-all-commands",
           "when": "view == bash-commands",
-          "group": "navigation@4"
+          "group": "navigation@5"
         },
         {
           "command": "stop-listening",
           "when": "view == bash-commands && myExtension.isListening==true",
-          "group": "navigation@1"
+          "group": "navigation@2"
         },
         {
           "command": "start-listening",
           "when": "view == bash-commands && myExtension.isListening==false",
-          "group": "navigation@1"
+          "group": "navigation@2"
         },
         {
           "command": "history-undo",
           "when": "view == bash-commands && myExtension.canUndo",
-          "group": "navigation@2"
+          "group": "navigation@3"
         },
         {
           "command": "history-undo-fake",
@@ -273,6 +278,11 @@
         "command": "print-rule",
         "title": "Print rule",
         "icon": "$(testing-run-icon)"
+      },
+      {
+        "command": "open-snakemaker-settings",
+        "title": "Settings",
+        "icon": "$(settings-view-bar-icon)"
       },
       {
         "command": "print-all-rules",
