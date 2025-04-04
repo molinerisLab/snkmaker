@@ -45,24 +45,32 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 			this._view?.webview.postMessage({ type: 'model_response_part', response: result });
 		});
 		this._disposable_stream = stream;
-		this.chatExtension.process_chat_tab(prompt, this.history, this.viewModel.llm, stream).then((response) => {
+
+		const manageResult = (_:any) => {
 			if (stream.cancelled) {
 				return;
 			}
-			//Remove plaintext from the response - it breaks commands
-			const regex = /```plaintext([\s\S]*?)```/g;
 			const result = md.render(stream.acc);
-			//const result = md.render(`ciao\n[Set new history](command:history-set?{"history":[{"commands":[{"command":"cat%20index.html.1%20|%20wc%20-l%20>%20temp/w_count.txt","exitStatus":0,"output":"temp/w_count.txt","inputs":"index.html.1","important":true,"rule_name":"MEAWWWW","manually_changed":true}],"index":277,"rule_name":"","manually_changed":false}]});`)
-			//const result = md.render([Set new history](command:history-set?{"history":[{"commands":[{"command":"cat%20index.html.1%20|%20wc%20-l%20>%20temp/w_count.txt","exitStatus":0,"output":"temp/w_count.txt","inputs":"index.html.1","important":true,"rule_name":"ciao","manually_changed":true}],"index":289,"rule_name":"","manually_changed":false}]});)
 			this._view?.webview.postMessage({ type: 'model_response_end', response: result });
 			this.history.push(prompt);
 			this.history.push(stream.acc);
-		}).catch((error) => {
+		}
+		const manageError = (_:any) => {
 			if (stream.cancelled) {
 				return;
 			}
 			this._view?.webview.postMessage({ type: 'model_error' });
-		});
+		}
+
+		if (this.currentMode === "notebook") {
+			this.notebookChatExtension.process_chat_tab(
+				prompt, this.history, this.viewModel.llm, stream
+			).then(manageResult).catch(manageError);
+		} else {
+			this.chatExtension.process_chat_tab(
+				prompt, this.history, this.viewModel.llm, stream
+			).then(manageResult).catch(manageError);
+		}
 	}
 
 	currentMode: "bash" | "notebook" = "bash";
@@ -96,7 +104,6 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 					this.userPrompt(data.prompt);
 					break;
 				case 'command':
-					//TODO validate the commands
 					const command_and_args = decodeURIComponent(data.command).split('?');
 					const command = command_and_args[0];
 					if (this.chatExtension.getEnabledCommands().indexOf(command) === -1) {
@@ -113,6 +120,7 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 					);
 					break;
 				case 'switch_mode':
+					this.resetChat();
 					if (this.currentMode === "bash") {
 						this.currentMode = "notebook";
 						this._view?.webview.postMessage({ type: 'switch_to_notebook' });
@@ -182,8 +190,8 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
                 <div id="chat-textarea-container">
                     <textarea id="input" rows="10" cols="30" laceholder="Type your prompt here..."></textarea>
 					<div id="chat-control-area">
-						<div id="switch_to_notebook" class="codicon codicon-book" title="Currently in Bash mode \n Switch to Notebook mode"></div>
-						<div id="switch_to_bash" class="codicon codicon-terminal" title="Currently in Notebook mode \n Switch to Bash mode"></div>
+						<div id="switch_to_notebook" class="codicon codicon-terminal" title="Currently in Bash mode\nSwitch to Notebook mode"></div>
+						<div id="switch_to_bash" class="codicon codicon-book" title="Currently in Notebook mode\nSwitch to Bash mode"></div>
                     	<div id="send-button" class="codicon codicon-send"></div>
 					</div>
                 </div>
