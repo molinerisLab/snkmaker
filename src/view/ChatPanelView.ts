@@ -73,6 +73,19 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 		}
 	}
 
+	switchMode(){
+		this.resetChat();
+		if (this.currentMode === "bash") {
+			this.currentMode = "notebook";
+			if(this._view){this._view.title = "Snakemaker Chat - Notebook mode";}
+			this._view?.webview.postMessage({ type: 'switch_to_notebook' });
+		} else {
+			this.currentMode = "bash";
+			if(this._view){this._view.title = "Snakemaker Chat - Bash mode";}
+			this._view?.webview.postMessage({ type: 'switch_to_bash' });
+		}
+	}
+
 	currentMode: "bash" | "notebook" = "bash";
 
 	constructor(
@@ -114,20 +127,17 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 					if (args.startsWith("{") && args.endsWith("}")) {
 						args = JSON.parse(args);
 					}
+					if (command === "switch_assistant_mode") {
+						this.switchMode();
+						return;
+					}
 					vscode.commands.executeCommand(
 						command,
 						args
 					);
 					break;
 				case 'switch_mode':
-					this.resetChat();
-					if (this.currentMode === "bash") {
-						this.currentMode = "notebook";
-						this._view?.webview.postMessage({ type: 'switch_to_notebook' });
-					} else {
-						this.currentMode = "bash";
-						this._view?.webview.postMessage({ type: 'switch_to_bash' });
-					}
+					this.switchMode();
 					break;
 			}
 		});
@@ -181,6 +191,15 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 					<p>The chat assistant can help you understand how to use the extension,
 					answer queries related to the current history, assist you during the notebook export
 					process and perform batch operations.</p>
+					<br>
+					<div id="chat-mode-indicator-bash" class="chat-mode-indicator">
+						<div class="codicon codicon-terminal"></div>
+						<p>Currently in Bash mode</p>
+					</div>
+					<div id="chat-mode-indicator-notebook" class="chat-mode-indicator">
+						<div class="codicon codicon-book"></div>
+						<p>Currently in Notebook mode</p>
+					</div>
 				</div>
 
 				<div id="chat-messages-container">

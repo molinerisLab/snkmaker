@@ -244,7 +244,7 @@
         {
           "type": "webview",
           "id": "snakemaker-chat",
-          "name": "Snakemaker Chat"
+          "name": "Snakemaker Chat - Bash mode"
         },
         {
           "id": "llm-models",
