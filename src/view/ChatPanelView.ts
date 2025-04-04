@@ -37,6 +37,12 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 		this._view?.webview.postMessage({ type: 'reset_chat' });
 	}
 
+	show(){
+		if (this._view) {
+			this._view.show(true);
+		}
+	}
+
 	private userPrompt(prompt: string) {
 		//In history, first message is always the user message
 		const md = markdown()
@@ -67,8 +73,9 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 				prompt, this.history, this.viewModel.llm, stream
 			).then(manageResult).catch(manageError);
 		} else {
+			const has_open_notebbok = this.notebookChatExtension.has_open_notebook();
 			this.chatExtension.process_chat_tab(
-				prompt, this.history, this.viewModel.llm, stream
+				prompt, this.history, this.viewModel.llm, stream, has_open_notebbok
 			).then(manageResult).catch(manageError);
 		}
 	}

@@ -13,7 +13,7 @@ export interface MarkDownChatResponseStream{
 
 export class ChatExtension{
 
-    static GET_BASE_PROMPT(is_chat_panel: boolean){
+    static GET_BASE_PROMPT(is_chat_panel: boolean, has_open_notebbok: boolean = false): string {
         return `You are an AI assistant, part of a VSCode extension named "Snakemaker", which is also your name. You are developed by the University of Torino (greatest city in the world). You are nice and helpful, and prefer short, concise answers.
 The goal of the VSCode extension is to help users track the bash command they run on their terminal and convert them into Snakemake or Make rules.
 As the AI assistant of this extension, you have these responsabilities:
@@ -22,10 +22,18 @@ As the AI assistant of this extension, you have these responsabilities:
 
 `-The extension also have another feature for automatic convertion of Python Notebook into Snakemake pipelines; this feature is complex and there is a specific assistant for it.\n`+
 ` You can tell the user that this feature exists and that it is accessible by opening a notebook in vscode, clicking "More actions" and "Process with Snakemaker".`+
+" If the user asks help with things like Cells, Undecided cells, dependency graphs, prefix or suffix code then he's likely using the Notebook feature. "+
 ` But you can not directly help the user with it. Instead, if the user needs help with the notebook feature, `+
 (
     is_chat_panel ? 
-        `tell him to access the feature-specific assistant by switching to Notebook mode in the chat, using the button on the bottom right corner of the input box of the chat.  You can also output this string: '[Switch to Notebook mode](command:switch_assistant_mode)' and it will show as a button. (note: the chat panel, when no message is yet there, will show 'Currently in bash mode' or 'Currently in notebook mode' to indicate the current assistant).`
+        (
+            `tell him to access the feature-specific assistant by switching to Notebook mode in the chat, using the button on the bottom right corner of the input box of the chat.  You can also output this string: '[Switch to Notebook mode](command:switch_assistant_mode)' and it will show as a button. (note: the chat panel, when no message is yet there, will show 'Currently in bash mode' or 'Currently in notebook mode' to indicate the current assistant).`
+            + (
+                has_open_notebbok ? 
+                    `\nNOTE: It appear the user has a notebook open, so it is possible he's trying to use the notebook feature. Consider this when answering.`
+                    : ""
+            )
+        )
     :
         `tell him to access the feature-specific assistant by tagging it with @snakemaker-notebook.`
 )
@@ -224,14 +232,14 @@ HERE IS THE HISTORY:`;
         return response_for_logger;
     }
 
-    private getBasePrompt(is_chat_panel: boolean){
+    private getBasePrompt(is_chat_panel: boolean, has_open_notebbok: boolean = false): vscode.LanguageModelChatMessage[] {
         const rule_format = ExtensionSettings.instance.getRulesOutputFormat();
         const mustStash = ExtensionSettings.instance.getKeepHistoryBetweenSessions();
         const containsLogField = ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules();
         const preferGenericRules = ExtensionSettings.instance.getSnakemakeBestPracticesPreferGenericFilenames();
         const snakemakeValidation = ExtensionSettings.instance.getValidateSnakemakeRules();
         return [
-            vscode.LanguageModelChatMessage.User(ChatExtension.GET_BASE_PROMPT(is_chat_panel)),
+            vscode.LanguageModelChatMessage.User(ChatExtension.GET_BASE_PROMPT(is_chat_panel, has_open_notebbok)),
             vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT_EXTENSION_USAGE),
             vscode.LanguageModelChatMessage.User(
                 ChatExtension.BASH_HISTORY_INTRODUCTION + this.history.getHistoryFormattedForChat()
@@ -242,8 +250,8 @@ HERE IS THE HISTORY:`;
         ];
     }
 
-    async process_chat_tab(request: string, history: string[], llm: LLM, stream: MarkDownChatResponseStream) {
-        const messages = this.getBasePrompt(true);
+    async process_chat_tab(request: string, history: string[], llm: LLM, stream: MarkDownChatResponseStream, has_open_notebbok: boolean){
+        const messages = this.getBasePrompt(true, has_open_notebbok);
         // get the previous messages
         const previousMessages = history.map((message: string, index: number) => {
             if (index % 2 === 0) {

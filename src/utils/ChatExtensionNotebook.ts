@@ -242,6 +242,10 @@ export class ChatExtensionNotebook{
         } 
     }
 
+    has_open_notebook(){
+        return this.viewModel.getOpenedNotebook() != null;
+    }
+
     async process_chat_tab(request: string, history: string[], llm: LLM, stream: MarkDownChatResponseStream){
         const history_parsed: vscode.LanguageModelChatMessage[] = []; //TODO
         const presenter = this.viewModel.getOpenedNotebook();

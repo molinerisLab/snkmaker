@@ -498,3 +498,10 @@ button:disabled {
    border:none;
    outline:none;
 }
+
+a#open_chat_assistant {
+    cursor: pointer;
+}
+a#open_chat_assistant:hover {
+	text-decoration: underline;
+}
