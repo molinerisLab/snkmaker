@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2025-04-07
+
+### Added:
+- Automatic generation of config files.
+- Chat Panel inside Snakemaker main view. Allows to access Snakemaker chat with any LLM, without the need to use Copilot.
+- Snakemaker now has context of included .snk and .yaml files.
+- Notebook export now uses the *script* directive of Snakemake, allowing for smaller generated code (command line arguments not needed anymore).
+- Notebook export now allows to resolve dependencies with wildcards.
+
+
+### Changed:
+- Improved Snakefile generation, new rules are now added at the end of the Snakefile, rule all is updated.
+- Improved support for external LLMs, better error handling.
+- Better prompts for LLM, resulting in overall improved quality of solutions.
+- Bug fixes.
 
 ## [0.2.1] - 2025-03-20
 
