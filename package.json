@@ -31,6 +31,10 @@
     "menus": {
       "commandPalette": [
         {
+          "command": "chat-set-notebook-mode",
+          "when": "false"
+        },
+        {
           "command": "process-notebook",
           "when": "false"
         },
@@ -244,7 +248,7 @@
         {
           "type": "webview",
           "id": "snakemaker-chat",
-          "name": "Snakemaker Chat"
+          "name": "Snakemaker Chat - Bash mode"
         },
         {
           "id": "llm-models",
@@ -270,6 +274,10 @@
       }
     ],
     "commands": [
+      {
+        "command": "chat-set-notebook-mode",
+        "title": "Set chat to Notebook mode"
+      },
       {
         "command": "chat-new-chat",
         "title": "New chat",

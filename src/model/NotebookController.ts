@@ -137,6 +137,7 @@ export class CellDependencyGraph{
     canUndo: boolean = false;
     canRedo: boolean = false;
     config: string = "";
+    currentState: number = 0;
     constructor(public cells: Cell[]){
     }
 
@@ -496,7 +497,11 @@ class JSON_Importer{
             throw new Error("Invalid JSON: expected a property 'cells' that is an array");
         }
         const cells = data.cells.map((cellData: any) => JSON_Importer.reviveCell(cellData));
-        return new CellDependencyGraph(cells);
+        const graph = new CellDependencyGraph(cells);
+        if (data.currentState){
+            graph.currentState = data.currentState;
+        }
+        return graph
     }
 }
 
@@ -528,17 +533,19 @@ export class NotebookController{
         this.filename = path.fileName;
     }
 
-    saveAs(path: string){
+    saveAs(path: string, currentScreen: number){
+        this.cells.currentState = currentScreen;
         const exported = JSON.stringify(this.cells);
         writeFileSync(path, exported);
         this.filename = path;
         return true;
     }
-    save(): boolean{
+    save(currentScreen: number): boolean{
+        this.cells.currentState = currentScreen;
         if (!this.filename){
             return false;
         }
-        return this.saveAs(this.filename);
+        return this.saveAs(this.filename, currentScreen);
     }
 
     //Undo-Redo
@@ -1364,7 +1371,7 @@ export class NotebookController{
         });
         waiting.push(writeFile(resolve(exportPath, "Snakefile"), snakefile));
         await Promise.all(waiting);
-        this.saveAs(exportPath + "/export_notebook.snkmk");
+        this.saveAs(exportPath + "/export_notebook.snkmk", 1);
         return vscode.Uri.file(resolve(exportPath, "Snakefile"));
     }
 

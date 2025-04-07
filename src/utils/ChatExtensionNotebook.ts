@@ -6,21 +6,31 @@ import { ExtensionSettings } from './ExtensionSettings';
 import { Chat } from 'openai/resources/index.mjs';
 import { NotebookPresenter } from '../viewmodel/NotebookPresenter';
 import { Cell } from '../model/NotebookController';
+import { MarkDownChatResponseStream } from './ChatExtension';
+import { ChatResponseIterator, LLM } from '../model/ModelComms';
 
 export class ChatExtensionNotebook{
 
-    static BASE_PROMPT = `You are an AI assistant, part of a VSCode extension named "Snakemaker", which is also your name. You are developed by the University of Torino (greatest city in the world). You are nice and helpful, and prefer short, concise answers.
-    The goal of the extension is to help users automate the process of building Snakemake pipelines. ` +
-    `You are actually the assistant to a specific feature of Snakemaker, the one for converting ` + 
-    `Python Notebook into Snakemake pipelines. You help only for that. For request related to the general snakemaker extension or bash commands, tell the user to tag @snakemaker instead, this assistant will help them.`+
-    `\nGoal of the Notebook feature: semi-automatic conversion of Notebook into a set of scripts connected with a Snakefile.\n`+
-    `How to access feature: Open a Notebook, click on the three dots "More action" and select Process with Snakemaker.\n"`+
-    `The feature involves the following steps:\n`+
-    `1-Resolving data dependencies between cells. Snakemaker parses variables that each cell reads and writes, and creates a dependency graph.\n`+
-    `The user can manually fix the dependencies if needed, and split, merge or delete cells.\n`+
-    `2-Decide whether to export each cell as a Rule (produces files, stays in the Snakefile) or a script (is simply imported by others).\n`+
-    `3-Automatically generate the Snakefile and additional code in each cell, to read/write files, command line arguments, imports.\n`+
-    "Note: during the entire process, user can press Ctrl+Z and Ctrl+Y to undo/redo changes, including the ones you will do.\n"
+    static GET_BASE_PROMPT(is_chat_panel: boolean): string{
+        return `You are an AI assistant, part of a VSCode extension named "Snakemaker", which is also your name. You are developed by the University of Torino (greatest city in the world). You are nice and helpful, and prefer short, concise answers.
+        The goal of the extension is to help users automate the process of building Snakemake pipelines. ` +
+        `You are actually the assistant to a specific feature of Snakemaker, the one for converting ` + 
+        `Python Notebook into Snakemake pipelines. You can provide help only for this feature. `+
+        "Other features of Snakemaker involve recording the bash commands of the user and exporting those to Snakemake. "+
+        (   is_chat_panel ?
+            "If the user asks help for the bash commands feature, or generic requests about Snakemaker, tell him to switch to the Bash-mode assistant using the button on the bottom right of the textbox of the chat. You can also output this string: '[Switch to Bash mode](command:switch_assistant_mode)' and it will show as a button. (note: the chat panel, when no message is yet there, will show 'Currently in bash mode' or 'Currently in notebook mode' to indicate the current assistant) " 
+            :
+            "If the user asks help for the bash commands feature, or generic requests about Snakemaker, tell him to tag @snakemaker to access the correct assistant. "
+        ) +
+        `\nGoal of the Notebook feature: semi-automatic conversion of Notebook into a set of scripts connected with a Snakefile.\n`+
+        `How to access feature: Open a Notebook, click on the three dots "More action" and select Process with Snakemaker.\n"`+
+        `The feature involves the following steps:\n`+
+        `1-Resolving data dependencies between cells. Snakemaker parses variables that each cell reads and writes, and creates a dependency graph.\n`+
+        `The user can manually fix the dependencies if needed, and split, merge or delete cells.\n`+
+        `2-Decide whether to export each cell as a Rule (produces files, stays in the Snakefile) or a script (is simply imported by others).\n`+
+        `3-Automatically generate the Snakefile and additional code in each cell, to read/write files, command line arguments, imports.\n`+
+        "Note: during the entire process, user can press Ctrl+Z and Ctrl+Y to undo/redo changes, including the ones you will do.\n"
+    }
 
     static BASE_PROMPT_NO_NOTEBOOK_OPENED = `Right now no notebook is opened, or at least not in the tab the user is looking at. Once a notebook is opened, you will have access to it and be able to help the user.`;
 
@@ -118,6 +128,18 @@ export class ChatExtensionNotebook{
         });
     }
 
+    get_historyz_from_panel(context: string[]){
+        return context.filter((turn, index) => {
+            return index%2==1 || !turn.startsWith("UPDATED_CONTEXT");
+        }).map((turn, index) => {
+            if (index%2==1){
+                return vscode.LanguageModelChatMessage.Assistant(turn);
+            } else {
+                return vscode.LanguageModelChatMessage.User(turn);
+            }
+        });
+    }
+
     get_prompt_step_1(presenter: NotebookPresenter): string{
         let prompt = ChatExtensionNotebook.BASE_PROMPT_FIRST_STEP;
         prompt += presenter.getCells().cells.map((cell: Cell, index:number) => {
@@ -149,101 +171,143 @@ export class ChatExtensionNotebook{
     }
 
 
-    async run_chat_streaming(messages: vscode.LanguageModelChatMessage[], request: vscode.ChatRequest, 
-        stream: vscode.ChatResponseStream, token: vscode.CancellationToken){
-        const chatResponse = await request.model.sendRequest(messages, {}, token);
+    async run_chat_streaming(chatResponse: ChatResponseIterator, 
+        stream: MarkDownChatResponseStream){
         for await (const fragment of chatResponse.text) {
             let markdownCommandString: vscode.MarkdownString = new vscode.MarkdownString(fragment);
             stream.markdown(markdownCommandString);
         }
     }
 
-    async run_chat_json(messages: vscode.LanguageModelChatMessage[], request: vscode.ChatRequest, 
-        stream: vscode.ChatResponseStream, token: vscode.CancellationToken, run_after: (data: any) => string): Promise<any>{
+    async run_chat_json(chatResponse: ChatResponseIterator, 
+        stream: MarkDownChatResponseStream, run_after: (data: any) => string): Promise<any>{
         let response = "";
-        for (let i = 0; i < 5; i++){
-            try{
-                const chatResponse = await request.model.sendRequest(messages, {}, token);
-                response = "";
-                for await (const fragment of chatResponse.text) {
-                    response += fragment;
-                }
-                let start = response.indexOf("{");
-                let end = response.lastIndexOf("}");
-                if (start !== -1 && end !== -1){
-                    response = response.substring(start, end + 1);
-                } else {
-                    messages.push(
-                        vscode.LanguageModelChatMessage.Assistant(response),
-                        vscode.LanguageModelChatMessage.User("Could not find a JSON in your response, try again")
-                    );
-                    continue;
-                }
-                const formatted = JSON.parse(response);
-                const text_response = formatted.text;
-                const additional = run_after(formatted);
-                let markdownCommandString: vscode.MarkdownString = new vscode.MarkdownString(text_response + additional);
-                stream.markdown(markdownCommandString);
-                return formatted;
-            } catch(e: any){
-                messages.push(
-                    vscode.LanguageModelChatMessage.Assistant(response),
-                    vscode.LanguageModelChatMessage.User("This resulted in an error: " + e.message + "\nTry again.")
-                );
+        try{
+            for await (const fragment of chatResponse.text) {
+                response += fragment;
             }
+            let start = response.indexOf("{");
+            let end = response.lastIndexOf("}");
+            if (start !== -1 && end !== -1){
+                response = response.substring(start, end + 1);
+            }
+            const formatted = JSON.parse(response);
+            const text_response = formatted.text;
+            const additional = run_after(formatted);
+            let markdownCommandString: vscode.MarkdownString = new vscode.MarkdownString(text_response + additional);
+            stream.markdown(markdownCommandString);
+            return formatted;
+        } catch (e: any) {
+            e.old_response = response;
+            throw e;
         }
     }
 
 
-    async process(request: vscode.ChatRequest,context: vscode.ChatContext,
-    stream: vscode.ChatResponseStream,token: vscode.CancellationToken){
-        
+    get_chat_messages(prompt: string, history: vscode.LanguageModelChatMessage[], presenter: NotebookPresenter | null, is_chat_panel:boolean){
         let messages = [];
-
-        const presenter = this.viewModel.getOpenedNotebook();
         if (!presenter){
-            //No notebook opened
-            const history_and_prompt = this.get_history(context);
             messages.push(
-                vscode.LanguageModelChatMessage.User(ChatExtensionNotebook.BASE_PROMPT+"\n"+ChatExtensionNotebook.BASE_PROMPT_NO_NOTEBOOK_OPENED)
+                vscode.LanguageModelChatMessage.User(
+                    ChatExtensionNotebook.GET_BASE_PROMPT(is_chat_panel)+"\n"+ChatExtensionNotebook.BASE_PROMPT_NO_NOTEBOOK_OPENED
+                )
             );
-            if (history_and_prompt.length===0){
-                messages.push(vscode.LanguageModelChatMessage.User(request.prompt));
-            } else {
-                messages = [...messages, ...history_and_prompt, vscode.LanguageModelChatMessage.User(request.prompt)]
-            }
-            return this.run_chat_streaming(messages, request, stream, token);
-
+            messages = [...messages, ...history, vscode.LanguageModelChatMessage.User(prompt)]
+            return messages;//return this.run_chat_streaming(messages, request, stream, token);
+        
         } else if (presenter.get_step()===0){
             //First screen
             messages.push(
-                vscode.LanguageModelChatMessage.User(ChatExtensionNotebook.BASE_PROMPT+"\n"+this.get_prompt_step_1(presenter))
+                vscode.LanguageModelChatMessage.User(ChatExtensionNotebook.GET_BASE_PROMPT(is_chat_panel)+"\n"+this.get_prompt_step_1(presenter))
             )
-            const history_and_prompt = this.get_history(context);
-            if (history_and_prompt.length === 0){
-                messages.push(vscode.LanguageModelChatMessage.User(request.prompt))
+            if (history.length === 0){
+                messages.push(vscode.LanguageModelChatMessage.User(prompt))
             } else {
-                messages = [...messages, ...history_and_prompt, vscode.LanguageModelChatMessage.User("UPDATED_CONTEXT: " + this.get_prompt_step_1(presenter))];
-                messages.push(vscode.LanguageModelChatMessage.User(request.prompt))
+                messages = [...messages, ...history, vscode.LanguageModelChatMessage.User("UPDATED_CONTEXT: " + this.get_prompt_step_1(presenter))];
+                messages.push(vscode.LanguageModelChatMessage.User(prompt))
             }
-            const response = await this.run_chat_json(messages, request, stream, token,
-                (data: any) => presenter.apply_from_chat(data)
-            );
+            return messages;
         } else {
             //Second screen
             messages.push(
-                vscode.LanguageModelChatMessage.User(ChatExtensionNotebook.BASE_PROMPT+"\n"+this.get_prompt_step_2(presenter))
+                vscode.LanguageModelChatMessage.User(ChatExtensionNotebook.GET_BASE_PROMPT(is_chat_panel)+"\n"+this.get_prompt_step_2(presenter))
             )
-            const history_and_prompt = this.get_history(context);
-            if (history_and_prompt.length === 0){
-                messages.push(vscode.LanguageModelChatMessage.User(request.prompt))
+            if (history.length === 0){
+                messages.push(vscode.LanguageModelChatMessage.User(prompt))
             } else {
-                messages = [...messages, ...history_and_prompt, vscode.LanguageModelChatMessage.User("UPDATED_CONTEXT: " + this.get_prompt_step_2(presenter))];
-                messages.push(vscode.LanguageModelChatMessage.User(request.prompt))
+                messages = [...messages, ...history, vscode.LanguageModelChatMessage.User("UPDATED_CONTEXT: " + this.get_prompt_step_2(presenter))];
+                messages.push(vscode.LanguageModelChatMessage.User(prompt))
             }
-            const response = await this.run_chat_json(messages, request, stream, token,
-                (data: any) => presenter.apply_from_chat_second_step(data)
-            );
+            return messages;
+        } 
+    }
+
+    has_open_notebook(){
+        return this.viewModel.getOpenedNotebook() != null;
+    }
+
+    async process_chat_tab(request: string, history: string[], llm: LLM, stream: MarkDownChatResponseStream){
+        const history_parsed: vscode.LanguageModelChatMessage[] = []; //TODO
+        const presenter = this.viewModel.getOpenedNotebook();
+        const messages = this.get_chat_messages(request, history_parsed, presenter, true);
+        if (!presenter){
+            const chatResponse = await llm.runChatQuery(messages);
+            return await this.run_chat_streaming(chatResponse, stream);
+        } else {
+            const step = presenter.get_step();
+            for (let i = 0; i < 5; i++){
+                try{
+                    const chatResponse = await llm.runChatQuery(messages);
+                    return await this.run_chat_json(chatResponse, stream,
+                        (data: any) => {
+                            if (step===0){
+                                return presenter.apply_from_chat(data);
+                            } else {
+                                return presenter.apply_from_chat_second_step(data);
+                            }
+                        }
+                    );
+                } catch(e: any){
+                    messages.push(
+                        vscode.LanguageModelChatMessage.Assistant(e.old_response),
+                        vscode.LanguageModelChatMessage.User("This resulted in an error: " + e.message + "\nTry again.")
+                    );
+                }
+            }
+        }
+    }
+
+    async process(request: vscode.ChatRequest,context: vscode.ChatContext,
+    stream: vscode.ChatResponseStream,token: vscode.CancellationToken){
+        
+        const history = this.get_history(context);
+        const presenter = this.viewModel.getOpenedNotebook();
+        const messages = this.get_chat_messages(request.prompt, history, presenter, false);
+        if (!presenter){
+            const chatResponse = await request.model.sendRequest(messages, {}, token);
+            return this.run_chat_streaming(chatResponse, stream);
+
+        } else{
+            const step = presenter.get_step();
+            for (let i = 0; i < 5; i++){
+                try{
+                    const chatResponse = await request.model.sendRequest(messages, {}, token);
+                    return await this.run_chat_json(chatResponse, stream,
+                        (data: any) => {
+                            if (step===0){
+                                return presenter.apply_from_chat(data);
+                            } else {
+                                return presenter.apply_from_chat_second_step(data);
+                            }
+                        }
+                    );
+                } catch(e: any){
+                    messages.push(
+                        vscode.LanguageModelChatMessage.Assistant(e.old_response),
+                        vscode.LanguageModelChatMessage.User("This resulted in an error: " + e.message + "\nTry again.")
+                    );
+                }
+            }
         }
     }
 }

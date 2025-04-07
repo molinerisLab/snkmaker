@@ -80,10 +80,11 @@
             <p>Manual updates will be propagated automatically - you can modify a rule's output file and following rules will update as well.</p>
             <p>Note: you can Undo-Redo changes you perform with the standard keybinding, Ctrl+Z, Ctrl+Y.</p>
             <h2>Snakemaker-Notebook Agent.</h2>
-            <p>This feature includes a chat-agent that can help you review and fix your dependencies.</p>
-            <p>Open the Github Copilot Chat (Ctrl + Alt + I), tag the agent <span id="chat_tag">@snakemaker-notebook</span> to chat with it.</p>
-            <p>In this second step, Snakemaker-Notebook can fix Snakemake rules and generated code from natural language prompt.</p>
+            <p>The Snakemaker chat assistant can assist you during this step by performing actions to your code.</p>
+            <p>It can change Snakemake rules and the generated code from natural language prompt.</p>
             <p>For example you can ask for different file formats, different filenames, rule names, wildcards etc.</p>
+            <p>You can open the chat assistant in the <a id="open_chat_assistant">Snakemaker view</a>.</p>
+            <p>Alternatively, open the Github Copilot Chat (Ctrl + Alt + I) and tag the agent <span id="chat_tag">@snakemaker-notebook</span> to chat with it.</p>
             <br>
             </div>
             <div id="proceed_button_container">
@@ -145,6 +146,11 @@
         });
         container.innerHTML = html;
         //Initialize event listeners
+        document.getElementById('open_chat_assistant').addEventListener('click', () => {
+            vscode.postMessage({
+                command: 'open_chat_assistant'
+            });
+        });
         document.getElementById('export_snakefile').addEventListener('click', () => {
             vscode.postMessage({
                 command: 'export_snakefile'
@@ -282,16 +288,20 @@
             <p>Note: you can Undo-Redo changes you perform with the standard keybinding, Ctrl+Z, Ctrl+Y.</p>
             <br>
             <h2>Snakemaker-Notebook Agent.</h2>
-            <p>This feature includes a chat-agent that can help you review and fix your dependencies.</p>
-            <p>Open the Github Copilot Chat (Ctrl + Alt + I), tag the agent <span id="chat_tag">@snakemaker-notebook</span> to chat with it.</p>
-            <p>In this first step, Snakemaker-Notebook analyzes your code and the dependency graph and can fix issues from natural language prompts.</p>
+            <p>The Snakemaker chat assistant can assist you during this step by reviewing and fixing dependency issues.</p>
+            <p>You can open the chat assistant in the <a id="open_chat_assistant">Snakemaker view</a>.</p>
+            <p>Alternatively, open the Github Copilot Chat (Ctrl + Alt + I) and tag the agent <span id="chat_tag">@snakemaker-notebook</span> to chat with it.</p>
             <br>
             </div>
             <div class="notice_before_proceed" id="data_dependency_errors"></div>
             <div class="notice_before_proceed" id="undecided_cells"></div>
             <div id="proceed_button_container"></div>
         `;
-
+        document.getElementById('open_chat_assistant').addEventListener('click', () => {
+            vscode.postMessage({
+                command: 'open_chat_assistant'
+            });
+        });
         const container = document.getElementById('mainContainer');
         let html = "";
         let removeDependencyCallbacks = [];

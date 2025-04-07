@@ -13,13 +13,31 @@ export interface MarkDownChatResponseStream{
 
 export class ChatExtension{
 
-    static BASE_PROMPT = `You are an AI assistant, part of a VSCode extension named "Snakemaker", which is also your name. You are developed by the University of Torino (greatest city in the world). You are nice and helpful, and prefer short, concise answers.
+    static GET_BASE_PROMPT(is_chat_panel: boolean, has_open_notebbok: boolean = false): string {
+        return `You are an AI assistant, part of a VSCode extension named "Snakemaker", which is also your name. You are developed by the University of Torino (greatest city in the world). You are nice and helpful, and prefer short, concise answers.
 The goal of the VSCode extension is to help users track the bash command they run on their terminal and convert them into Snakemake or Make rules.
 As the AI assistant of this extension, you have these responsabilities:
 -Help the user with any questions they have about the extension and its usage.
--Help the user reason about Snakemake, Make, bash commands and the conversion between them.
--The extension also allows automatic convertion of Python Notebook into Snakemake pipelines; but you cannot directly help the user with this feature. You can just tell him this feature exists and it is accessible by opening a notebook, clicking "More actions" and "Process with Snakemaker". For other requests, tell the user to tag @snakemaker-notebook to get help with this feature.
--You are provided with the user's commands history, and you can convert it, or parts of it, in snakemake or make rules, following user's requests.
+-Help the user reason about Snakemake, Make, bash commands and the conversion between them.\n`+
+
+`-The extension also have another feature for automatic convertion of Python Notebook into Snakemake pipelines; this feature is complex and there is a specific assistant for it.\n`+
+` You can tell the user that this feature exists and that it is accessible by opening a notebook in vscode, clicking "More actions" and "Process with Snakemaker".`+
+" If the user asks help with things like Cells, Undecided cells, dependency graphs, prefix or suffix code, or asks for changing some code, then he's likely using the Notebook feature. "+
+` But you can not directly help the user with it. Instead, if the user needs help with the notebook feature, `+
+(
+    is_chat_panel ? 
+        (
+            `tell him to access the feature-specific assistant by switching to Notebook mode in the chat, using the button on the bottom right corner of the input box of the chat.  You can also output this string: '[Switch to Notebook mode](command:switch_assistant_mode)' and it will show as a button. (note: the chat panel, when no message is yet there, will show 'Currently in bash mode' or 'Currently in notebook mode' to indicate the current assistant).`
+            + (
+                has_open_notebbok ? 
+                    `\nNOTE: It appear the user has a notebook open, so it is possible he's trying to use the notebook feature. Consider this when answering.`
+                    : ""
+            )
+        )
+    :
+        `tell him to access the feature-specific assistant by tagging it with @snakemaker-notebook.`
+)
++`\n-You are provided with the user's commands history, and you can convert it, or parts of it, in snakemake or make rules, following user's requests.
 -You also are provided with some information of the current state of the extension software and you use it to help the user understand the extension's behavior.
 -Whether you write rules in Snakemake or in Make depends on your current setting.
 -In Snakemake, a best practice requires each rule to have a log directive. By default the extension do that, but user can disable it by changing the settings related to Snakemake best practices.
@@ -46,13 +64,14 @@ As the AI assistant of this extension, you have these responsabilities:
     [Settings - Model context](command:workbench.action.openSettings?"snakemaker.includeCurrentFileIntoPrompt") #Open the settings to include the current file into the prompt or not.
     [Add commands by hand](command:add-history-manually) #Allows to user to add commands to snakemaker history by hand. User can also copy and paste commands from bash "history" output.
     [Generate documentation of current work](command:generate-documentation) #Generate a markdown file with the documentation of the current work, using history and optionally the current snakefile.
-
+-The command must be printed at the end of the response with no code block directives or plaintext directive. It is important to follow the markdown link format, so [Command_name](command:command-id?data)
 The command history-set?NEW_HISTORY_JSON sets a new history. Use it if the user asks to perform changes. You have to: 1- Briefly tell the user which changes you are performing; DO NOT show the entire JSON of the new history, it is too much text. 2-Valorize NEW_HISTORY_JSON as the modified version of the history you are provided as HISTORY OF RECORDED BASH COMMANDS. You can also use this example as a template of how the history is organized:EXAMPLE OF HISTORY, with one unimportant command, one important command and one composite, important command: {"history":[{"commands":[{"command":"dir","exitStatus":0,"output":"-","inputs":"-","important":false,"index":2,"temporary":false,"rule_name":"list_directory"}],"index":3,"rule_name":""},{"commands":[{"command":"catinput.txt|wc-l>output.txt","exitStatus":0,"output":"\"output.txt\"","inputs":"\"input.txt\"","important":true,"index":15,"temporary":false,"rule_name":"count_lines"}],"index":16,"rule_name":""},{"commands":[{"command":"mkdirresults","exitStatus":0,"output":"results","inputs":"-","important":true,"index":10,"temporary":false,"rule_name":"create_results_directory"},{"command":"catinput.txt|wc-l>results/output.txt","exitStatus":0,"output":"\"results/output.txt\"","inputs":"\"input.txt\"","important":true,"index":13,"temporary":false,"rule_name":"\"count_lines\""}],"index":9,"rule_name":"make_results_and_outputs"}]}
 Remember you can't directly perform changes to the history, but you can build commands with history-set?NEW_HISTORY to apply changes.
 If the user asks to add stuff to the history, you need to set the current history plus the new things he asks to add.
 Please note the command history-set can be used only through the chat, not manually from command palette.
 If the user asks you to do something not doable with these commands, tell him you can't do it yourself and explain how he can do it himself.
-`;
+`
+    }
     static BASE_PROMPT_EXTENSION_USAGE = `INFORMATION ABOUT THE EXTENSION AND ITS USAGE:
 The main way to access the extension is through the left sidebar, where there is the Snakemaker custom view. The custom view has three sections:
 -Bash Commands: contains the history of bash commands, with buttons to Start or Pause the recording of new commands, to archive all history, delete all history or print all rules from it. Buttons to undo or redo the last action are also available.
@@ -136,6 +155,23 @@ HERE IS THE HISTORY:`;
         });
     }
 
+    getEnabledCommands(): string[] {
+        return [
+            'load-workspace',
+            'save-workspace',
+            'start-listening',
+            'stop-listening',
+            'history-set',
+            'history-undo',
+            'workbench.action.openSettings',
+            'disable-logs-session',
+            'open-loging-details',
+            'add-history-manually',
+            'generate-documentation',
+            'switch_assistant_mode' //This is a pseudo-command, only recognized by ChatPanelView
+        ];
+    }
+
     private async processChatResponse(chatResponse: vscode.LanguageModelChatResponse|ChatResponseIterator,
         stream: MarkDownChatResponseStream, skip_url_processing: boolean = false): Promise<string> {
         var accumulator = "";
@@ -190,32 +226,20 @@ HERE IS THE HISTORY:`;
             }
 
             let markdownCommandString: vscode.MarkdownString = new vscode.MarkdownString(f);
-            markdownCommandString.isTrusted = { enabledCommands: [
-                'load-workspace',
-                'save-workspace',
-                'start-listening',
-                'stop-listening',
-                'history-set',
-                'history-undo',
-                'workbench.action.openSettings',
-                'disable-logs-session',
-                'open-loging-details',
-                'add-history-manually',
-                'generate-documentation'
-            ] };
+            markdownCommandString.isTrusted = { enabledCommands: this.getEnabledCommands() };
             stream.markdown(markdownCommandString);
         }
         return response_for_logger;
     }
 
-    private getBasePrompt(){
+    private getBasePrompt(is_chat_panel: boolean, has_open_notebbok: boolean = false): vscode.LanguageModelChatMessage[] {
         const rule_format = ExtensionSettings.instance.getRulesOutputFormat();
         const mustStash = ExtensionSettings.instance.getKeepHistoryBetweenSessions();
         const containsLogField = ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules();
         const preferGenericRules = ExtensionSettings.instance.getSnakemakeBestPracticesPreferGenericFilenames();
         const snakemakeValidation = ExtensionSettings.instance.getValidateSnakemakeRules();
         return [
-            vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT),
+            vscode.LanguageModelChatMessage.User(ChatExtension.GET_BASE_PROMPT(is_chat_panel, has_open_notebbok)),
             vscode.LanguageModelChatMessage.User(ChatExtension.BASE_PROMPT_EXTENSION_USAGE),
             vscode.LanguageModelChatMessage.User(
                 ChatExtension.BASH_HISTORY_INTRODUCTION + this.history.getHistoryFormattedForChat()
@@ -226,8 +250,8 @@ HERE IS THE HISTORY:`;
         ];
     }
 
-    async process_chat_tab(request: string, history: string[], llm: LLM, stream: MarkDownChatResponseStream) {
-        const messages = this.getBasePrompt();
+    async process_chat_tab(request: string, history: string[], llm: LLM, stream: MarkDownChatResponseStream, has_open_notebbok: boolean){
+        const messages = this.getBasePrompt(true, has_open_notebbok);
         // get the previous messages
         const previousMessages = history.map((message: string, index: number) => {
             if (index % 2 === 0) {
@@ -252,7 +276,7 @@ HERE IS THE HISTORY:`;
     
     async process(request: vscode.ChatRequest,context: vscode.ChatContext,
     stream: vscode.ChatResponseStream, token: vscode.CancellationToken){
-        const messages = this.getBasePrompt();
+        const messages = this.getBasePrompt(false);
         // get the previous messages
         const previousMessages = this.get_history(context);
         if (previousMessages.length > 10) {

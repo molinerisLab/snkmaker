@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { BashCommandViewModel } from '../viewmodel/BashCommandViewmodel';
 import { ChatExtension, MarkDownChatResponseStream } from '../utils/ChatExtension';
 import { request } from 'http';
+import { ChatExtensionNotebook } from '../utils/ChatExtensionNotebook';
 const markdown = require('markdown-it')
 
 class CustomChatResponseStream implements MarkDownChatResponseStream {
@@ -36,37 +37,82 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 		this._view?.webview.postMessage({ type: 'reset_chat' });
 	}
 
+	show(){
+		if (this._view) {
+			this._view.show(true);
+		}
+	}
+
 	private userPrompt(prompt: string) {
 		//In history, first message is always the user message
-		const md = markdown()
+		const md = this.md;
 		const stream = new CustomChatResponseStream((value) => {
 			const result = md.render(value);
 			this._view?.webview.postMessage({ type: 'model_response_part', response: result });
 		});
 		this._disposable_stream = stream;
-		this.chatExtension.process_chat_tab(prompt, this.history, this.viewModel.llm, stream).then((response) => {
+
+		const manageResult = (_:any) => {
 			if (stream.cancelled) {
 				return;
 			}
 			const result = md.render(stream.acc);
-			//const result = md.render(`ciao\n[Set new history](command:history-set?{"history":[{"commands":[{"command":"cat%20index.html.1%20|%20wc%20-l%20>%20temp/w_count.txt","exitStatus":0,"output":"temp/w_count.txt","inputs":"index.html.1","important":true,"rule_name":"MEAWWWW","manually_changed":true}],"index":277,"rule_name":"","manually_changed":false}]});`)
-			//const result = md.render([Set new history](command:history-set?{"history":[{"commands":[{"command":"cat%20index.html.1%20|%20wc%20-l%20>%20temp/w_count.txt","exitStatus":0,"output":"temp/w_count.txt","inputs":"index.html.1","important":true,"rule_name":"ciao","manually_changed":true}],"index":289,"rule_name":"","manually_changed":false}]});)
 			this._view?.webview.postMessage({ type: 'model_response_end', response: result });
 			this.history.push(prompt);
 			this.history.push(stream.acc);
-		}).catch((error) => {
+		}
+		const manageError = (_:any) => {
 			if (stream.cancelled) {
 				return;
 			}
 			this._view?.webview.postMessage({ type: 'model_error' });
-		});
+		}
+
+		if (this.currentMode === "notebook") {
+			this.notebookChatExtension.process_chat_tab(
+				prompt, this.history, this.viewModel.llm, stream
+			).then(manageResult).catch(manageError);
+		} else {
+			const has_open_notebbok = this.notebookChatExtension.has_open_notebook();
+			this.chatExtension.process_chat_tab(
+				prompt, this.history, this.viewModel.llm, stream, has_open_notebbok
+			).then(manageResult).catch(manageError);
+		}
 	}
+
+	switchMode(){
+		this.resetChat();
+		if (this.currentMode === "bash") {
+			this.currentMode = "notebook";
+			if(this._view){this._view.title = "Snakemaker Chat - Notebook mode";}
+			this._view?.webview.postMessage({ type: 'switch_to_notebook' });
+		} else {
+			this.currentMode = "bash";
+			if(this._view){this._view.title = "Snakemaker Chat - Bash mode";}
+			this._view?.webview.postMessage({ type: 'switch_to_bash' });
+		}
+	}
+
+	currentMode: "bash" | "notebook" = "bash";
+
+	md;
 
 	constructor(
 		private readonly _extensionUri: vscode.Uri,
         private readonly viewModel: BashCommandViewModel,
-		private readonly chatExtension: ChatExtension
-	) { }
+		private readonly chatExtension: ChatExtension,
+		private readonly notebookChatExtension: ChatExtensionNotebook,
+	) {
+		const highlightjs = require(vscode.Uri.joinPath(this._extensionUri, 'media', 'highlight.min.js').fsPath);
+		this.md = markdown({
+			highlight: function (str:any, lang:any) {
+				try {
+				return highlightjs.highlight(str, { language: 'diff' }).value;
+				} catch (__) {}
+				return ''; // use external default escaping
+			  }
+		  })
+	}
 
 	public resolveWebviewView(
 		webviewView: vscode.WebviewView,
@@ -90,18 +136,27 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 					this.userPrompt(data.prompt);
 					break;
 				case 'command':
-					//TODO validate the commands
 					const command_and_args = decodeURIComponent(data.command).split('?');
 					const command = command_and_args[0];
+					if (this.chatExtension.getEnabledCommands().indexOf(command) === -1) {
+						return;
+					}
 					let args = (command_and_args[1] ? command_and_args[1] : "")
 						.replace(/^"|"$/g, '');
 					if (args.startsWith("{") && args.endsWith("}")) {
 						args = JSON.parse(args);
 					}
+					if (command === "switch_assistant_mode") {
+						this.switchMode();
+						return;
+					}
 					vscode.commands.executeCommand(
 						command,
 						args
 					);
+					break;
+				case 'switch_mode':
+					this.switchMode();
 					break;
 			}
 		});
@@ -115,7 +170,8 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
         const codiconsUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'node_modules', '@vscode/codicons', 'dist', 'codicon.css'));
 		const snakemakerIcon = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'resources', 'icon.png'));
 		const snakemakerIconSvg = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'resources', 'icon.svg'));
-        // Use a nonce to only allow a specific script to be run.
+        const highlightjsStyle = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'stackoverflow-dark.min.css'));
+		// Use a nonce to only allow a specific script to be run.
 		const nonce = getNonce();
 
         return `<!DOCTYPE html>
@@ -126,7 +182,6 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <link href="${styleVSCodeUri}" rel="stylesheet">
-                <link href="${style}" rel="stylesheet">
                 <link href="${codiconsUri}" rel="stylesheet">
                 <title>Cat Colors</title>
             </head>
@@ -155,6 +210,15 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 					<p>The chat assistant can help you understand how to use the extension,
 					answer queries related to the current history, assist you during the notebook export
 					process and perform batch operations.</p>
+					<br>
+					<div id="chat-mode-indicator-bash" class="chat-mode-indicator">
+						<div class="codicon codicon-terminal"></div>
+						<p>Currently in Bash mode</p>
+					</div>
+					<div id="chat-mode-indicator-notebook" class="chat-mode-indicator">
+						<div class="codicon codicon-book"></div>
+						<p>Currently in Notebook mode</p>
+					</div>
 				</div>
 
 				<div id="chat-messages-container">
@@ -162,9 +226,15 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 				</div>
 
                 <div id="chat-textarea-container">
-                    <textarea id="input" rows="10" cols="30"></textarea>
-                    <div id="send-button" class="codicon codicon-send"></div>
+                    <textarea id="input" rows="10" cols="30" laceholder="Type your prompt here..."></textarea>
+					<div id="chat-control-area">
+						<div id="switch_to_notebook" class="codicon codicon-terminal" title="Currently in Bash mode\nSwitch to Notebook mode"></div>
+						<div id="switch_to_bash" class="codicon codicon-book" title="Currently in Notebook mode\nSwitch to Bash mode"></div>
+                    	<div id="send-button" class="codicon codicon-send"></div>
+					</div>
                 </div>
+				<link rel="stylesheet" href="${highlightjsStyle}">
+				<link href="${style}" rel="stylesheet">
                 <script nonce="${nonce}" src="${scriptUri}"></script>
             </body>
             </html>`;
