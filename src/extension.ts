@@ -302,6 +302,12 @@ export function activate(context: vscode.ExtensionContext) {
 		provider.resetChat();
 	});
 	context.subscriptions.push(resetChat);
+	const setNotebookmode = vscode.commands.registerCommand('chat-set-notebook-mode', () => {
+		if (provider.currentMode === "bash"){
+			provider.switchMode();
+		}
+	});
+	context.subscriptions.push(setNotebookmode);
 }
 
 // This method is called when your extension is deactivated

@@ -45,7 +45,7 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 
 	private userPrompt(prompt: string) {
 		//In history, first message is always the user message
-		const md = markdown()
+		const md = this.md;
 		const stream = new CustomChatResponseStream((value) => {
 			const result = md.render(value);
 			this._view?.webview.postMessage({ type: 'model_response_part', response: result });
@@ -95,12 +95,24 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 
 	currentMode: "bash" | "notebook" = "bash";
 
+	md;
+
 	constructor(
 		private readonly _extensionUri: vscode.Uri,
         private readonly viewModel: BashCommandViewModel,
 		private readonly chatExtension: ChatExtension,
 		private readonly notebookChatExtension: ChatExtensionNotebook,
-	) { }
+	) {
+		const highlightjs = require(vscode.Uri.joinPath(this._extensionUri, 'media', 'highlight.min.js').fsPath);
+		this.md = markdown({
+			highlight: function (str:any, lang:any) {
+				try {
+				return highlightjs.highlight(str, { language: 'diff' }).value;
+				} catch (__) {}
+				return ''; // use external default escaping
+			  }
+		  })
+	}
 
 	public resolveWebviewView(
 		webviewView: vscode.WebviewView,
@@ -158,7 +170,8 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
         const codiconsUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'node_modules', '@vscode/codicons', 'dist', 'codicon.css'));
 		const snakemakerIcon = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'resources', 'icon.png'));
 		const snakemakerIconSvg = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'resources', 'icon.svg'));
-        // Use a nonce to only allow a specific script to be run.
+        const highlightjsStyle = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'stackoverflow-dark.min.css'));
+		// Use a nonce to only allow a specific script to be run.
 		const nonce = getNonce();
 
         return `<!DOCTYPE html>
@@ -169,7 +182,6 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <link href="${styleVSCodeUri}" rel="stylesheet">
-                <link href="${style}" rel="stylesheet">
                 <link href="${codiconsUri}" rel="stylesheet">
                 <title>Cat Colors</title>
             </head>
@@ -221,6 +233,8 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
                     	<div id="send-button" class="codicon codicon-send"></div>
 					</div>
                 </div>
+				<link rel="stylesheet" href="${highlightjsStyle}">
+				<link href="${style}" rel="stylesheet">
                 <script nonce="${nonce}" src="${scriptUri}"></script>
             </body>
             </html>`;

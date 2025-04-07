@@ -155,6 +155,7 @@ export class NotebookView implements NotebookViewCallbacks{
                         presenter.configChanged(message.content);
                         break;
                     case 'open_chat_assistant':
+                        vscode.commands.executeCommand('chat-set-notebook-mode');
                         vscode.commands.executeCommand('snakemaker-chat.focus');
                         break;
                 }
