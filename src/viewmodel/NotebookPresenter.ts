@@ -29,13 +29,13 @@ export class NotebookPresenter{
         this.view = view;
     }
 
-    public save(){
-        if (!this.model.save()){
-            this.saveAs();
+    public save(currentScreen: number){
+        if (!this.model.save(currentScreen)){
+            this.saveAs(currentScreen);
             return;
         }
     }
-    public saveAs(){
+    public saveAs(currentScreen: number){
         let defaultUri = vscode.Uri.file(`export_process.snkmk`);
         if (this.model.filename){
             defaultUri = vscode.Uri.file(`${this.model.filename}`);
@@ -48,15 +48,19 @@ export class NotebookPresenter{
             defaultUri: defaultUri
         }).then((path: vscode.Uri|undefined) => {
             if (path) {
-                this.model.saveAs(path.fsPath);
+                this.model.saveAs(path.fsPath, currentScreen);
             }
         });
     }
 
     private async loadNotebook(exportedPath: vscode.TextDocument){
         this.model.openFrom(exportedPath);
-        this.view.setNotebookCells(this.model.cells);
-        this.view.setRulesNodes(this.model.cells);
+        if (this.model.cells.currentState===0){
+            this.view.setNotebookCells(this.model.cells);
+            this.view.setRulesNodes(this.model.cells);
+        } else {
+            this.view.setOutput(this.model.cells);
+        }
     }
 
     private async buildNotebook(notebookPath: vscode.Uri){

@@ -183,11 +183,11 @@ export class NotebookView implements NotebookViewCallbacks{
             presenter.redo(this.currentScreen);
         });
         this.saveCommand = vscode.commands.registerCommand('workbench.action.files.save', async (args) => {
-            presenter.save();
+            presenter.save(this.currentScreen);
             //workbench.action.files.saveAs
         });
         this.saveAsCommand = vscode.commands.registerCommand('workbench.action.files.saveAs', async (args) => {
-            presenter.saveAs();
+            presenter.saveAs(this.currentScreen);
         });
 
     }
