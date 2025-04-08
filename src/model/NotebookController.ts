@@ -109,7 +109,7 @@ export class Cell {
         public writesTo: { [key: string]: number[] } = {},
         public rule: RulesNode = new RulesNode(isFunctions ? declares[0] : "", isFunctions ? "script" : "undecided", isFunctions, {}, {}, {}),
         public replacedFunctionVariables: string[] = [],
-        public wildcards: string[] = []
+        public wildcards: string[] = [],
     ) {}
 
     toCode(): string{
@@ -146,6 +146,9 @@ export class CellDependencyGraph{
     }
 
     public setCellDependency(index: number, reads: string[], reads_file: string[], writes: string[], imports: string[]){
+        reads = reads.filter((read) => this.cells[index].imports.filter(
+            (imp) => imp.indexOf(read) !== -1
+        ).length === 0);
         this.cells[index].reads = reads;
         this.cells[index].reads_file = reads_file;
         this.cells[index].writes = writes;
@@ -240,16 +243,19 @@ export class CellDependencyGraph{
         //Remove dependency from cells that call this function
         for (let j=i+1; j<this.cells.length; j++){
             const cell = this.cells[j];
-            if (cell.isFunctions){
-                continue;
+            let dependencyNameInCell = dependency;
+            if (cell.replacedFunctionVariables.includes(dependency)){
+                dependencyNameInCell = `__${dependency.toLowerCase()}__`;
             }
             fcell.declares.forEach((decl, index) => {
-                if (cell.calls.includes(decl)){
-                    const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
+                if (cell.dependsOnFunction[decl] === i){
+                    const regex = new RegExp(`\\b${decl}\\(((?:[^()]*|\\([^()]*\\))*)\\)`, 'g');
                     if (cell.code.match(regex)) {
                         cell.code = cell.code.replace(regex, (match, args) => {
                             const argList = args.split(',').map((arg:string) => arg.trim());
-                            const filteredArgs = argList.filter((arg:string) => arg !== `${dependency.toLowerCase()}`);
+                            const filteredArgs = argList.filter(
+                                (arg:string) => arg.replaceAll(" ","") !== `__${dependency.toLowerCase()}__=${dependencyNameInCell}`
+                            );
                             return `${decl}(${filteredArgs.join(', ')})`;
                         });
                     }
@@ -263,28 +269,6 @@ export class CellDependencyGraph{
 
         const fcell = this.cells[i];
         let reads = fcell.reads;
-
-        //Check that the function is called in more than one cell, otherwise it's no use making it independent
-        let callers:number[] = [];
-        fcell.declares.forEach((decl, index) => {
-            for (let j=i+1; j<this.cells.length; j++){
-                const cell = this.cells[j];
-                const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
-                if (cell.code.match(regex)){
-                    callers.push(j);
-                }
-            }
-        });
-        if (callers.length < 2){
-            if (callers.length===1){
-                this.cells[callers[0]].reads = [
-                    ...new Set([...this.cells[callers[0]].reads, ...reads])
-                ]
-                this.cells[callers[0]].code = fcell.code + "\n" + this.cells[callers[0]].code;
-            }
-            this.cells[i].code = ""; //Will be cleaned up by caller function
-            return;
-        }
 
         //Check that reads are not already part of the function arguments
         //(can happen both because they are named the same or because the model put them there anyway)
@@ -314,7 +298,8 @@ export class CellDependencyGraph{
             //Same for reads of cells that call this function
             for (let j=i+1; j<this.cells.length; j++){
                 if (this.cells[j].reads.includes(decl)) {
-                    this.cells[j].reads = this.cells[j].reads.filter((read) => read !== decl);
+                    this.cells[j].reads = this.cells[j].reads.filter(
+                        (read) => read !== decl);
                 }
             }
         });
@@ -326,7 +311,7 @@ export class CellDependencyGraph{
         if (replaced.length > 0){
             fcell.declares.forEach((decl, index) => {
                 //Update function parameters
-                const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
+                const regex = new RegExp(`\\b${decl}\\(((?:[^()]*|\\([^()]*\\))*)\\)`, 'g');
                 fcell.code = fcell.code.replace(regex, (match, p1) => {
                     return match.replace(p1, p1 + ", " + replaced.join(", "));
                 });
@@ -335,14 +320,16 @@ export class CellDependencyGraph{
             for (let j=i+1; j<this.cells.length; j++){
                 const cell = this.cells[j];
                 fcell.declares.forEach((decl, index) => {
-                    const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
+                    const regex = new RegExp(`\\b${decl}\\(((?:[^()]*|\\([^()]*\\))*)\\)`, 'g');
                     if (cell.code.match(regex)){
                         cell.calls.push(decl);
-                        cell.dependsOnFunction[decl] = i;
                         cell.reads.push(...reads);
                         cell.reads = [...new Set(cell.reads)];
+                        const new_args = reads.map(
+                            (read) => `__${read.toLowerCase()}__=${read}`
+                        )
                         cell.code = cell.code.replace(regex, (match, p1) => {
-                            return match.replace(p1, p1 + ", " + reads.join(", "));
+                            return match.replace(p1, p1 + ", " + new_args.join(", "));
                         });
                     }
                 });
@@ -360,7 +347,6 @@ export class CellDependencyGraph{
                     const regex = new RegExp(`\\b${decl}\\(([^)]*)\\)`, 'g');
                     if (cell.code.match(regex)){
                         cell.calls.push(decl);
-                        cell.dependsOnFunction[decl] = i;
                     }
                 });
             }
@@ -372,7 +358,7 @@ export class CellDependencyGraph{
             this.makeIndividualFunctionIndependent(i);
         }
         //Remove eventually empty cells
-        this.cells = this.cells.filter((cell) => cell.code.length>1);
+        this.cells = this.cells.filter((cell) => cell.code.trim().length>1);
     }
 
     public setDependencyAsWildcard(index: number, dependency: string){
@@ -399,6 +385,7 @@ export class CellDependencyGraph{
 
     buildDependencyGraph(){
         const lastChanged: { [key: string]: number }[] = this.cells.map(() => ({}));
+        const declared: { [key: string]: number } = {}
         this.cells.forEach((cell, index) => {
             cell.dependsOn = {};
             cell.missingDependencies = [];
@@ -417,10 +404,20 @@ export class CellDependencyGraph{
                 Object.keys(lastChanged[index - 1]).forEach((key) => {
                     lastChanged[index][key] = lastChanged[index - 1][key];
                 });
+                cell.calls.forEach((call) => {
+                    const target = declared[call];
+                    cell.dependsOnFunction[call] = target;
+                });
             }
             if (!cell.isFunctions){
                 cell.writes.forEach((write) => {
                     lastChanged[index][write] = index;
+                });
+            } else {
+                cell.declares.forEach((decl) => {
+                    if (!declared[decl]){
+                        declared[decl] = index;
+                    }
                 });
             }
         });
@@ -800,22 +797,19 @@ export class NotebookController{
         "The main issue is managing the state. Jupyter notebooks have a global state. I can define or modify a variable in a cell, and refer to this variable in another. "+
         "After the decomposition, every cell will be executed indipendently, so I must manage the dependencies between the cells.\n"+
         "In this step I'm interested in data dependencies, so variables that are defined, modified or readed by the code inside the cells.\n"+
-        +"\nFor each cell, I need the set of variables that the code inside WRITES (either define for the first time or modify) and READS. " +
-        "I also need the list of files that the cell might read.\n"+
-        "The READS variable must contain all the variables that the code might read. The only variables that you can skip are the ones that are defined in a local context, "+
-        "for example if the code defines a function, and inside the function a local variable is defined and then readed (or a function argument is readed), this can be skipped. But if the code inside the function " +
-        "reads a variable that might be defined outside of the function, the variable definitely goes in the READS list.\n"+
+        +"\nFor each cell, consider the code and find the set of variables that the code WRITES (either define for the first time or modify) and READS from other cells. " +
+        
+        "-The READS variables are not all the variables readed, but only those readed from other cells' code. "+
+        "In other words, given each cell, imagine to run its code independently. What variables will raise an exception because the code tries to read them without "+
+        "having defined them? These are the only variables that go in READS."+
+        "Example:\nMY_VAR=3#MY_VAR is written here\n#some code..\nprint(MY_VAR) #=> MY_VAR is readed from the same cell - the READS list is empty."+
+        "\nExample:\ndef func(MY_VAR):\n\tprint(MY_VAR) #=> MY_VAR is readed from the function arguments - the READS list is empty."+
+        "\nExample with lambda function:\nlambda MY_VAR: MY_VAR+1 #=> MY_VAR is readed from the lambda function argument - the READS list is empty."+
+        "\nExample with undecidable case:\nif (condition):\n\tMY_VAR=1\nprint(MY_VAR) #=> Here MY_VAR could be written in the cell depending on 'condition', "+
+        "but if 'condition' is false then it is readed from somewhere else. You cannot know the value of 'condition' from static analysis so the READS list contains MY_VAR.\n"+
         "Also, modules or things that are already in the cell 'import' statements do not go in the READ list.\n" +
-        "Regarding the WRITES list, peration that modify mutable objects, as appending to a list, count as WRITE operations. " +
+        "Regarding the WRITES list, operations that modify mutable objects, as appending to a list, count as WRITE operations. " +
         "As I'm interested only in data dependencies, if the cell defines a function, the name of the function that is defined do not go in the WRITES list for now. \n" +
-        "I give you an example:\n"+
-        "VAR_1 = 5; LIST_1.append(1);\n"+
-        "print(VAR_2)\n"+
-        "def myFun(arg1):\n"+
-        "    print(arg1)\n"+
-        "    print(VAR_3)\n"+
-        "READS: VAR_2, LIST_1, VAR_3 (notice: VAR_3 is readed in the function body, but is defined outside, so it's a READ. arg1 is also readed in the function body but is an argument, valorized somewhere else, so it's not a dependency - when some cell calls the functions, it will valorize it and it will be a dependency of this cell)\n"+
-        "WRITES: VAR_1, LIST_1 (notice: LIST_1 is both in the READS and WRITES, as append() depends on the previous state of the list and changes it).\n"+
         "Consider the following notebook cells:\n\n" +
         this.cells?.cells.map((cell, index) => "Cell. " + index + "\nCode:\n" + cell.code + "\nThese are imports, the imported things do not go in the READS list: " + cell.imports.join(" - ")).join("\n\n") + "\n\n" +
         "Please provide to me the list of READED variables, WRITTEN variables and READED file for each cell. For each variable use the same name used in the code without changing it.\n"+

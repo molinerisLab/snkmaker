@@ -205,10 +205,10 @@ export class BashCommandViewModel{
       //Copilot takes a while to load after vscode opening - wait a bit for it
       for (var i = 0; i < 40; i++){
         models = await vscode.lm.selectChatModels({vendor: 'copilot'});
-        await new Promise(resolve => setTimeout(resolve, 500));
         if (models.length>0){
           break;
         }
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       //If no copilot available, notify user
