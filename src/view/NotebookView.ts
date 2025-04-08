@@ -76,10 +76,11 @@ export class NotebookView implements NotebookViewCallbacks{
         this._panel.webview.postMessage({ command: 'set_loading', loading: false });
     }
 
-    undoCommand: vscode.Disposable;
-    redoCommand: vscode.Disposable;
-    saveCommand: vscode.Disposable;
-    saveAsCommand: vscode.Disposable;
+    undoCommand!: vscode.Disposable;
+    redoCommand!: vscode.Disposable;
+    saveCommand!: vscode.Disposable;
+    saveAsCommand!: vscode.Disposable;
+    private presenter: NotebookPresenter;
 
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, viewModel: BashCommandViewModel, notebookUri: vscode.Uri| undefined, exportedDocument: vscode.TextDocument | undefined, context: vscode.ExtensionContext) {
         this._panel = panel;
@@ -90,7 +91,11 @@ export class NotebookView implements NotebookViewCallbacks{
             presenter = viewModel.openNotebook(notebookUri, this);
         } else if (exportedDocument){
             presenter = viewModel.openExportedNotebook(exportedDocument, this);
+        } else {
+            throw new Error('No notebook or exported document provided');
         }
+
+        this.presenter = presenter;
         this._panel.webview.onDidReceiveMessage(
             message => {
                 switch (message.command) {
@@ -165,17 +170,31 @@ export class NotebookView implements NotebookViewCallbacks{
         );
         this._panel.webview.html = this._getHtmlForWebview(this._panel.webview);
         panel.onDidChangeViewState(e => {
-                const data = presenter.getCells();
-                if (this.currentScreen===0){
-                    this.setNotebookCells(data);
-                    this.setRulesNodes(data);
+                if (this._panel.visible) {
+                    const data = presenter.getCells();
+                    if (this.currentScreen===0){
+                        this.setNotebookCells(data);
+                        this.setRulesNodes(data);
+                    } else {
+                        this.setOutput(data);
+                    }
+                    this.setVsCodeCommands();
                 } else {
-                    this.setOutput(data);
+                    this.undoCommand.dispose();
+                    this.redoCommand.dispose();
+                    this.saveCommand.dispose();
+                    this.saveAsCommand.dispose();
                 }
             },
             null,
             context.subscriptions);
         
+        this.setVsCodeCommands();
+
+    }
+
+    setVsCodeCommands(){
+        const presenter: NotebookPresenter = this.presenter;
         this.undoCommand = vscode.commands.registerCommand('undo', async (args) => {
             presenter.undo(this.currentScreen);
         });
@@ -184,14 +203,11 @@ export class NotebookView implements NotebookViewCallbacks{
         });
         this.saveCommand = vscode.commands.registerCommand('workbench.action.files.save', async (args) => {
             presenter.save(this.currentScreen);
-            //workbench.action.files.saveAs
         });
         this.saveAsCommand = vscode.commands.registerCommand('workbench.action.files.saveAs', async (args) => {
             presenter.saveAs(this.currentScreen);
         });
-
     }
-
 
     public dispose() {
         this.undoCommand.dispose();

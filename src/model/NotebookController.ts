@@ -168,7 +168,10 @@ export class CellDependencyGraph{
                 }
                 return true;
             });
-            cell.code = filteredLines.join("\n");
+            for (let toRemove of importSet){
+                const regex = new RegExp(`\\s*\\b${toRemove}\\b\\s*[;\\n]?`, 'g');
+                cell.code = cell.code.replace(regex, '');
+            }
         }
         return Array.from(importSet);
     }
