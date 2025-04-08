@@ -1161,6 +1161,11 @@ export class NotebookController{
                 "As the python scripts are run inside the 'script' directive of Snakemake, they have access to "+
                 "input and output filenames, wildcards, config and params. The script can read them as: "+
                 "snakemake.input[0], [1].. snakemake.output[0], [1] .. snakemake.wildcards['wildcard_name']  (for example, from filename test_run_{N} you can access snakemake.wildcards['N'])\n"+
+                "Important: If a directive of the Snakemake rule is empty, for example because the script has no inputs or outputs, skip the directive entirely. "+
+                "It is legit to define a rule without the input directive, while it's not legit to define the directive and leave it empty.\n"+
+                "Important: the script directive must use the three-quotes syntax: \"\"\", and it simply states the path to the script to call. Example:\n"+
+                "script:\n\t\"\"\"my_script.py\"\"\"\n"+
+                "Important: if the rule contains wildcards, all of them must appear in all the directives: input, output and log (except if a directive is missing).\n"+
                 "2- A prefix code, that will be appended before the actual code in the script, that reads snakemake data, initialize variables, read files. Please always use the snakemake.input, snakemake.wildcards etc to initialize variables and filenames.\n"+
                 "3- A suffix code, that will be appended after the script, that saves the variables to the output files. Use snakemake.output for the filenames.\n"+
 
@@ -1360,6 +1365,11 @@ export class NotebookController{
         const rules: {"rule": string|null; "filename": string|null; "code": string|null}[] = this.cells.cells.map(cell => cell.toSnakemakeRule(30,logs));
         let snakefile = "";
         const waiting = [];
+        const config = this.cells.config;
+        if (config.length > 0){
+            waiting.push(writeFile(resolve(exportPath, "config.yaml"), config));
+        }
+        snakefile = "configfile: \"config.yaml\"\n\n";
         rules.forEach((rule) => {
             if (rule.rule){
                 snakefile += rule.rule + "\n\n";
