@@ -88,7 +88,7 @@ export class ChatExtensionNotebook{
 
     static BASE_PROMPT_SECOND_STEP_FOOTER = `Please output your response in JSON format following this schema:
     {
-        "text": string #REQUIRED: the textual response to show the user in the chat,
+        "text": string #REQUIRED: the textual response to show the user in the chat - in Markdown format
         "changes": [ #List with one entry for each cell you want to change. Only changes to cells here Empty if nyou want to change no cell. Note: once a cell is included in the changes, all fields will be replaced with the ones you provide. If you want to keep some fields, you have to provide them again.
             {
                 "cell_index": number, #index of the cell modified

@@ -990,6 +990,8 @@ export class NotebookController{
         "The process is almost completed. Cells have been divided into rules (called from the Snakefile) and scripts "+
         "(used with imports). The Snakefile has been written, and pieces of code have been enriched with " +
         "prefix and suffix code to manage input and output files, wildcards and other dependencies.\n" +
+        "Note that every cell has a 'Main code' which contains the main logic. " +
+        "Cells might also have prefix code (manages inputs) and suffix (manages output).\n"+
         "The last step is to finalize the code and the Snakefile and manage the config file.\n" +
         "Your goals are:\n" +
         "1- Read the code and the Snakefile, if you find errors fix them.\n" + 
@@ -1002,18 +1004,18 @@ export class NotebookController{
         this.cells.cells.map((cell, index) => {
             let base = `Cell n. ${index}:\nType: ${cell.rule.type}\n`;
             if (cell.rule.type === "rule"){
-                base += `Snakemake rule:\n ${cell.rule.snakemakeRule}\n`+
-                `Prefix code:\n${cell.rule.prefixCode}\n`+
-                `Main code:\n${cell.code}\n`+
-                `Suffix code:\n${cell.rule.postfixCode}\n`;
+                base += `Cell's Snakemake rule:\n ${cell.rule.snakemakeRule}\n`+
+                `Cell's Prefix code:\n${cell.rule.prefixCode}\n`+
+                `Cell's Main code:\n${cell.code}\n`+
+                `Cell's Suffix code:\n${cell.rule.postfixCode}\n`;
             } else {
-                base += `Prefix code:\n${cell.rule.prefixCode}\n`
-                base += `Code:\n${cell.code}\n`;
+                base += `Cell's Prefix code:\n${cell.rule.prefixCode}\n`
+                base += `Cell's Main Code:\n${cell.code}\n`;
             }
             return base;
         }) +
         `\nPlease answer this prompt with a JSON that follows this schema:\n`+
-        `{ 'config': string (the config file), cells: [{cell_index: number, prefix_code: string, postfix_code: string, snakemake_rule: string, code: string }] }\n`+
+        `{ 'config': string (the config file), cells: [{cell_index: number, prefix_code: string, main_code: string, postfix_code: string, snakemake_rule: string}] }\n`+
         `You DO NOT have to put all the cells and all the fields in the 'cell' objects, only what you want to change.\n`+
         `For example if you want only to modify cell N and only its postfix_code field, just return one object with cell_index: N and postfix_code: new_code\n`+
         "Also, you can not change the type of a cell (from rule to script or vice versa) and you can only change fields that "+
@@ -1046,8 +1048,8 @@ export class NotebookController{
                     if (cell.postfix_code){
                         this.cells.cells[cell.cell_index].rule.postfixCode = cell.postfix_code;
                     }
-                    if (cell.code){
-                        this.cells.cells[cell.cell_index].code = cell.code;
+                    if (cell.main_code){
+                        this.cells.cells[cell.cell_index].code = cell.main_code;
                     }
                 }
             });
