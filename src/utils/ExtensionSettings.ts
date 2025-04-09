@@ -18,6 +18,7 @@ export class ExtensionSettings{
     private snakemakeAbsolutePath: string = "";
     private includeCurrentFileIntoPrompt: boolean = false;
     private commentEveryRule: boolean = false;
+    private addCondaDirective: boolean = false;
     
     public getAllowLogging(): boolean {
         return this.allowLogging;
@@ -46,6 +47,9 @@ export class ExtensionSettings{
     public getCommentEveryRule(): boolean {
         return this.commentEveryRule;
     }
+    public getAddCondaDirective(): boolean {
+        return this.addCondaDirective&&this.rulesOutputFormat === "Snakemake";
+    }
 
     private constructor(){
         this.allowLogging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
@@ -57,6 +61,7 @@ export class ExtensionSettings{
         this.snakemakeAbsolutePath = vscode.workspace.getConfiguration('snakemaker').get('snakemakeAbsolutePath', "");
         this.includeCurrentFileIntoPrompt = vscode.workspace.getConfiguration('snakemaker').get('includeCurrentFileIntoPrompt', false);
         this.commentEveryRule = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.CommentEveryRule', false);
+        this.addCondaDirective = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.AddCondaDirective', false);
 
         vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration("snakemaker.allowLogging")) {
@@ -77,6 +82,8 @@ export class ExtensionSettings{
                 this.includeCurrentFileIntoPrompt = vscode.workspace.getConfiguration('snakemaker').get('includeCurrentFileIntoPrompt', false);
             } else if (event.affectsConfiguration("snakemaker.snakemakeBestPractices.CommentEveryRule")){
                 this.commentEveryRule = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.CommentEveryRule', false);
+            } else if (event.affectsConfiguration("snakemaker.snakemakeBestPractices.AddCondaDirective")){
+                this.addCondaDirective = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.AddCondaDirective', false);
             }
         });
     }

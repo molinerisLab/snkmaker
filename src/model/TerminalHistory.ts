@@ -10,6 +10,18 @@ import { SnakefileContext } from "../utils/OpenendSnakefileContent";
 const tmp = require("tmp");
 const fs = require('fs');
 
+export class ExecutionEnvironment{
+    content: string;
+    name: string;
+    filename: string|null;
+    stored: boolean = false;
+    constructor(content: string, name: string, stored: boolean = false){
+        this.stored = stored;
+        this.content = content;
+        this.name = name;
+        this.filename = this.name + ".yaml";
+    }
+}
 
 export class TerminalHistory {
     history: BashCommandContainer[];
@@ -19,7 +31,9 @@ export class TerminalHistory {
     testRules: TestRules = new TestRules();
     undoRedoStack: UndoRedoStack;
     tmp_path: string | null = null;
-    terminalEnvMap: Map<string, string|null> = new Map<string, string>();
+    terminalEnvMap: Map<string, ExecutionEnvironment[]> = new Map<string, ExecutionEnvironment[]>();
+    namedEnvMap: Map<string, ExecutionEnvironment> = new Map<string, ExecutionEnvironment>();
+    updatingEnv: boolean = false;
     constructor(private llm: LLM, private memento: vscode.Memento) {
         this.history = [];
         this.archive = [];
@@ -45,14 +59,30 @@ export class TerminalHistory {
             if (pid){
                 const terminalId = terminal.name + pid;
                 const content = fs.readFileSync(path, 'utf8');
-                console.log(content);
-                this.terminalEnvMap.set(terminalId, content);
+                const match = content.match(/^\s*name:\s*(\S+)/m);
+                const name = match ? match[1] : "unnamed_"+this.terminalEnvMap.entries.length;
+                if (this.updatingEnv){
+                    const env = this.namedEnvMap.get(name);
+                    if (env){
+                        env.content = content;
+                        env.stored = false;
+                    }
+                }
+                const executionEnvironment = this.namedEnvMap.get(name) || new ExecutionEnvironment(content, name)
+                const currentList = this.terminalEnvMap.get(terminalId)||[];
+                currentList.push(executionEnvironment);
+                this.terminalEnvMap.set(terminalId, currentList);
+                this.namedEnvMap.set(name, executionEnvironment);
                 fs.unlinkSync(path);
             }
         } catch (error) {}
     }
 
-    startExportEnv(terminal: vscode.Terminal){
+    startExportEnv(terminal: vscode.Terminal, update: boolean = false){
+        if (!ExtensionSettings.instance.getAddCondaDirective()){
+            return;
+        }
+        this.updatingEnv = update
         const tmp_file = tmp.fileSync();
         this.tmp_path = tmp_file.name;
         terminal.sendText("conda env export --from-history >" + tmp_file.name + " 2> /dev/null", true);
@@ -60,6 +90,7 @@ export class TerminalHistory {
 
     async addCommand(value: string, confidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, terminal: vscode.Terminal|null) {
         let terminalId: string|null = null;
+        let terminalEnvIndex: number = -1;
         const indexExisting = this.isCommandInHistory(value);
         if (indexExisting !== -1) {
             const command = this.history[indexExisting];
@@ -75,13 +106,17 @@ export class TerminalHistory {
                 terminalId = terminal.name + pid;
             }
             if (terminalId){
-                if (!this.terminalEnvMap.has(terminalId) || this.terminalEnvMap.get(terminalId) === null){
+                if (!this.terminalEnvMap.has(terminalId)){
                     this.startExportEnv(terminal);
+                    terminalEnvIndex = 0;
+                } else {
+                    terminalEnvIndex  = this.terminalEnvMap.get(terminalId)?.length || 0;
+                    terminalEnvIndex--;
                 }
             }
         }
 
-        const singleTempCommand = new SingleBashCommand(value, 0, "", "", false, this.index, true, undefined, terminalId);
+        const singleTempCommand = new SingleBashCommand(value, 0, "", "", false, this.index, true, undefined, terminalId, terminalEnvIndex);
         const tempCommand = new BashCommandContainer(singleTempCommand, this.index+1);
         this.index+=2;
         this.history.push(tempCommand);
@@ -223,8 +258,19 @@ export class TerminalHistory {
         }
         command.setTemporary(true);
         try {
-            let rule = await this.queries.getRuleFromCommand(command);
+            const envs = (this.terminalEnvMap.get(command.get_terminal_id()||"")||[]);
+            let env = null;
+            if (command.get_terminal_env_index() < envs.length && command.get_terminal_env_index()!== -1){
+                env = envs[command.get_terminal_env_index()];
+            }
+            
+            let rule = await this.queries.getRuleFromCommand(command, env?.filename||null);
             await this.validateAndCorrectRules(rule);
+            
+            if (env){
+                rule.envs_to_export.push(env);
+            }
+
             return rule;
         } catch (e){
             throw e;
@@ -240,8 +286,22 @@ export class TerminalHistory {
         }
         important.forEach(command => command.setTemporary(true));
         try{
-            var rules = await this.queries.getAllRulesFromCommands(important);
+            const envs = important.map(
+                (command) => {
+                    if (ExtensionSettings.instance.getAddCondaDirective()){
+                        const envs = this.terminalEnvMap.get(command.get_terminal_id()||"")||[];
+                        const index = command.get_terminal_env_index();
+                        if (index === -1 || index>=envs.length){
+                            return null;
+                        }
+                        return envs[index];
+                    }
+                    return null;
+                }
+            )
+            var rules = await this.queries.getAllRulesFromCommands(important, envs);
             await this.validateAndCorrectRules(rules);
+            rules.envs_to_export = envs.filter(env => env !== null);
             return rules;
         } catch (e){
             throw e;
@@ -309,14 +369,30 @@ export class TerminalHistory {
         return JSON.stringify({
             history: this.history,
             archive: this.archive,
-            index: this.index
+            index: this.index,
+            namedEnvMap: Object.fromEntries(
+                Array.from(this.namedEnvMap.entries()).map(([key, value]) => [
+                    key,
+                    {
+                        content: value.content,
+                        name: value.name,
+                        filename: value.filename,
+                        stored: value.stored,
+                    },
+                ])),
+            terminalEnvMap: Object.fromEntries(
+                Array.from(this.terminalEnvMap.entries()).map(([key, value]) => [
+                    key,
+                    value.map((env: ExecutionEnvironment) => env.name),
+                ])
+            ),
         });
     }
 
-    loadJsonString(data: string){
+    loadJsonString(data: string, resetEnvExport: boolean = false){
         const parsed = JSON.parse(data);
         this.history = parsed.history.map((cmd: any) => {
-            const singleCommands = cmd.commands.map((sc: any) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary, sc.rule_name));
+            const singleCommands = cmd.commands.map((sc: any) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary, sc.rule_name, sc.terminalId||null, sc.terminalEnvIndex??-1));
             const container = new BashCommandContainer(singleCommands[0], cmd.index);
             for (let i = 1; i < singleCommands.length; i++) {
                 container.addChild(singleCommands[i]);
@@ -324,7 +400,7 @@ export class TerminalHistory {
             return container;
         });
         this.archive = parsed.archive.map((cmd: any) => {
-            const singleCommands = cmd.commands.map((sc: any) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary, sc.rule_name));
+            const singleCommands = cmd.commands.map((sc: any) => new SingleBashCommand(sc.command, sc.exitStatus, sc.inputs, sc.output, sc.important, sc.index, sc.temporary, sc.rule_name, sc.terminalId||null, sc.terminalEnvIndex??-1));
             const container = new BashCommandContainer(singleCommands[0], cmd.index);
             for (let i = 1; i < singleCommands.length; i++) {
                 container.addChild(singleCommands[i]);
@@ -332,10 +408,32 @@ export class TerminalHistory {
             return container;
         });
         this.index = parsed.index;
+        this.terminalEnvMap = new Map<string, ExecutionEnvironment[]>();
+        if (parsed.namedEnvMap){
+            this.namedEnvMap = new Map<string, ExecutionEnvironment>(
+                Object.entries(parsed.namedEnvMap).map(([key, value]: [string, any]) => [
+                    key,
+                    new ExecutionEnvironment(
+                        value.content, value.name, resetEnvExport ? false : value.stored
+                    ),
+                ])
+            );
+        } else {
+            this.namedEnvMap = new Map<string, ExecutionEnvironment>();
+        }
+        if (parsed.terminalEnvMap){
+            Object.entries(parsed.terminalEnvMap).forEach(([key, value]: [string, any]) => {
+                const terminalId = key;
+                const values = value.map((v:any) => this.namedEnvMap.get(v)||null).filter((v:any) => v !== null);
+                if (values.length>0){
+                    this.terminalEnvMap.set(terminalId, values);
+                }
+            });
+        }
     }
 
-    importFromJsonString(data: string){
-        this.loadJsonString(data);
+    importFromJsonString(data: string, resetEnvExport: boolean = false){
+        this.loadJsonString(data, resetEnvExport);
         this.undoRedoStack = new UndoRedoStack();
         this.undoRedoStack.push(data);
         SnkmakerLogger.instance()?.imported(this.history);
@@ -415,6 +513,7 @@ export interface BashCommand{
     setRuleName(rule_name: string): void;
     is_manually_changed(): boolean
     get_terminal_id(): string | null;
+    get_terminal_env_index(): number;
 }
 export class BashCommandContainer implements BashCommand{
     commands: SingleBashCommand[];
@@ -427,6 +526,12 @@ export class BashCommandContainer implements BashCommand{
     }
     get_terminal_id(): string | null {
         return this.commands[0]?.get_terminal_id() || null;
+    }
+    get_terminal_env_index(): number {
+        if (this.commands.length === -1){
+            return -1;
+        }
+        return this.commands[0]?.get_terminal_env_index();
     }
     is_manually_changed(): boolean {
         return this.manually_changed;
@@ -533,7 +638,8 @@ class SingleBashCommand implements BashCommand{
     public rule_name: string;
     private manually_changed: boolean = false;
     constructor(command: string, exitStatus: number, input: string, output: string, important: boolean, 
-        index: number, temporary: boolean = false, ruleName?: string, private terminalId: string|null = null){ 
+        index: number, temporary: boolean = false, ruleName?: string, private terminalId: string|null = null,
+        private terminalEnvIndex: number = -1){ 
         this.command = command;
         if (ruleName){
             this.rule_name = ruleName;
@@ -549,6 +655,9 @@ class SingleBashCommand implements BashCommand{
     }
     get_terminal_id(): string | null {
         return this.terminalId;
+    }
+    get_terminal_env_index(): number {
+        return this.terminalEnvIndex;
     }
     is_manually_changed(): boolean {
         return this.manually_changed;

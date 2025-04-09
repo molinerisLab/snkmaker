@@ -1,5 +1,5 @@
 import { LLM } from "./ModelComms";
-import { BashCommand } from "./TerminalHistory";
+import { BashCommand, ExecutionEnvironment } from "./TerminalHistory";
 import { ExtensionSettings } from '../utils/ExtensionSettings';
 import * as vscode from 'vscode';
 import { OpenedSnakefileContent, SnakefileContext } from "../utils/OpenendSnakefileContent";
@@ -34,7 +34,9 @@ class ModelPrompts{
         "If the command is not a rule, set is_rule to false and leave the other fields empty.\n";
         }
 
-    static ruleFromCommandPrompt(command: string, ruleName: string, ruleFormat: string, inputs: string, output: string, rulesContext:string="", ruleAll: string | null = null): string{
+    static ruleFromCommandPrompt(command: string, ruleName: string, ruleFormat: string, inputs: string, 
+        output: string, rulesContext:string="", ruleAll: string | null = null,
+        env_name: string|null, env_directive: boolean): string{
         const logField: boolean = 
             ruleFormat==="Snakemake" && ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules();
         const comment: boolean = 
@@ -80,6 +82,9 @@ class ModelPrompts{
                     prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
                     "but their outputs must be included in the 'rule_all'.";
                 }
+            }
+            if (env_directive && env_name){
+                prompt += `\n-You also MUST set the 'conda' directive in the output rule to ${env_name}:\nconda:\n\t'${env_name}'\n. This is used by Snakemake to re-build the environment.`
             }
         } else {
             prompt += "\nPlease return the rules in JSON format. The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}";
@@ -169,6 +174,7 @@ class ModelPrompts{
         "Generally, the config must contains stuff like hardcoded absolute paths, hardcoded values that the user might want to change "+
         "on different runs of the Snakemake pipeline. Output files generally should not be in the config.\n"+
         "Also, if the Snakefile has a config already, consider its values to see if they fit in the new rules.\n"+
+        "Important: the 'conda' directive of rules, when existing, must never be modified or moved to the config. Do not put the conda .yaml file names into the config.\n" +
         "Please output your response in JSON following this schema:\n"+
         "{rules: string, add_to_config: string}\n";
         if (rules.snakefile_content){
@@ -182,7 +188,8 @@ class ModelPrompts{
         return prompt;
     }
 
-    static rulesFromCommandsBasicPrompt(formattedRules: string[], ruleFormat: string, extraPrompt: string, rulesContext:string="", ruleAll: string|null = null): string{
+    static rulesFromCommandsBasicPrompt(formattedRules: string[], ruleFormat: string, extraPrompt: string, 
+        rulesContext:string="", ruleAll: string|null = null, set_env_directive: boolean): string{
         let prompt =  `I have the following set of bash commands. Can you convert them into ${ruleFormat} rules? `+
         `Note that Estimated inputs and outputs are just guesses and could be wrong.\n`+
         `${formattedRules.join("\n")}\n${rulesContext}\n`+
@@ -211,6 +218,12 @@ class ModelPrompts{
                     prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
                     "but their outputs must be included in the 'rule_all'.";
                 }
+            }
+            if (set_env_directive){
+                prompt += "\n-If a rule contains a field 'conda_env_path', set the 'conda' directive in the output rule. " +
+                "Keeping track of the environments used is important for reproducibility. Snakemake offers the conda directive"+
+                " to attach a yaml file to the rules - es:\n"+
+                "rule SOMETHING:\n\t#Input and outputs and whathever...\n\tconda:\n\t\t'env_file.yaml'\n\t#Shell directive...\n.";
             }
         } else {
             prompt += "\nPlease return the rules in JSON format. The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}";
@@ -385,7 +398,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
         return result.join("\n");
     }
 
-    async getRuleFromCommand(bashCommand: BashCommand){
+    async getRuleFromCommand(bashCommand: BashCommand, env_name: string|null){
         const ruleFormat = ExtensionSettings.instance.getRulesOutputFormat();
         var inputs = bashCommand.getInput();
         var output = bashCommand.getOutput();
@@ -405,7 +418,8 @@ Please write the documentation as a string in a JSON in this format: {documentat
             null,
             null,
             null,
-            null
+            null,
+            []
         );
         if (ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt()){
             const c = await OpenedSnakefileContent.getCurrentEditorContent();
@@ -415,7 +429,9 @@ Please write the documentation as a string in a JSON in this format: {documentat
                 ruleAll = this.extractAllRule(currentSnakefileContext["content"]||"");
             }
         }
-        const prompt_original = ModelPrompts.ruleFromCommandPrompt(command, bashCommand.getRuleName(), ruleFormat, inputs, output, context, ruleAll);
+        const prompt_original = ModelPrompts.ruleFromCommandPrompt(
+            command, bashCommand.getRuleName(), ruleFormat, inputs, output, context, ruleAll, env_name, ExtensionSettings.instance.getAddCondaDirective()
+        );
         let prompt = prompt_original;
         for (let i = 0; i < 5; i++){
             const response = await this.modelComms.runQuery(prompt);
@@ -442,14 +458,21 @@ Please write the documentation as a string in a JSON in this format: {documentat
         return currentSnakefileContext;
     }
 
-    async getAllRulesFromCommands(commands: BashCommand[]): Promise<SnakefileContext>{
+    async getAllRulesFromCommands(commands: BashCommand[], envs: (ExecutionEnvironment | null)[]): Promise<SnakefileContext>{
         const ruleFormat = ExtensionSettings.instance.getRulesOutputFormat();
         let extraPrompt = "";
         if (ruleFormat==="Snakemake"){
             extraPrompt = ModelPrompts.snakemakeBestPracticesPrompt();
         }
-        const formatted = commands.map(command => 
-            `\nEstimated inputs: (${command.getInput()}) Estimated outputs: (${command.getOutput()})\nShell command: ${command.getCommandForModel()}\nPossible rule name: ${command.getRuleName()}}\n\n`
+        const formatted = commands.map((command, index) => 
+            {
+                let env = "";
+                if (envs[index]){
+                    env = `\nconda_env_path: ${envs[index].filename}`
+                }
+                return `\nEstimated inputs: (${command.getInput()}) Estimated outputs: (${command.getOutput()})\nShell command:` + 
+                `${command.getCommandForModel()}\nPossible rule name: ${command.getRuleName()}${env}\n\n`
+            }
         );
         let context = "";
         let ruleAll = null;
@@ -464,7 +487,8 @@ Please write the documentation as a string in a JSON in this format: {documentat
             null,
             null,
             null,
-            null
+            null,
+            []
         );
         if (ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt()){
             const c = await OpenedSnakefileContent.getCurrentEditorContent();
@@ -475,7 +499,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
             }
         }
 
-        const prompt_original = ModelPrompts.rulesFromCommandsBasicPrompt(formatted, ruleFormat, extraPrompt, context, ruleAll);
+        const prompt_original = ModelPrompts.rulesFromCommandsBasicPrompt(formatted, ruleFormat, extraPrompt, context, ruleAll, ExtensionSettings.instance.getAddCondaDirective());
 
         let prompt = prompt_original;
         for (let i = 0; i < 5; i++){

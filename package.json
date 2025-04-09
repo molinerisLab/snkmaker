@@ -463,6 +463,11 @@
           "default": true,
           "markdownDescription": "Every rule is generated with a short description."
         },
+        "snakemaker.snakemakeBestPractices.AddCondaDirective": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Track conda environments, add a 'conda' directive to rules."
+        },
         "snakemaker.rulesOutputFormat": {
           "type": "string",
           "enum": [

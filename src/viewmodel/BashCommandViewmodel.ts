@@ -51,9 +51,23 @@ export class BashCommandViewModel{
     }
 
     addCommand(value: string, confidence: number, isTrusted: boolean, alwaysAdd=false, terminal: vscode.Terminal|null){
-      if (value.trim().startsWith('conda env export --from-history >') && terminal){
-        this.terminalHistory.completeExportEnv(terminal);
-        return;
+      if (ExtensionSettings.instance.getAddCondaDirective() && terminal){
+        //If conda env export has completed, read the env
+        if (value.trim().startsWith('conda env export --from-history >')){
+          this.terminalHistory.completeExportEnv(terminal);
+          return;
+        }
+        //If user is changing env, must record new env
+        if (value.trim().startsWith('conda activate') || 
+            value.trim().startsWith('mamba activate') ||
+            value.trim().startsWith('micromamba activate')){ 
+              this.terminalHistory.startExportEnv(terminal);
+        } else if (value.trim().startsWith('conda install') ||
+        value.trim().startsWith('mamba install') ||
+        value.trim().startsWith('micromamba install')){
+          //If user is changing its env., must update it
+          this.terminalHistory.startExportEnv(terminal, true);
+        }
       }
       if (!this.isListening && !alwaysAdd){
           return;
@@ -163,6 +177,9 @@ export class BashCommandViewModel{
             if (!rules['rule'] || rules['rule'].length < 2){
               vscode.window.showInformationMessage('No rule has been printed');
             }
+          }).catch((e) => {
+            vscode.window.showInformationMessage(e.toString());
+            this.observableCommands.next(this.terminalHistory.getHistory());
           });
         } else {
           vscode.window.showInformationMessage('No rules to print');
@@ -255,7 +272,7 @@ export class BashCommandViewModel{
     loadWorkspace(path: string){
       try{
         const exported = this.writeToFiles.readFromFile(path);
-        this.terminalHistory.importFromJsonString(exported);
+        this.terminalHistory.importFromJsonString(exported, true);
         this.observableCommands.next(this.terminalHistory.getHistory());
         this.observableArchive.next(this.terminalHistory.getArchive());
         vscode.window.showInformationMessage('Workspace loaded');

@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { SnakefileContext } from './OpenendSnakefileContent';
+import { ExecutionEnvironment } from '../model/TerminalHistory';
+import { ExtensionSettings } from './ExtensionSettings';
 
 export class WriteToFiles{
 
@@ -18,7 +20,7 @@ export class WriteToFiles{
         return fs.readFileSync(path, 'utf8');
     }
 
-    private writeToEditor(value: string, rule_all: string, editor: vscode.TextEditor | undefined, remove: string | null = null){
+    private writeToEditor(value: string, rule_all: string, editor: vscode.TextEditor | undefined, remove: string | null = null, prefix: string){
         if (!editor){
             vscode.window.showInformationMessage('Please open a file in the editor to print the rules');
             return false;
@@ -31,7 +33,7 @@ export class WriteToFiles{
             content = rule_all.trimEnd() + "\n\n" + content;
         }
 
-        content = content.trimEnd() + "\n\n" + value.trimStart();
+        content = prefix + "\n" + content.trimEnd() + "\n\n" + value.trimStart();
         editor.edit(editBuilder => {
             editBuilder.replace(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(editor.document.lineCount, 0)), content);
         });
@@ -57,23 +59,75 @@ export class WriteToFiles{
         let rules = value['rule']||"";
         let rule_all = value['rule_all'] || "";
         let remove = value['remove'];
-        //Write to the file currently in focus, if any
+        //Get the env files to export
+        const envs = new Set(value.envs_to_export.filter((env: ExecutionEnvironment) => !env.stored));
+
         var editor = vscode.window.activeTextEditor;
+        let config_include = "";
+        if (value['add_to_config'] && value['add_to_config'].length>0 && value['config_paths'].length === 0){
+            config_include = "configfile: config.yaml"
+        }
         if (!editor){
-            return vscode.commands.executeCommand('workbench.action.files.newUntitledFile').then(() => {
+            const result = await vscode.commands.executeCommand('workbench.action.files.newUntitledFile').then(() => {
                 editor = vscode.window.activeTextEditor;
-                return this.writeToEditor(rules, rule_all, editor);
+                return this.writeToEditor(rules, rule_all, editor, null, config_include);
             });
         } else {
-            const success = this.writeToEditor(rules, rule_all, editor, remove);
-            if (!success){
+            //vscode.window.showTextDocument(editor.document);
+            const result = this.writeToEditor(rules, rule_all, editor, remove, config_include);
+            if (!result){
                 return false;
             }
-            if (value['add_to_config']){
-                this.writeToFile(value['config_paths'][0], value['config_content'][0] + "\n" + value['add_to_config']);
-            }
-            return true;
         }
+
+        //Write config
+        if (value['add_to_config'] && value['add_to_config'].length > 0){
+            let to_output = value['add_to_config'];
+            if (value['config_paths'][0], value['config_content'][0] && value['config_content'][0].length > 0){
+                to_output = value['config_content'][0] + "\n" + to_output;
+            }
+            if (value['config_paths'][0]){
+                this.writeToFile(value['config_paths'][0], to_output);
+                await vscode.workspace.openTextDocument(value['config_paths'][0]).then((document) => {
+                    vscode.window.showTextDocument(document);
+                });
+            } else {
+                to_output = "#config.yaml\n" + to_output;
+                await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
+                const config_editor = vscode.window.activeTextEditor;
+                if (config_editor){
+                    config_editor.edit(editBuilder => {
+                        editBuilder.insert(new vscode.Position(0, 0), to_output);
+                    });
+                }
+            }
+        }
+
+        //Write to the file currently in focus, if any
+        if (ExtensionSettings.instance.getAddCondaDirective()){
+            if (editor && editor.document.uri && editor.document.uri.fsPath.toLowerCase().endsWith('snakefile')){
+                const directory = editor.document.uri.fsPath.slice(0, editor.document.uri.fsPath.lastIndexOf("/"));
+                for (const env of envs) {
+                    const env_path = directory + "/" + env.filename;
+                    this.writeToFile(env_path, env.content);
+                    env.stored = true;
+                };
+            } else {
+                //If no editor is open, export envs to new tabs
+                for (const env of envs){
+                    await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
+                    const env_editor = vscode.window.activeTextEditor;
+                    await env_editor?.edit(editBuilder => {
+                        editBuilder.insert(new vscode.Position(0, 0), `#Env ${env.filename}\n` + env.content);
+                    });
+                }
+            }
+        }
+        //Highlight created Snakefile, not the env or config files
+        if (editor){
+            vscode.window.showTextDocument(editor.document);
+        }
+        return true;
     }
     hasEditorOpen(): boolean{
         return vscode.window.activeTextEditor !== undefined;

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { ExecutionEnvironment } from '../model/TerminalHistory';
 
 
 /**	include: "Snakefile_versioned.sk"
@@ -17,7 +18,8 @@ export class SnakefileContext{
         public rule: string | null,
         public rule_all: string | null,
         public add_to_config: string | null,
-        public remove: string | null
+        public remove: string | null,
+        public envs_to_export: ExecutionEnvironment[]
     ) {}
     get_snakefile(){
         return (this.snakefile_content?.replaceAll(this.remove||"","") || "") + "\n" + this.rule + "\n" + (this.rule_all || "");
@@ -107,7 +109,8 @@ export class OpenedSnakefileContent{
             null,
             null,
             null,
-            null
+            null,
+            []
         );
     }
 
