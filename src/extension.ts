@@ -70,7 +70,7 @@ export function activate(context: vscode.ExtensionContext) {
 		if (code !== 0){
 			viewModel.addCommandGoneWrong(commandLine.value, 0, true, code);
 		} else {
-			viewModel.addCommand(commandLine.value, 0, true);
+			viewModel.addCommand(commandLine.value, 0, true, false, event.terminal);
 		}
   	});
 

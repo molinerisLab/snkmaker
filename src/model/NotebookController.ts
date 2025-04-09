@@ -257,7 +257,8 @@ export class CellDependencyGraph{
                         cell.code = cell.code.replace(regex, (match, args) => {
                             const argList = args.split(',').map((arg:string) => arg.trim());
                             const filteredArgs = argList.filter(
-                                (arg:string) => arg.replaceAll(" ","") !== `__${dependency.toLowerCase()}__=${dependencyNameInCell}`
+                                (arg:string) => arg.replaceAll(" ","") !== `__${dependency.toLowerCase()}__=${dependencyNameInCell}`&&
+                                    arg.replaceAll(" ","") !== `${dependencyNameInCell}=${dependencyNameInCell}`
                             );
                             return `${decl}(${filteredArgs.join(', ')})`;
                         });
@@ -795,59 +796,63 @@ export class NotebookController{
     }
 
     private async setDependenciesForCells(){
-        let prompt = "I have a jupyter notebook that is being processed into a snakemake pipeline. This process involves " +
-        "decomposition of the notebook into smaller pieces of python code, and linking them together in a snakemake pipeline.\n" +
-        "The main issue is managing the state. Jupyter notebooks have a global state. I can define or modify a variable in a cell, and refer to this variable in another. "+
-        "After the decomposition, every cell will be executed indipendently, so I must manage the dependencies between the cells.\n"+
-        "In this step I'm interested in data dependencies, so variables that are defined, modified or readed by the code inside the cells.\n"+
-        +"\nFor each cell, consider the code and find the set of variables that the code WRITES (either define for the first time or modify) and READS from other cells. " +
-        
-        "-The READS variables are not all the variables readed, but only those readed from other cells' code. "+
-        "In other words, given each cell, imagine to run its code independently. What variables will raise an exception because the code tries to read them without "+
-        "having defined them? These are the only variables that go in READS."+
-        "Example:\nMY_VAR=3#MY_VAR is written here\n#some code..\nprint(MY_VAR) #=> MY_VAR is readed from the same cell - the READS list is empty."+
-        "\nExample:\ndef func(MY_VAR):\n\tprint(MY_VAR) #=> MY_VAR is readed from the function arguments - the READS list is empty."+
-        "\nExample with lambda function:\nlambda MY_VAR: MY_VAR+1 #=> MY_VAR is readed from the lambda function argument - the READS list is empty."+
-        "\nExample with undecidable case:\nif (condition):\n\tMY_VAR=1\nprint(MY_VAR) #=> Here MY_VAR could be written in the cell depending on 'condition', "+
-        "but if 'condition' is false then it is readed from somewhere else. You cannot know the value of 'condition' from static analysis so the READS list contains MY_VAR.\n"+
-        "Also, modules or things that are already in the cell 'import' statements do not go in the READ list.\n" +
-        "Regarding the WRITES list, operations that modify mutable objects, as appending to a list, count as WRITE operations. " +
-        "As I'm interested only in data dependencies, if the cell defines a function, the name of the function that is defined do not go in the WRITES list for now. \n" +
-        "Consider the following notebook cells:\n\n" +
-        this.cells?.cells.map((cell, index) => "Cell. " + index + "\nCode:\n" + cell.code + "\nThese are imports, the imported things do not go in the READS list: " + cell.imports.join(" - ")).join("\n\n") + "\n\n" +
-        "Please provide to me the list of READED variables, WRITTEN variables and READED file for each cell. For each variable use the same name used in the code without changing it.\n"+
-        "\n\nPlease write the output in JSON format following this schema:\n"+
-        `{ "cells": [ {"cell_index": <number>, "reads": [<strings>], "writes": [<indexes>], "reads_file": [<indexes>]}  for each rule... ] }`;
-        
-        const validate = (response: any) => {
-            if (!response.cells || !Array.isArray(response.cells)) {
-                return "Invalid response format: 'cells' is missing or not an array";
-            }
-            for (let cell of response.cells){
-                if (typeof cell.cell_index !== 'number' ||
-                !Array.isArray(cell.reads) ||
-                !Array.isArray(cell.writes) ||
-                !Array.isArray(cell.reads_file)) {
-                    return "Invalid response format: One or more cell properties are missing or of incorrect type";
+        const BATCH_SIZE = 12;
+        for (let i=0; i<this.cells.cells.length; i+=BATCH_SIZE){
+            const batch = this.cells.cells.slice(i, i+BATCH_SIZE);
+            let prompt = "I have a jupyter notebook that is being processed into a snakemake pipeline. This process involves " +
+            "decomposition of the notebook into smaller pieces of python code, and linking them together in a snakemake pipeline.\n" +
+            "The main issue is managing the state. Jupyter notebooks have a global state. I can define or modify a variable in a cell, and refer to this variable in another. "+
+            "After the decomposition, every cell will be executed indipendently, so I must manage the dependencies between the cells.\n"+
+            "In this step I'm interested in data dependencies, so variables that are defined, modified or readed by the code inside the cells.\n"+
+            +"\nFor each cell, consider the code and find the set of variables that the code WRITES (either define for the first time or modify) and READS from other cells. " +
+            
+            "-The READS variables are not all the variables readed, but only those readed from other cells' code. "+
+            "In other words, given each cell, imagine to run its code independently. What variables will raise an exception because the code tries to read them without "+
+            "having defined them? These are the only variables that go in READS."+
+            "Example:\nMY_VAR=3#MY_VAR is written here\n#some code..\nprint(MY_VAR) #=> MY_VAR is readed from the same cell - the READS list is empty."+
+            "\nExample:\ndef func(MY_VAR):\n\tprint(MY_VAR) #=> MY_VAR is readed from the function arguments - the READS list is empty."+
+            "\nExample with lambda function:\nlambda MY_VAR: MY_VAR+1 #=> MY_VAR is readed from the lambda function argument - the READS list is empty."+
+            "\nExample with undecidable case:\nif (condition):\n\tMY_VAR=1\nprint(MY_VAR) #=> Here MY_VAR could be written in the cell depending on 'condition', "+
+            "but if 'condition' is false then it is readed from somewhere else. You cannot know the value of 'condition' from static analysis so the READS list contains MY_VAR.\n"+
+            "Also, modules or things that are already in the cell 'import' statements do not go in the READ list.\n" +
+            "Regarding the WRITES list, operations that modify mutable objects, as appending to a list, count as WRITE operations. " +
+            "As I'm interested only in data dependencies, if the cell defines a function, the name of the function that is defined do not go in the WRITES list for now. \n" +
+            "Consider the following notebook cells (note: what you see is only a subsets of cells):\n\n" +
+            batch.map((cell, index) => "Cell index. " + (index+i) + "\nCode:\n" + cell.code + "\nThese are imports, the imported things do not go in the READS list: " + cell.imports.join(" - ")).join("\n\n") + "\n\n" +
+            "Please provide to me the list of READED variables, WRITTEN variables and READED file for each cell. For each variable use the same name used in the code without changing it.\n"+
+            "\n\nPlease write the output in JSON format following this schema:\n"+
+            `{ "cells": [ {"cell_index": <number>, "reads": [<strings>], "writes": [<indexes>], "reads_file": [<indexes>]}  for each rule... ] }`;
+            
+            const validate = (response: any) => {
+                if (!response.cells || !Array.isArray(response.cells)) {
+                    return "Invalid response format: 'cells' is missing or not an array";
                 }
-            }
-            return null;
-        }
-        const formatted = await this.runPromptAndParse(prompt, validate);
-        if (!formatted || !formatted.cells || !Array.isArray(formatted.cells)) {
-            throw new Error("Invalid response format: 'rules' is missing or not an array");
-        }
-        formatted.cells.forEach(
-            (cell: any) => {
-                if (typeof cell.cell_index !== 'number' ||
-                !Array.isArray(cell.reads) ||
-                !Array.isArray(cell.writes) ||
-                !Array.isArray(cell.reads_file)) {
-                throw new Error("Invalid response format: One or more cell properties are missing or of incorrect type");
+                for (let cell of response.cells){
+                    if (typeof cell.cell_index !== 'number' ||
+                    !Array.isArray(cell.reads) ||
+                    !Array.isArray(cell.writes) ||
+                    !Array.isArray(cell.reads_file)) {
+                        return "Invalid response format: One or more cell properties are missing or of incorrect type";
+                    }
                 }
-                this.cells?.setCellDependency(cell.cell_index, cell.reads, cell.reads_file, cell.writes, []);
+                return null;
             }
-        );
+            const formatted = await this.runPromptAndParse(prompt, validate);
+            if (!formatted || !formatted.cells || !Array.isArray(formatted.cells)) {
+                throw new Error("Invalid response format: 'rules' is missing or not an array");
+            }
+            formatted.cells.forEach(
+                (cell: any) => {
+                    if (typeof cell.cell_index !== 'number' ||
+                    !Array.isArray(cell.reads) ||
+                    !Array.isArray(cell.writes) ||
+                    !Array.isArray(cell.reads_file)) {
+                    throw new Error("Invalid response format: One or more cell properties are missing or of incorrect type");
+                    }
+                    this.cells?.setCellDependency(cell.cell_index, cell.reads, cell.reads_file, cell.writes, []);
+                }
+            );
+        }
     }
 
     private async parseImportsFromCells(){

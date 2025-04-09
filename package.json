@@ -124,8 +124,7 @@
         },
         {
           "command": "open-snakemaker-settings",
-          "when": "view == bash-commands",
-          "group": "navigation@1"
+          "when": "view == bash-commands"
         },
         {
           "command": "print-all-rules",
@@ -299,7 +298,7 @@
       },
       {
         "command": "open-snakemaker-settings",
-        "title": "Settings",
+        "title": "Open settings",
         "icon": "$(settings-view-bar-icon)"
       },
       {

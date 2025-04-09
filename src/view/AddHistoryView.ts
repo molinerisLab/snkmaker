@@ -44,7 +44,7 @@ export class AddHistoryView{
 				switch (message.command) {
 					case 'submit':
 						this.parseCommands(message.data).forEach(command => 
-							viewModel.addCommand(command, 0, true, true)
+							viewModel.addCommand(command, 0, true, true, null)
 						);
 						panel.dispose();
 						return;

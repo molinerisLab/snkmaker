@@ -7,6 +7,8 @@ import { TestRules } from "../utils/TestRules";
 import { ExtensionSettings } from "../utils/ExtensionSettings";
 import { UndoRedoStack } from './UndoRedoStack';
 import { SnakefileContext } from "../utils/OpenendSnakefileContent";
+const tmp = require("tmp");
+const fs = require('fs');
 
 
 export class TerminalHistory {
@@ -16,6 +18,8 @@ export class TerminalHistory {
     index: number;
     testRules: TestRules = new TestRules();
     undoRedoStack: UndoRedoStack;
+    tmp_path: string | null = null;
+    terminalEnvMap: Map<string, string|null> = new Map<string, string>();
     constructor(private llm: LLM, private memento: vscode.Memento) {
         this.history = [];
         this.archive = [];
@@ -33,7 +37,29 @@ export class TerminalHistory {
         return this.archive;
     }
 
-    async addCommand(value: string, confidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean) {
+    async completeExportEnv(terminal: vscode.Terminal){
+        const path = this.tmp_path;
+        this.tmp_path = null;
+        try {
+            const pid = await terminal.processId;
+            if (pid){
+                const terminalId = terminal.name + pid;
+                const content = fs.readFileSync(path, 'utf8');
+                console.log(content);
+                this.terminalEnvMap.set(terminalId, content);
+                fs.unlinkSync(path);
+            }
+        } catch (error) {}
+    }
+
+    startExportEnv(terminal: vscode.Terminal){
+        const tmp_file = tmp.fileSync();
+        this.tmp_path = tmp_file.name;
+        terminal.sendText("conda env export --from-history >" + tmp_file.name + " 2> /dev/null", true);
+    }
+
+    async addCommand(value: string, confidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, terminal: vscode.Terminal|null) {
+        let terminalId: string|null = null;
         const indexExisting = this.isCommandInHistory(value);
         if (indexExisting !== -1) {
             const command = this.history[indexExisting];
@@ -42,7 +68,20 @@ export class TerminalHistory {
             SnkmakerLogger.instance()?.addCommandExisting(command, value);
             return;
         }
-        const singleTempCommand = new SingleBashCommand(value, 0, "", "", false, this.index, true);
+
+        if (terminal){
+            const pid = await terminal.processId;
+            if (pid){
+                terminalId = terminal.name + pid;
+            }
+            if (terminalId){
+                if (!this.terminalEnvMap.has(terminalId) || this.terminalEnvMap.get(terminalId) === null){
+                    this.startExportEnv(terminal);
+                }
+            }
+        }
+
+        const singleTempCommand = new SingleBashCommand(value, 0, "", "", false, this.index, true, undefined, terminalId);
         const tempCommand = new BashCommandContainer(singleTempCommand, this.index+1);
         this.index+=2;
         this.history.push(tempCommand);
@@ -375,6 +414,7 @@ export interface BashCommand{
     setOutput(output: string): void;
     setRuleName(rule_name: string): void;
     is_manually_changed(): boolean
+    get_terminal_id(): string | null;
 }
 export class BashCommandContainer implements BashCommand{
     commands: SingleBashCommand[];
@@ -384,6 +424,9 @@ export class BashCommandContainer implements BashCommand{
     constructor(command: SingleBashCommand, index: number){
         this.commands = [command];
         this.index = index;
+    }
+    get_terminal_id(): string | null {
+        return this.commands[0]?.get_terminal_id() || null;
     }
     is_manually_changed(): boolean {
         return this.manually_changed;
@@ -489,7 +532,8 @@ class SingleBashCommand implements BashCommand{
     public temporary: boolean;
     public rule_name: string;
     private manually_changed: boolean = false;
-    constructor(command: string, exitStatus: number, input: string, output: string, important: boolean, index: number, temporary: boolean = false, ruleName?: string){ 
+    constructor(command: string, exitStatus: number, input: string, output: string, important: boolean, 
+        index: number, temporary: boolean = false, ruleName?: string, private terminalId: string|null = null){ 
         this.command = command;
         if (ruleName){
             this.rule_name = ruleName;
@@ -502,6 +546,9 @@ class SingleBashCommand implements BashCommand{
         this.important = important;
         this.index = index;
         this.temporary = temporary;
+    }
+    get_terminal_id(): string | null {
+        return this.terminalId;
     }
     is_manually_changed(): boolean {
         return this.manually_changed;

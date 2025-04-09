@@ -50,11 +50,15 @@ export class BashCommandViewModel{
         return this.observableModel.subscribe(observer);
     }
 
-    addCommand(value: string, confidence: number, isTrusted: boolean, alwaysAdd=false){
+    addCommand(value: string, confidence: number, isTrusted: boolean, alwaysAdd=false, terminal: vscode.Terminal|null){
+      if (value.trim().startsWith('conda env export --from-history >') && terminal){
+        this.terminalHistory.completeExportEnv(terminal);
+        return;
+      }
       if (!this.isListening && !alwaysAdd){
           return;
       }
-      this.terminalHistory.addCommand(value, confidence, isTrusted).then(() => {
+      this.terminalHistory.addCommand(value, confidence, isTrusted, terminal).then(() => {
           this.observableCommands.next(this.terminalHistory.getHistory());
           this.updateCanUndoCanRedo();
       }).catch((e) => {
@@ -65,10 +69,12 @@ export class BashCommandViewModel{
     }
 
     addCommandGoneWrong(value: string, confidence: number, isTrusted: boolean, returnCode: number | undefined){
+      if (value.startsWith('conda env export --from-history > ')){
+        return; //If want to manage failure to export the env
+      }
       if (!this.isListening){
         return;
       }
-        //TODO: if we want to do something with commands that returned != 0
     }
 
     archiveCommands(commands: BashCommandContainer[]){
