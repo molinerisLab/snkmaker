@@ -830,7 +830,7 @@ export class NotebookController{
             "Consider the following notebook cells (note: what you see is only a subsets of cells):\n\n" +
             batch.map((cell, index) => "Cell index. " + (index+i) + "\nCode:\n" + cell.code + "\nThese are imports, the imported things do not go in the READS list: " + cell.imports.join(" - ")).join("\n\n") + "\n\n" +
             "Please provide to me the list of READED variables, WRITTEN variables and READED file for each cell. For each variable use the same name used in the code without changing it.\n"+
-            "\n\nPlease write the output in JSON format following this schema:\n"+
+            "\n\nPlease write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema:\n"+
             `{ "cells": [ {"cell_index": <number>, "reads": [<strings>], "writes": [<indexes>], "reads_file": [<indexes>]}  for each rule... ] }`;
             
             const validate = (response: any) => {
@@ -878,7 +878,7 @@ export class NotebookController{
         this.cells?.cells.map((cell, index) => "Cell num " + index + ": " + cell.code).join("\n") + "\n\n" +
         "For each cell, I'd like a list of the imports that are needed. "+
         "Please write the needed imports as a list of indexes (example: import 0, 1, 5).\n"+
-        "Please write the output in JSON format following this schema:\n"+
+        "Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema:\n"+
         "{'cells': [cell_index: number, imports: [index of import for each import needed]]}";
         const validate = (response: any) => {
             if (!response.cells || !Array.isArray(response.cells)) {
@@ -933,7 +933,7 @@ export class NotebookController{
         `Cell uses wildcards: ${cell.wildcards.join(",")}\n\n` + 
         `Now the user changed the suffix code. The new suffix code is:\n#Start suffix code...\n${code}\n#End suffix code...\n` +
         `Please provide the new snakemake rule considering this updated prefix code.\n` +
-        `Please write the output in JSON format following this schema: { 'snakemakeRule': string }\n`+
+        `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema: { 'snakemakeRule': string }\n`+
         "Please always output this JSON. If the rule does not need changing, output the same rule as before.";
         const formatted = await this.runPromptAndParse(prompt);
         this.cells.cells[index].rule.snakemakeRule = formatted.snakemakeRule;
@@ -971,7 +971,7 @@ export class NotebookController{
             `Cell uses wildcards: ${cell.wildcards.join(",")}\n\n` + 
             `Now the user changed the Snakemake rule code. The new Snakemake rule is:\n${code}\n` +
             `Please provide the new prefix and suffix code based on the new snakemake rule. You can not change main code.\n` +
-            `Please write the output in JSON format following this schema: { 'prefix_code': string, 'suffix_code': string }\n`+
+            `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema: { 'prefix_code': string, 'suffix_code': string }\n`+
             "Please always output this JSON. If the code do not need changing, output the same code as before.";
             const formatted = await this.runPromptAndParse(prompt);
             this.cells.cells[index].rule.snakemakeRule = code;
@@ -991,7 +991,7 @@ export class NotebookController{
             `Cell uses wildcards: ${cell.wildcards.join(",")}\n\n` + 
             `Now the user changed the prefix code. The new prefix code is:\n#Start prefix code...\n${code}\n#End prefix code...\n` +
             `Please provide the new snakemake rule considering this updated prefix code.\n` +
-            `Please write the output in JSON format following this schema: { 'snakemakeRule': string }\n`+
+            `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema: { 'snakemakeRule': string }\n`+
             "Please always output this JSON. If the rule does not need changing, output the same rule as before.";
             const formatted = await this.runPromptAndParse(prompt);
             this.cells.cells[index].rule.snakemakeRule = formatted.snakemakeRule;
@@ -1203,7 +1203,7 @@ export class NotebookController{
                 ((wildcards.length===0) ? " - no wildcard needed -" : "Wildcards: " + wildcards.join(", ") + "\n\n") +
                 ((this.cells.config.length>0) ? `This is the config file of the Snakemake pipeline:\n${this.cells.config}\n\n` : '') +
                 "When saving files, you can decide the name, format and number of files. Consider the number of scripts that will read them to make a good decision.\n" +
-                "\nPlease write the output in JSON format following this schema:\n"+
+                "\nPlease write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema:\n"+
                 "{ 'prefix_code': string 'code to read arguments, files', 'suffix_code': string 'code to save each file', 'rule': string (snakemake rule) }\n"+
                 "Please do not repeat the code already existing, only valorize the fields. If a field is empty, write an empty array or empty string, don't skip the field.\n"
                 const formatted = await this.runPromptAndParse(prompt);
@@ -1306,7 +1306,7 @@ export class NotebookController{
             "Consider the following notebook cells:\n\n" +
             [cell_a,cell_b].map((cell, index) => "Cell. " + index + "\n" + cell.code).join("\n\n") + "\n\n" +
             "Please provide to me the list of READED variables, WRITTEN variables and READED file for each cell. For each variable use the same name used in the code without changing it.\n"+
-            "\n\nPlease write the output in JSON format following this schema:\n"+
+            "\n\nPlease write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema:\n"+
             `{ "cells": [ {"cell_index": <number>, "reads": [<strings>], "writes": [<indexes>], "reads_file": [<indexes>]}  for each rule... ] }`;
             const formatted = await this.runPromptAndParse(prompt);
             if (!formatted.cells || !Array.isArray(formatted.cells)) {

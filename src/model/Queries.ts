@@ -69,7 +69,7 @@ class ModelPrompts{
             if (ruleAll){
                 prompt += "\nThe Snakefile already contains a rule all: " + ruleAll + ".\n" +
                 "Please add the new rules to the rule all.\n" +
-                "Please return the rules in JSON format. The JSON contains a field 'rule' which is a string, that contains the entire "+
+                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!). The JSON contains a field 'rule' which is a string, that contains the entire "+
                 "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote: the rule all must be written entirely, so take the one existing and add inputs to it.\n"+
@@ -77,7 +77,7 @@ class ModelPrompts{
                 }
             } else {
                 prompt += "Please also write a 'rule all' to produce all files.\n" +
-                "Please return the rules in JSON format. The JSON contains a field 'rule' which is a string, that contains the entire "+
+                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!). The JSON contains a field 'rule' which is a string, that contains the entire "+
                 "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
@@ -88,7 +88,7 @@ class ModelPrompts{
                 prompt += `\n-You also MUST set the 'conda' directive in the output rule to ${env_name}:\nconda:\n\t'${env_name}'\n. This is used by Snakemake to re-build the environment.`
             }
         } else {
-            prompt += "\nPlease return the rules in JSON format. The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
+            prompt += "\nPlease return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!). The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
         }
 
     return prompt;
@@ -135,7 +135,7 @@ class ModelPrompts{
                 prompt += `Regarding the config, you can add lines to it, but you can not remove them\n`;
             }
         }
-        prompt += `Please output the corrected rules in JSON format following this schema:`+
+        prompt += `Please output the corrected rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema:`+
         ` {can_correct: boolean, rules: string, rule_all: string, additional_config: string}\nPlease do not add explanations.`;
         prompt += `If you are not able to correct this snakefile just set can_correct to false.`;
         if (rules.rule_all){
@@ -175,9 +175,21 @@ class ModelPrompts{
         "Generally, the config must contains stuff like hardcoded absolute paths, hardcoded values that the user might want to change "+
         "on different runs of the Snakemake pipeline. Output files generally should not be in the config.\n"+
         "Also, if the Snakefile has a config already, consider its values to see if they fit in the new rules.\n"+
-        "Important: the 'conda' directive of rules, when existing, must never be modified or moved to the config. Do not put the conda .yaml file names into the config.\n" +
+        "Important: the 'conda' directive of rules, when existing, must never be modified or moved to the config. Do not put the conda .yaml file names into the config. Do not put things related to conda environments in the config.yaml.\n" +
+        "Remember, the config is a simple yaml file. It does not contain logic, only values.\n"+
+        "The config is meant for the user to make the pipeline more "+
+        "maintainable, allowing to run it with different configurations. Not all values are worth putting in the config.\n"+
+        "All the values put in the config MUST be accessed in the Snakefile. If a value is not readed in the Snakefile, "+
+        "it must not go in the config.\n"+
+        "Examples of good config fields:\nGENOME_PATH='/home/user/.../genome.fasta' #Very good, hardcoded paths are better in a config\n"+
+        "NUMBER_RANDOMIZATION: 4 #Good, especially if this value is used in an expand to generate multiple files\n"+
+        "STAR_OUT_SAM_TYPE: 'BAM' #Good, this is a value that might be changed by the user\n"+
+        "Examples of bad config fields:\n"+
+        "conda_env: 'your_conda_env_name' #No, conda env info doesn't go here!\n"+
+        "conda create -n snaketest python=3.9 #NO! This is not even a yaml field, it's a command. Never do that!\n"+
         "Please output your response in JSON following this schema:\n"+
-        "{rules: string, add_to_config: string}\n";
+        "{rules: string, add_to_config: string}\n"+
+        "Remember JSON does not support triple quotes for multi-line strings; they will break the JSON.\n";
         if (rules.snakefile_content){
             prompt += "Where 'rules' are the newly added rules with your changed applied, ";
         } else {
@@ -205,7 +217,7 @@ class ModelPrompts{
             if (ruleAll){
                 prompt += "\n-The Snakefile already contains a rule all:\n " + ruleAll + "\n" +
                 "Please add the new rules to the rule all.\n" +
-                "Please return the rules in JSON format. The JSON contains a field 'rule' which is a string, that contains the entire "+
+                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!). The JSON contains a field 'rule' which is a string, that contains the entire "+
                 "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote: the rule 'all' must be written entirely, so take the one existing and add inputs to it.\n"+
@@ -213,7 +225,7 @@ class ModelPrompts{
                 }
             } else {
                 prompt += "Please also write a 'rule all' to produce all files.\n" +
-                "Please return the rules in JSON format. The JSON contains a field 'rule' which is a string, that contains the entire "+
+                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!). The JSON contains a field 'rule' which is a string, that contains the entire "+
                 "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
@@ -227,7 +239,7 @@ class ModelPrompts{
                 "rule SOMETHING:\n\t#Input and outputs and whathever...\n\tconda:\n\t\t'env_file.yaml'\n\t#Shell directive...\n.";
             }
         } else {
-            prompt += "\nPlease return the rules in JSON format. The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
+            prompt += "\nPlease return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!). The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
         }
         return prompt;
     }
@@ -288,12 +300,13 @@ export class Queries{
             json = JSON.parse(response);
         } catch (e){
             console.log("Trying json repair");
-            response = jsonrepair(response);
             try{
+                response = jsonrepair(response);
                 json = JSON.parse(response);
                 console.log("Json repair succeeded");
             } catch (e){
                 console.log("Json repair failed");
+                console.log(response);
                 throw e;
             }
         }
@@ -316,8 +329,8 @@ export class Queries{
         try{
             return JSON.parse(response);
         } catch (e){
-            response = jsonrepair(response);
             try{
+                response = jsonrepair(response);
                 return JSON.parse(response);
             } catch (e){
                 throw e;

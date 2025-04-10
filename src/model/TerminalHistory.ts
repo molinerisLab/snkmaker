@@ -239,7 +239,16 @@ export class TerminalHistory {
         if (!rules["rule"] || rules["rule"].length < 5){
             return rules;
         }
-        //TODO: max tries should be a setting or a configuration
+        //Check that the snakemake bin is working as expected - otherwise it gets in a loop of failures
+        const fakeSnakefileContext = new SnakefileContext(
+            null, "rule test:\noutput:\n\t'test'\nshell:\n\t'echo test'\n",
+            null, [], [], [], [], "", "", "", "",[]
+        );
+        const valid: { success: boolean; message?: string;} = await this.testRules.validateRules(fakeSnakefileContext);
+        if (!valid.success){
+            return rules;
+        }
+
         for (let i = 0; i < 3; i++){
             const valid: { success: boolean; message?: string;} = await this.testRules.validateRules(rules);
             if (valid.success){

@@ -88,12 +88,23 @@ export class LLM{
         return this.copilotActive;
     }
 
+    filterModels(models: vscode.LanguageModelChat[]){
+        //Some copilot models cause errors constantly, or simply refuse to follow the prompt's instructions.
+        const FILTER_OUT: string[] = ["gpt-3.5"]; //gemini
+        return models.filter(model => {
+            for (const filter of FILTER_OUT){
+                if (model.id.indexOf(filter) !== -1){
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
     activateCopilot(models: vscode.LanguageModelChat[]){
         if (models.length === 0){
             return -1;
         }
-        //Remove gpt-3.5 and gemini because they suck and cause all sort of problems
-        models = models.filter(model => model.id.indexOf("gpt-3.5") === -1 && model.id.indexOf("gemini") === -1);
         const copilot_models: ModelComms[] = models.map(_model => 
             new CopilotModel(_model)
         );

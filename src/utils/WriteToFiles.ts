@@ -30,10 +30,14 @@ export class WriteToFiles{
         if (remove){
             content = content.replace(remove, rule_all);
         } else {
-            content = rule_all.trimEnd() + "\n\n" + content;
+            if (rule_all && rule_all.length > 0){
+                content = (rule_all).trimEnd() + "\n\n" + content;
+            }
         }
-
-        content = prefix + "\n" + content.trimEnd() + "\n\n" + value.trimStart();
+        content = content.trimEnd() + "\n\n" + value.trimStart();
+        if (prefix && prefix.length > 0){
+            content = prefix + "\n" + content;
+        }
         editor.edit(editBuilder => {
             editBuilder.replace(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(editor.document.lineCount, 0)), content);
         });
@@ -68,12 +72,11 @@ export class WriteToFiles{
             config_include = "configfile: config.yaml"
         }
         if (!editor){
-            const result = await vscode.commands.executeCommand('workbench.action.files.newUntitledFile').then(() => {
+            const result = await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { "languageId": "Snakemake"}).then(() => {
                 editor = vscode.window.activeTextEditor;
                 return this.writeToEditor(rules, rule_all, editor, null, config_include);
             });
         } else {
-            //vscode.window.showTextDocument(editor.document);
             const result = this.writeToEditor(rules, rule_all, editor, remove, config_include);
             if (!result){
                 return false;
@@ -93,7 +96,7 @@ export class WriteToFiles{
                 });
             } else {
                 to_output = "#config.yaml\n" + to_output;
-                await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
+                await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { "languageId": "yaml" });
                 const config_editor = vscode.window.activeTextEditor;
                 if (config_editor){
                     config_editor.edit(editBuilder => {
@@ -115,7 +118,7 @@ export class WriteToFiles{
             } else {
                 //If no editor is open, export envs to new tabs
                 for (const env of envs){
-                    await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
+                    await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { "languageId": "yaml"});
                     const env_editor = vscode.window.activeTextEditor;
                     await env_editor?.edit(editBuilder => {
                         editBuilder.insert(new vscode.Position(0, 0), `#Env ${env.filename}\n` + env.content);

@@ -226,6 +226,7 @@ export class BashCommandViewModel{
     async activateCopilot(){
       var models: vscode.LanguageModelChat[] = [];
       models = await vscode.lm.selectChatModels({vendor: 'copilot'});
+      models = this.llm.filterModels(models);
       if (models.length === 0){
         return;
       }

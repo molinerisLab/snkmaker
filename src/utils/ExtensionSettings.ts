@@ -66,7 +66,7 @@ export class ExtensionSettings{
         this.includeCurrentFileIntoPrompt = vscode.workspace.getConfiguration('snakemaker').get('includeCurrentFileIntoPrompt', false);
         this.commentEveryRule = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.CommentEveryRule', false);
         this.addCondaDirective = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.AddCondaDirective', false);
-        this.generateConfig = vscode.workspace.getConfiguration('snakemaker').get('GenerateConfig', false);
+        this.generateConfig = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.GenerateConfig', false);
 
         vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration("snakemaker.allowLogging")) {
@@ -90,7 +90,7 @@ export class ExtensionSettings{
             } else if (event.affectsConfiguration("snakemaker.snakemakeBestPractices.AddCondaDirective")){
                 this.addCondaDirective = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.AddCondaDirective', false);
             } else if (event.affectsConfiguration("snakemaker.GenerateConfig")){
-                this.generateConfig = vscode.workspace.getConfiguration('snakemaker').get('GenerateConfig', false);
+                this.generateConfig = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.GenerateConfig', false);
             }
         });
     }
