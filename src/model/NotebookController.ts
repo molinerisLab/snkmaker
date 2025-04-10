@@ -1,6 +1,6 @@
 import { json } from 'stream/consumers';
 import * as vscode from 'vscode';
-import { LLM, ModelComms } from './ModelComms';
+import { LLM, ModelComms, ModelNotReadyError } from './ModelComms';
 import { read, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { writeFile } from 'fs/promises';
@@ -528,9 +528,12 @@ export class NotebookController{
             return JSON.parse(response);
         } catch (e:any){
             try{
+                console.log("Trying to repair json");
                 response = jsonrepair(response);
                 return JSON.parse(response);
             } catch (e:any){
+                console.log(response);
+                console.log("Error parsing json: ", e.message);
                 throw e;
             }
         }
@@ -716,6 +719,10 @@ export class NotebookController{
                 }
                 return parsed;
             } catch (e:any){
+                if (e instanceof ModelNotReadyError){
+                    vscode.window.showErrorMessage("Snakemaker: No LLM currently selected. Please select one in the model section.");
+                    return undefined;
+                }
                 console.log(prompt);
                 console.log(response);
                 prompt = "I asked you this:\n\n" + original_prompt + 
@@ -725,7 +732,6 @@ export class NotebookController{
                 "so it must be in the correct format. Do not write an example json before the real one or the parser will fail.";
             }
         }
-        console.log(prompt)
     }
 
     //Opens notebook, create cell graph with read/write dependencies, parse imports and functions.

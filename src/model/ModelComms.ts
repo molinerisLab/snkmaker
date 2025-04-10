@@ -3,6 +3,13 @@ import * as vscode from 'vscode';
 import { SnkmakerLogger } from '../utils/SnkmakerLogger';
 import { Stream } from 'openai/streaming.mjs';
 
+export class ModelNotReadyError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "ModelNotReadyError";
+    }
+}
+
 export class LLM{
     models: ModelComms[];
     current_model: number;
@@ -29,7 +36,7 @@ export class LLM{
         }
         if (this.current_model === -1){
             SnkmakerLogger.instance()?.log("User tried running query but no model selected:\n"+query);
-            throw new Error("No model currently selected - please select a model to use Snakemaker");
+            throw new ModelNotReadyError("No model currently selected - please select a model to use Snakemaker");
         }
         return this.models[this.current_model].runQuery(query).then(response => {
             SnkmakerLogger.instance()?.query(this.models[this.current_model].getName(), query, response);

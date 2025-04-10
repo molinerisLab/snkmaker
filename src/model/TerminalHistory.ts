@@ -241,7 +241,7 @@ export class TerminalHistory {
         }
         //Check that the snakemake bin is working as expected - otherwise it gets in a loop of failures
         const fakeSnakefileContext = new SnakefileContext(
-            null, "rule test:\noutput:\n\t'test'\nshell:\n\t'echo test'\n",
+            null, "rule test:\n\toutput:\n\t\t'test'\n\tshell:\n\t\t'echo test'\n",
             null, [], [], [], [], "", "", "", "",[]
         );
         const valid: { success: boolean; message?: string;} = await this.testRules.validateRules(fakeSnakefileContext);
