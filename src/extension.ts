@@ -253,10 +253,8 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 
-	//Activate copilot, if not already active
-	if (!viewModel.isCopilotActive()){
-		viewModel.activateCopilot();
-	}
+	//Copilot
+	viewModel.listenToModelAvailability();
 
 
 	//Register copilot chat extension

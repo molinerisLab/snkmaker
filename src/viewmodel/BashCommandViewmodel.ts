@@ -225,28 +225,39 @@ export class BashCommandViewModel{
 
     async activateCopilot(){
       var models: vscode.LanguageModelChat[] = [];
-      //Copilot takes a while to load after vscode opening - wait a bit for it
-      for (var i = 0; i < 40; i++){
-        models = await vscode.lm.selectChatModels({vendor: 'copilot'});
-        if (models.length>0){
-          break;
-        }
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-
-      //If no copilot available, notify user
-      if (models.length===0){
-        this.llm.isCopilotWaiting = false;
-        vscode.window.showInformationMessage('Copilot not available');
+      models = await vscode.lm.selectChatModels({vendor: 'copilot'});
+      if (models.length === 0){
         return;
       }
-
       this.llm.activateCopilot(models);
       if (this.llm.current_model === -1){
         const modelId: string | null = this.memento.get<string|null>('current_model', null);
         this.useModel(modelId, true);
       }
       this.observableModel.next(this.llm);
+    }
+
+    listenToModelAvailability(){
+      let timeout: NodeJS.Timeout | null = null;
+      vscode.lm.onDidChangeChatModels((event) => {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+        timeout = setTimeout(() => {
+          this.activateCopilot();
+        }, 500);
+      });
+
+      setTimeout(() => {
+        if (!this.llm.isCopilotActive()){
+          this.llm.isCopilotWaiting = false;
+          if (this.llm.models.length === 0){
+            vscode.window.showInformationMessage('Snakemaker: Copilot is not available. Please check your settings or set up an external LLM.');
+          } else {
+            vscode.window.showInformationMessage('Snakemaker: Copilot is not available. Please check your settings.');
+          }
+        }
+      }, 60000);
     }
 
     moveCommands(sourceBashCommands: any, targetBashCommand: BashCommandContainer | null){

@@ -89,7 +89,7 @@ export class LLM{
     }
 
     activateCopilot(models: vscode.LanguageModelChat[]){
-        if (models.length === 0 || this.copilotActive===true){
+        if (models.length === 0){
             return -1;
         }
         //Remove gpt-3.5 and gemini because they suck and cause all sort of problems
@@ -206,8 +206,6 @@ class CopilotModel implements ModelComms{
         for await (const fragment of request.text) {
             response += fragment;
           }
-        //Response might contain ```python because copilot is a special kid. Must remove them
-        response = response.replace(/```python/g, '');
         response = response.replace(/```/g, '');
         return response;
     }
