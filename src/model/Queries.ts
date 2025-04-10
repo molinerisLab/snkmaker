@@ -4,6 +4,7 @@ import { ExtensionSettings } from '../utils/ExtensionSettings';
 import * as vscode from 'vscode';
 import { OpenedSnakefileContent, SnakefileContext } from "../utils/OpenendSnakefileContent";
 import { assert } from "console";
+const { jsonrepair } = require('jsonrepair')
 
 class ModelPrompts{
     static ruleDetailsPrompt(command: string): string{
@@ -69,7 +70,7 @@ class ModelPrompts{
                 prompt += "\nThe Snakefile already contains a rule all: " + ruleAll + ".\n" +
                 "Please add the new rules to the rule all.\n" +
                 "Please return the rules in JSON format. The JSON contains a field 'rule' which is a string, that contains the entire "+
-                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}";
+                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote: the rule all must be written entirely, so take the one existing and add inputs to it.\n"+
                     "The other rules on the other hand must not repeat the rules already existing in the file.";
@@ -77,7 +78,7 @@ class ModelPrompts{
             } else {
                 prompt += "Please also write a 'rule all' to produce all files.\n" +
                 "Please return the rules in JSON format. The JSON contains a field 'rule' which is a string, that contains the entire "+
-                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}";
+                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
                     "but their outputs must be included in the 'rule_all'.";
@@ -87,7 +88,7 @@ class ModelPrompts{
                 prompt += `\n-You also MUST set the 'conda' directive in the output rule to ${env_name}:\nconda:\n\t'${env_name}'\n. This is used by Snakemake to re-build the environment.`
             }
         } else {
-            prompt += "\nPlease return the rules in JSON format. The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}";
+            prompt += "\nPlease return the rules in JSON format. The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
         }
 
     return prompt;
@@ -135,7 +136,7 @@ class ModelPrompts{
             }
         }
         prompt += `Please output the corrected rules in JSON format following this schema:`+
-        ` {can_correct: boolean, rules: string, rule_all: string, additional_config: string}\n`;
+        ` {can_correct: boolean, rules: string, rule_all: string, additional_config: string}\nPlease do not add explanations.`;
         prompt += `If you are not able to correct this snakefile just set can_correct to false.`;
         if (rules.rule_all){
             prompt += `Please write the updated rule all in the rule_all field.\n`;
@@ -205,7 +206,7 @@ class ModelPrompts{
                 prompt += "\n-The Snakefile already contains a rule all:\n " + ruleAll + "\n" +
                 "Please add the new rules to the rule all.\n" +
                 "Please return the rules in JSON format. The JSON contains a field 'rule' which is a string, that contains the entire "+
-                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}";
+                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote: the rule 'all' must be written entirely, so take the one existing and add inputs to it.\n"+
                     "The other rules on the other hand must not repeat the rules already existing in the file.";
@@ -213,7 +214,7 @@ class ModelPrompts{
             } else {
                 prompt += "Please also write a 'rule all' to produce all files.\n" +
                 "Please return the rules in JSON format. The JSON contains a field 'rule' which is a string, that contains the entire "+
-                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}";
+                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
                     "but their outputs must be included in the 'rule_all'.";
@@ -226,7 +227,7 @@ class ModelPrompts{
                 "rule SOMETHING:\n\t#Input and outputs and whathever...\n\tconda:\n\t\t'env_file.yaml'\n\t#Shell directive...\n.";
             }
         } else {
-            prompt += "\nPlease return the rules in JSON format. The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}";
+            prompt += "\nPlease return the rules in JSON format. The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
         }
         return prompt;
     }
@@ -282,7 +283,20 @@ export class Queries{
             response = response.substring(start, end + 1);
         }
         let result = {'rule': '', 'rule_all': null, 'remove': null, 'add_to_config': null};
-        const json = JSON.parse(response);
+        let json;
+        try{
+            json = JSON.parse(response);
+        } catch (e){
+            console.log("Trying json repair");
+            response = jsonrepair(response);
+            try{
+                json = JSON.parse(response);
+                console.log("Json repair succeeded");
+            } catch (e){
+                console.log("Json repair failed");
+                throw e;
+            }
+        }
         if (json["rule"]){
             context["rule"] = json["rule"];
         } else {
@@ -299,7 +313,16 @@ export class Queries{
         if (start !== -1 && end !== -1){
             response = response.substring(start, end + 1);
         }
-        return JSON.parse(response);
+        try{
+            return JSON.parse(response);
+        } catch (e){
+            response = jsonrepair(response);
+            try{
+                return JSON.parse(response);
+            } catch (e){
+                throw e;
+            }
+        }
     }
 
     cleanModelResponseStupidHeaders(response: string): string{
@@ -438,7 +461,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
             try{
                 let r = this.parseJsonFromResponse(response, currentSnakefileContext);
                 r['remove'] = ruleAll;
-                if (ExtensionSettings.instance.getRulesOutputFormat() === "Snakemake"){
+                if (ExtensionSettings.instance.getGenerateConfig()){
                     const prompt = ModelPrompts.rulesMakeConfig(r);
                     const response = await this.modelComms.runQuery(prompt);
                     const parsed = this.parseJsonFromResponseGeneric(response);
@@ -507,7 +530,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
             try{
                 let r = this.parseJsonFromResponse(response, currentSnakefileContext);
                 r['remove'] = ruleAll;
-                if (ExtensionSettings.instance.getRulesOutputFormat() === "Snakemake"){
+                if (ExtensionSettings.instance.getGenerateConfig()){
                     const prompt = ModelPrompts.rulesMakeConfig(r);
                     const response = await this.modelComms.runQuery(prompt);
                     const parsed = this.parseJsonFromResponseGeneric(response);
@@ -520,10 +543,12 @@ Please write the documentation as a string in a JSON in this format: {documentat
                 }
                 return r;
             } catch (e){
+                console.log(e);
                 prompt = "I asked you this:\n" + prompt_original + "\nBut you gave me this:\n" + response
                 + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
             }
         }
+        console.log("Error: unable to parse the response from the model.");
         return currentSnakefileContext;
     }
 

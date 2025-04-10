@@ -466,7 +466,12 @@
         "snakemaker.snakemakeBestPractices.AddCondaDirective": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Track conda environments, add a 'conda' directive to rules."
+          "markdownDescription": "Track conda environments in the terminal, add a 'conda' directive to rules."
+        },
+        "snakemaker.snakemakeBestPractices.GenerateConfig": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Move hardcoded values into a configuration. Generate a config.yaml file, or update existing ones. Can slow down rule generation."
         },
         "snakemaker.rulesOutputFormat": {
           "type": "string",
@@ -578,6 +583,7 @@
   },
   "dependencies": {
     "diff": "^7.0.0",
+    "jsonrepair": "^3.12.0",
     "markdown-it": "^14.1.0",
     "openai": "^4.73.1",
     "tmp": "^0.2.3"

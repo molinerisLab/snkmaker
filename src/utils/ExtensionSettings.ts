@@ -19,6 +19,7 @@ export class ExtensionSettings{
     private includeCurrentFileIntoPrompt: boolean = false;
     private commentEveryRule: boolean = false;
     private addCondaDirective: boolean = false;
+    private generateConfig: boolean = false;
     
     public getAllowLogging(): boolean {
         return this.allowLogging;
@@ -50,6 +51,9 @@ export class ExtensionSettings{
     public getAddCondaDirective(): boolean {
         return this.addCondaDirective&&this.rulesOutputFormat === "Snakemake";
     }
+    public getGenerateConfig(): boolean {
+        return this.generateConfig && this.rulesOutputFormat === "Snakemake";
+    }
 
     private constructor(){
         this.allowLogging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
@@ -62,6 +66,7 @@ export class ExtensionSettings{
         this.includeCurrentFileIntoPrompt = vscode.workspace.getConfiguration('snakemaker').get('includeCurrentFileIntoPrompt', false);
         this.commentEveryRule = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.CommentEveryRule', false);
         this.addCondaDirective = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.AddCondaDirective', false);
+        this.generateConfig = vscode.workspace.getConfiguration('snakemaker').get('GenerateConfig', false);
 
         vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration("snakemaker.allowLogging")) {
@@ -84,6 +89,8 @@ export class ExtensionSettings{
                 this.commentEveryRule = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.CommentEveryRule', false);
             } else if (event.affectsConfiguration("snakemaker.snakemakeBestPractices.AddCondaDirective")){
                 this.addCondaDirective = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.AddCondaDirective', false);
+            } else if (event.affectsConfiguration("snakemaker.GenerateConfig")){
+                this.generateConfig = vscode.workspace.getConfiguration('snakemaker').get('GenerateConfig', false);
             }
         });
     }

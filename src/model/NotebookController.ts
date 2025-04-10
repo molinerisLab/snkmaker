@@ -7,7 +7,8 @@ import { writeFile } from 'fs/promises';
 import { ExtensionSettings } from '../utils/ExtensionSettings';
 import { UndoRedoStack } from './UndoRedoStack';
 const diff = require('diff');
-
+import { assert } from "console";
+const { jsonrepair } = require('jsonrepair')
 
 export class DependencyError{
     constructor(public message: string, public reader_cell: number, public variable: string){}
@@ -523,7 +524,16 @@ export class NotebookController{
         if (start !== -1 && end !== -1){
             response = response.substring(start, end + 1);
         }
-        return JSON.parse(response);
+        try{
+            return JSON.parse(response);
+        } catch (e:any){
+            try{
+                response = jsonrepair(response);
+                return JSON.parse(response);
+            } catch (e:any){
+                throw e;
+            }
+        }
     }
 
     openFrom(path: vscode.TextDocument){
