@@ -84,7 +84,7 @@
             <p>It can change Snakemake rules and the generated code from natural language prompt.</p>
             <p>For example you can ask for different file formats, different filenames, rule names, wildcards etc.</p>
             <p>You can open the chat assistant in the <a id="open_chat_assistant">Snakemaker view</a>.</p>
-            <p>Alternatively, open the Github Copilot Chat (Ctrl + Alt + I) and tag the agent <span id="chat_tag">@snakemaker-notebook</span> to chat with it.</p>
+            <p>Alternatively, open the Github Copilot Chat and tag the agent <span id="chat_tag">@snakemaker-notebook</span> to chat with it.</p>
             <br>
             </div>
             <div id="proceed_button_container">
@@ -290,7 +290,7 @@
             <h2>Snakemaker-Notebook Agent.</h2>
             <p>The Snakemaker chat assistant can assist you during this step by reviewing and fixing dependency issues.</p>
             <p>You can open the chat assistant in the <a id="open_chat_assistant">Snakemaker view</a>.</p>
-            <p>Alternatively, open the Github Copilot Chat (Ctrl + Alt + I) and tag the agent <span id="chat_tag">@snakemaker-notebook</span> to chat with it.</p>
+            <p>Alternatively, open the Github Copilot Chat and tag the agent <span id="chat_tag">@snakemaker-notebook</span> to chat with it.</p>
             <br>
             </div>
             <div class="notice_before_proceed" id="data_dependency_errors"></div>

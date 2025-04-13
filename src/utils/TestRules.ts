@@ -107,4 +107,37 @@ export class TestRules {
       });
     });
   }
+
+  async testPythonPath(): Promise<boolean> {
+    const result = await this.testPythonScript("print('Hello World')");
+    return result.success;
+  }
+
+  async testPythonScript(script: string): Promise<{ success: boolean; message?: string }> {
+    //python -c "import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')" config.yaml
+    const cp = require("child_process");
+    //Write the script to a temporary file
+    const tmpobj = tmp.fileSync();
+    fs.writeFileSync(
+      tmpobj.name, 
+      script
+    );
+    const child = cp.spawn(`python3`,[ `-c`, `import sys; compile(open(sys.argv[1]).read(), sys.argv[1], 'exec')`, tmpobj.name]);
+    var stdout = "";
+    var stderr = "";
+    child.stdout.on("data", (data: any) => {
+      stdout += data.toString();
+    });
+    child.stderr.on("data", (data: any) => {
+      stderr += data.toString();
+    });
+    return new Promise((resolve, reject) => {
+      child.on("error", (err: any) => {
+        resolve({ success: true });
+      });
+      child.on("close", (code: any) => {
+        resolve({ success: code === 0, message: stdout + stderr });
+      });
+    });
+  }
 }

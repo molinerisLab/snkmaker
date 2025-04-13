@@ -1004,6 +1004,8 @@ export class NotebookController{
             const formatted = await this.runPromptAndParse(prompt);
             this.cells.cells[index].rule.snakemakeRule = formatted.snakemakeRule;
             this.cells.cells[index].rule.prefixCode = code;
+        } else {
+            this.cells.cells[index].rule.prefixCode = code;
         }
         return this.cells;
     }
@@ -1417,6 +1419,37 @@ export class NotebookController{
         return {rules: snakefile, config: config};
     }
 
+    async testPythonScriptsBeforeExporting(scripts: {'script': string, 'name': string}[]){
+        const validator = new TestRules();
+        const success = await validator.testPythonPath();
+        if (!success){
+            return scripts;
+        }
+        for (let i=0; i<scripts.length; i++){
+            for (let j=0; j<3; j++){
+                const script = scripts[i];
+                const result = await validator.testPythonScript(script.script);
+                if (result.success){
+                    break;
+                }
+                const prompt = `I have this python script:\n\n${script.script}\n\n`+
+                `The script is not valid. The error is:\n\n${result.message}\n\n`+
+                `Please fix this error.\n`+
+                `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings) following this schema:\n`+
+                `{ 'script': string } (corresponding to the new python script)`;
+                const validate_function = (response: any) => {
+                    if (!response.script || typeof response.script !== 'string') {
+                        return "Invalid response format: 'script' must be a string";
+                    }
+                    return null;
+                }
+                let formatted = await this.runPromptAndParse(prompt, validate_function);
+                scripts[i].script = formatted.script.trim();
+            }
+        }
+        return scripts;
+    }
+
     async exportSnakefile(exportPath:any):Promise<vscode.Uri>{
         //Build the snakefile
         const logs = ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules();
@@ -1427,12 +1460,13 @@ export class NotebookController{
         if (config.length > 0){
             snakefile = "configfile: \"config.yaml\"\n\n";
         }
+        let scripts: {'script': string, 'name': string}[] = [];
         rules.forEach((rule) => {
             if (rule.rule){
                 snakefile += rule.rule + "\n\n";
             }
             if (rule.filename && rule.code){
-                waiting.push(writeFile(resolve(exportPath, rule.filename), rule.code));
+                scripts.push({script: rule.code, name: rule.filename});
             }
         });
         //Test rules
@@ -1443,7 +1477,9 @@ export class NotebookController{
             );
             snakefile = result.rules;
             config = result.config;
+            scripts = await this.testPythonScriptsBeforeExporting(scripts);
         }
+        scripts.forEach((script => waiting.push(writeFile(resolve(exportPath, script.name), script.script))));
 
         if (config.length > 0){
             waiting.push(writeFile(resolve(exportPath, "config.yaml"), config));
