@@ -33,6 +33,15 @@ export class TestRules {
       });
   }
 
+  async testSnakemakePath(): Promise<boolean> {
+    const fakeSnakefileContext = new SnakefileContext(
+      null, "rule test:\n\toutput:\n\t\t'test'\n\tshell:\n\t\t'echo test'\n",
+      null, [], [], [], [], "", "", "", "",[]
+    );
+    const valid: { success: boolean; message?: string;} = await this.validateRules(fakeSnakefileContext);
+    return valid.success;
+  }
+
   async validateRules(rules: SnakefileContext): Promise<{ success: boolean; message?: string }> {
     let snakemakePath = ExtensionSettings.instance.getSnakemakeAbsolutePath();
     if (snakemakePath === "") {

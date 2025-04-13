@@ -8,6 +8,8 @@ import { ExtensionSettings } from '../utils/ExtensionSettings';
 import { UndoRedoStack } from './UndoRedoStack';
 const diff = require('diff');
 import { assert } from "console";
+import { TestRules } from '../utils/TestRules';
+import { OpenedSnakefileContent, SnakefileContext } from '../utils/OpenendSnakefileContent';
 const { jsonrepair } = require('jsonrepair')
 
 export class DependencyError{
@@ -1380,17 +1382,51 @@ export class NotebookController{
         return [this.cells, update];
     }
 
+    async testRulesBeforeExporting(snakefile: string, config: string){
+        const validator = new TestRules();
+        const success = await validator.testSnakemakePath();
+        if (!success){
+            return {rules: snakefile, config: config};
+        }
+        for (let i=0; i<3; i++){
+            const c = new SnakefileContext(
+                null, snakefile, "", [], [], [], [], "", "", config, null, []
+            );
+            const result = await validator.validateRules(c);
+            if (result.success){
+                break;
+            }
+            const prompt = `I have this snakefile:\n\n${snakefile}\n\n`+
+            (config.length > 0 ? `And this config file:\n\n${config}\n\n` : "") +
+            `The rules are not valid. The error is:\n\n${result.message}\n\n`+
+            `Please fix this error.\n`+
+            `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings) following this schema:\n`+
+            (config.length > 0 ? `{ 'rules': string, 'config': string } (corresponding to the new snakefile rules and the new config)` : "{ 'rules': string}");
+            const validate_function = (response: any) => {
+                if (!response.rules || typeof response.rules !== 'string') {
+                    return "Invalid response format: 'rules' must be a string";
+                }
+                return null;
+            }
+            let formatted = await this.runPromptAndParse(prompt, validate_function);
+            snakefile = formatted.rules.trim();
+            if (formatted.config){
+                config = formatted.config.trim();
+            }
+        }
+        return {rules: snakefile, config: config};
+    }
+
     async exportSnakefile(exportPath:any):Promise<vscode.Uri>{
         //Build the snakefile
         const logs = ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules();
         const rules: {"rule": string|null; "filename": string|null; "code": string|null}[] = this.cells.cells.map(cell => cell.toSnakemakeRule(30,logs));
         let snakefile = "";
         const waiting = [];
-        const config = this.cells.config;
+        let config = this.cells.config;
         if (config.length > 0){
-            waiting.push(writeFile(resolve(exportPath, "config.yaml"), config));
+            snakefile = "configfile: \"config.yaml\"\n\n";
         }
-        snakefile = "configfile: \"config.yaml\"\n\n";
         rules.forEach((rule) => {
             if (rule.rule){
                 snakefile += rule.rule + "\n\n";
@@ -1399,6 +1435,19 @@ export class NotebookController{
                 waiting.push(writeFile(resolve(exportPath, rule.filename), rule.code));
             }
         });
+        //Test rules
+        if (ExtensionSettings.instance.getValidateSnakemakeRules()){
+            const result: {'rules': string, config: string} = await this.testRulesBeforeExporting(
+                snakefile,
+                config
+            );
+            snakefile = result.rules;
+            config = result.config;
+        }
+
+        if (config.length > 0){
+            waiting.push(writeFile(resolve(exportPath, "config.yaml"), config));
+        }
         waiting.push(writeFile(resolve(exportPath, "Snakefile"), snakefile));
         await Promise.all(waiting);
         this.saveAs(exportPath + "/export_notebook.snkmk", 1);
