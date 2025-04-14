@@ -1,4 +1,4 @@
-import { LLM } from "./ModelComms";
+import { LLM, PromptTemperature } from "./ModelComms";
 import { BashCommand, ExecutionEnvironment } from "./TerminalHistory";
 import { ExtensionSettings } from '../utils/ExtensionSettings';
 import * as vscode from 'vscode';
@@ -351,21 +351,11 @@ export class Queries{
         return response;
     }
 
-    async TEMPguessRuleDetails(command: string){
-        const query = ModelPrompts.ruleDetailsPrompt(command);
-        const response = await this.modelComms.runQuery(query);
-        const split = response.split(";");
-        const input = split[0]?.split("=")[1]?.replace("[", "")?.replace("]", "") ?? "Unknown";
-        const output = split[1]?.split("=")[1]?.replace("[", "")?.replace("]", "")?? "Unknown";
-        const name = split[2]?.split("=")[1]?.replace("[", "")?.replace("]", "")?? "Unknown";
-        return [input, output, name];
-    }
-
     async writeDocumentationFromContext(context: string){
         const query = `The user is building a data processing pipeline using bash command and snakemake:\n\n${context}.
 Please write a short documentation explaining what the user is doing. Use every information available to be as specific as you can. The documentation should be professional and mimick the style of a methodology section of a paper. It is possible you don't have enough information for a full methodology section, in this case write what you can.
 Please write the documentation as a string in a JSON in this format: {documentation: string}. The string should follow the markdown format.`;
-        const response = await this.modelComms.runQuery(query);
+        const response = await this.modelComms.runQuery(query, PromptTemperature.CREATIVE);
         const parsed = this.parseJsonFromResponseGeneric(response);
         return parsed["documentation"];
     }
@@ -388,7 +378,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
         const examples = this.parseExamples(positive_examples, negative_examples);
         let prompt = ModelPrompts.inferCommandInfoPrompt(command, examples);
         for(let i=0; i<5; i++){
-            const response = await this.modelComms.runQuery(prompt);
+            const response = await this.modelComms.runQuery(prompt, PromptTemperature.MEDIUM_DETERMINISTIC);
             try{
                 let r = this.parseJsonFromResponseGeneric(response);
                 if (r["is_rule"]){
@@ -470,13 +460,13 @@ Please write the documentation as a string in a JSON in this format: {documentat
         );
         let prompt = prompt_original;
         for (let i = 0; i < 5; i++){
-            const response = await this.modelComms.runQuery(prompt);
+            const response = await this.modelComms.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
             try{
                 let r = this.parseJsonFromResponse(response, currentSnakefileContext);
                 r['remove'] = ruleAll;
                 if (ExtensionSettings.instance.getGenerateConfig()){
                     const prompt = ModelPrompts.rulesMakeConfig(r);
-                    const response = await this.modelComms.runQuery(prompt);
+                    const response = await this.modelComms.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
                     const parsed = this.parseJsonFromResponseGeneric(response);
                     if (parsed["rules"]){
                         r["rule"] = parsed["rules"];
@@ -539,13 +529,13 @@ Please write the documentation as a string in a JSON in this format: {documentat
 
         let prompt = prompt_original;
         for (let i = 0; i < 5; i++){
-            const response = await this.modelComms.runQuery(prompt);
+            const response = await this.modelComms.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
             try{
                 let r = this.parseJsonFromResponse(response, currentSnakefileContext);
                 r['remove'] = ruleAll;
                 if (ExtensionSettings.instance.getGenerateConfig()){
                     const prompt = ModelPrompts.rulesMakeConfig(r);
-                    const response = await this.modelComms.runQuery(prompt);
+                    const response = await this.modelComms.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
                     const parsed = this.parseJsonFromResponseGeneric(response);
                     if (parsed["rules"]){
                         r["rule"] = parsed["rules"];
@@ -567,7 +557,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
 
     async guessOnlyName(command: BashCommand){
         const prompt = ModelPrompts.guessNamePrompt(command.getCommandForModel());
-        const response = await this.modelComms.runQuery(prompt);
+        const response = await this.modelComms.runQuery(prompt, PromptTemperature.MEDIUM_DETERMINISTIC);
         return response;
     }
 
@@ -575,7 +565,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
         const original_prompt = ModelPrompts.correctRulesFromErrorPrompt(rules, error);
         let prompt = original_prompt;
         for (let i = 0; i < 5; i++){
-            const response = await this.modelComms.runQuery(prompt);
+            const response = await this.modelComms.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
             try{
                 let r = this.parseJsonFromResponseGeneric(response);
                 if (r["can_correct"] === false){

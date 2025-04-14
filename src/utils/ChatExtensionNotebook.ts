@@ -29,7 +29,8 @@ export class ChatExtensionNotebook{
         `The user can manually fix the dependencies if needed, and split, merge or delete cells.\n`+
         `2-Decide whether to export each cell as a Rule (produces files, stays in the Snakefile) or a script (is simply imported by others).\n`+
         `3-Automatically generate the Snakefile and additional code in each cell, to read/write files, command line arguments, imports.\n`+
-        "Note: during the entire process, user can press Ctrl+Z and Ctrl+Y to undo/redo changes, including the ones you will do.\n"
+        "Note: during the entire process, user can press Ctrl+Z and Ctrl+Y to undo/redo changes, including the ones you will do. "+
+        "The user can Ctrl+S or Ctrl+Shift+S to save the export process into .snkmk files, which can be opened to restore the process.\n";
     }
 
     static BASE_PROMPT_NO_NOTEBOOK_OPENED = `Right now no notebook is opened, or at least not in the tab the user is looking at. Once a notebook is opened, you will have access to it and be able to help the user.`;

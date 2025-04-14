@@ -10,6 +10,14 @@ export class ModelNotReadyError extends Error {
     }
 }
 
+export enum PromptTemperature{
+    GREEDY_DECODING = 0,
+    DAG_GEN = 0.1, //DAG is kept with its own enum because it's sensible and needs experimenting on its own
+    RULE_OUTPUT = 0.2, //Low t. for code, rules generation
+    CREATIVE = 0.5, //Creative t. used for hello messages, documentation...
+    MEDIUM_DETERMINISTIC = 0.3 //Medium t. for things like guessing rules names...
+}
+
 export class LLM{
     models: ModelComms[];
     current_model: number;
@@ -22,7 +30,7 @@ export class LLM{
         this.models = this.loadModels();
     }
 
-    async runQuery(query: string): Promise<string>{
+    async runQuery(query: string, t: PromptTemperature): Promise<string>{
         let tries = 0;
         if (this.isCopilotWaiting){
             while (this.current_model === -1){
@@ -38,7 +46,7 @@ export class LLM{
             SnkmakerLogger.instance()?.log("User tried running query but no model selected:\n"+query);
             throw new ModelNotReadyError("No model currently selected - please select a model to use Snakemaker");
         }
-        return this.models[this.current_model].runQuery(query).then(response => {
+        return this.models[this.current_model].runQuery(query, t).then(response => {
             SnkmakerLogger.instance()?.query(this.models[this.current_model].getName(), query, response);
             return response;
         });
@@ -85,7 +93,10 @@ export class LLM{
         if (!skip_message){
 		    vscode.window.showInformationMessage('Activating model: ' + this.models[index].getName() + "...");
         }
-        const hi = await this.models[index].runQuery("You are part of a vscode extension that helps users write snakemake (or Make) rules from bash prompts - the user just selected you as the model of choice. Say Hi to the user! :) (please keep very short, you are in a small window - please do not ask questions to the user, he cannot respond)");
+        const hi = await this.models[index].runQuery(
+            "You are part of a vscode extension that helps users write snakemake (or Make) rules from bash prompts - the user just selected you as the model of choice. Say Hi to the user! :) (please keep very short, you are in a small window. Please only say hi, the user cannot answer you)",
+            PromptTemperature.CREATIVE
+        );
         this.current_model = index;
         this.memento.update('current_model', id);
         return hi;
@@ -122,7 +133,7 @@ export class LLM{
     async testModel(url: string, apiKey: string, model: string, max_tokens: number){
         const new_model: ModelComms = new OpenAI_Models(url, apiKey, model, max_tokens);
         const query = "Please say hi to the user!";
-        return new_model.runQuery(query);
+        return new_model.runQuery(query, PromptTemperature.RULE_OUTPUT);
     }
 
     addModel(url: string, apiKey: string, model:string, max_tokens: number){
@@ -198,7 +209,7 @@ export interface ModelParameters{
 }
 
 export interface ModelComms{
-    runQuery(query: string): Promise<string>;
+    runQuery(query: string, t: PromptTemperature): Promise<string>;
     getName(): string;
     getId(): string;
     getParams(): ModelParameters[];
@@ -214,12 +225,19 @@ class CopilotModel implements ModelComms{
     constructor(model: vscode.LanguageModelChat){
         this.model = model;
     }
-    async runQuery(query: string): Promise<string> {
+    async runQuery(query: string, t: PromptTemperature): Promise<string> {
         const craftedPrompt = [
             vscode.LanguageModelChatMessage.User(this.userPrompt),
             vscode.LanguageModelChatMessage.User(query)
         ];
-        const request = await this.model.sendRequest(craftedPrompt, {});
+        const request = await this.model.sendRequest(
+            craftedPrompt, 
+            {
+                modelOptions: {
+                    temperature: t as number,
+                }
+            }
+        );
         var response = "";
         for await (const fragment of request.text) {
             response += fragment;
@@ -287,7 +305,7 @@ class OpenAI_Models implements ModelComms{
             });
     }
 
-    async runQuery(query: string): Promise<string>{
+    async runQuery(query: string, t: PromptTemperature): Promise<string>{
         const openai = new OpenAI({
             apiKey: this.apiKey,
             baseURL: this.url,
@@ -295,7 +313,7 @@ class OpenAI_Models implements ModelComms{
         const completion = await openai.chat.completions.create({
             model: this.model,
             messages: [{"role":"user","content":query}],
-            temperature: 0.5,
+            temperature: t as number,
             top_p: 1,
             max_tokens: this.max_tokens,
             stream: true,

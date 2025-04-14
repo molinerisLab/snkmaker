@@ -1,6 +1,6 @@
 import { json } from 'stream/consumers';
 import * as vscode from 'vscode';
-import { LLM, ModelComms, ModelNotReadyError } from './ModelComms';
+import { LLM, ModelComms, ModelNotReadyError, PromptTemperature } from './ModelComms';
 import { read, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { writeFile } from 'fs/promises';
@@ -706,12 +706,13 @@ export class NotebookController{
     }
 
 
-    private async runPromptAndParse(original_prompt: string, validate_function: ((response: any) => string|null)|undefined=undefined): Promise<any> {
+    private async runPromptAndParse(original_prompt: string, t: PromptTemperature,
+        validate_function: ((response: any) => string|null)|undefined=undefined): Promise<any> {
         let prompt = original_prompt;
         let response = "";
         for (let i=0; i<5; i++){
             try{
-                response = await this.llm.runQuery(prompt);
+                response = await this.llm.runQuery(prompt, t);
                 const parsed = this.parseJsonFromResponse(response);
                 if (validate_function){
                     const validationError = validate_function(parsed);
@@ -807,7 +808,7 @@ export class NotebookController{
             }
             return null;
         }
-        const formatted = await this.runPromptAndParse(prompt, validate);
+        const formatted = await this.runPromptAndParse(prompt, PromptTemperature.MEDIUM_DETERMINISTIC, validate);
         if (formatted){
             this.cells.setRulesTypesAndNames(formatted, changeFrom);
         }
@@ -855,7 +856,7 @@ export class NotebookController{
                 }
                 return null;
             }
-            const formatted = await this.runPromptAndParse(prompt, validate);
+            const formatted = await this.runPromptAndParse(prompt, PromptTemperature.DAG_GEN, validate);
             if (!formatted || !formatted.cells || !Array.isArray(formatted.cells)) {
                 throw new Error("Invalid response format: 'rules' is missing or not an array");
             }
@@ -899,7 +900,7 @@ export class NotebookController{
             }
             return null;
         }
-        const formatted = await this.runPromptAndParse(prompt, validate);
+        const formatted = await this.runPromptAndParse(prompt, PromptTemperature.GREEDY_DECODING, validate);
         if (!formatted || !formatted.cells || !Array.isArray(formatted.cells)) {
             throw new Error("Invalid response format: 'rules' is missing or not an array");
         }
@@ -943,7 +944,7 @@ export class NotebookController{
         `Please provide the new snakemake rule considering this updated prefix code.\n` +
         `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema: { 'snakemakeRule': string }\n`+
         "Please always output this JSON. If the rule does not need changing, output the same rule as before.";
-        const formatted = await this.runPromptAndParse(prompt);
+        const formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT);
         this.cells.cells[index].rule.snakemakeRule = formatted.snakemakeRule;
         this.cells.cells[index].rule.postfixCode = code;
         //Propagate changes to other cells who reads from this one
@@ -981,7 +982,7 @@ export class NotebookController{
             `Please provide the new prefix and suffix code based on the new snakemake rule. You can not change main code.\n` +
             `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema: { 'prefix_code': string, 'suffix_code': string }\n`+
             "Please always output this JSON. If the code do not need changing, output the same code as before.";
-            const formatted = await this.runPromptAndParse(prompt);
+            const formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT);
             this.cells.cells[index].rule.snakemakeRule = code;
             this.cells.cells[index].rule.prefixCode = formatted.prefix_code;
             this.cells.cells[index].rule.postfixCode = formatted.suffix_code;
@@ -1001,7 +1002,7 @@ export class NotebookController{
             `Please provide the new snakemake rule considering this updated prefix code.\n` +
             `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema: { 'snakemakeRule': string }\n`+
             "Please always output this JSON. If the rule does not need changing, output the same rule as before.";
-            const formatted = await this.runPromptAndParse(prompt);
+            const formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT);
             this.cells.cells[index].rule.snakemakeRule = formatted.snakemakeRule;
             this.cells.cells[index].rule.prefixCode = code;
         } else {
@@ -1057,7 +1058,7 @@ export class NotebookController{
             }
             return null;
         }
-        const formatted = await this.runPromptAndParse(prompt, validate);
+        const formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate);
         if (formatted.config){
             this.cells.config = formatted.config;
         }
@@ -1122,7 +1123,7 @@ export class NotebookController{
             }
             return null;
         }
-        const formatted = await this.runPromptAndParse(prompt, validate);
+        const formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate);
         this.cells.config = newConfig;
         if (formatted.cells){
             formatted.cells.forEach((cell: any) => {
@@ -1216,7 +1217,7 @@ export class NotebookController{
                 "\nPlease write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema:\n"+
                 "{ 'prefix_code': string 'code to read arguments, files', 'suffix_code': string 'code to save each file', 'rule': string (snakemake rule) }\n"+
                 "Please do not repeat the code already existing, only valorize the fields. If a field is empty, write an empty array or empty string, don't skip the field.\n"
-                const formatted = await this.runPromptAndParse(prompt);
+                const formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT);
                 node.prefixCode = getImportStatementsFromScripts(cell, this.cells.cells) + "\n" + formatted.prefix_code.trim().replace("#Begin prefix code...\n", "").replace("#End prefix code...", "");
                 node.postfixCode = formatted.suffix_code.trim().replace("#Start Suffix code...\n", "").replace("#End Suffix code...", "");
                 node.snakemakeRule = formatted.rule.trim().replace("#Rule...\n", "").replace("#End rule...", "");
@@ -1318,7 +1319,7 @@ export class NotebookController{
             "Please provide to me the list of READED variables, WRITTEN variables and READED file for each cell. For each variable use the same name used in the code without changing it.\n"+
             "\n\nPlease write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema:\n"+
             `{ "cells": [ {"cell_index": <number>, "reads": [<strings>], "writes": [<indexes>], "reads_file": [<indexes>]}  for each rule... ] }`;
-            const formatted = await this.runPromptAndParse(prompt);
+            const formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT);
             if (!formatted.cells || !Array.isArray(formatted.cells)) {
                 throw new Error("Invalid response format: 'rules' is missing or not an array");
             }
@@ -1410,7 +1411,7 @@ export class NotebookController{
                 }
                 return null;
             }
-            let formatted = await this.runPromptAndParse(prompt, validate_function);
+            let formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate_function);
             snakefile = formatted.rules.trim();
             if (formatted.config){
                 config = formatted.config.trim();
@@ -1443,7 +1444,7 @@ export class NotebookController{
                     }
                     return null;
                 }
-                let formatted = await this.runPromptAndParse(prompt, validate_function);
+                let formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate_function);
                 scripts[i].script = formatted.script.trim();
             }
         }
