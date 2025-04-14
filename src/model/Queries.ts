@@ -9,31 +9,35 @@ const { jsonrepair } = require('jsonrepair')
 class ModelPrompts{
     static ruleDetailsPrompt(command: string): string{
         return `I have the following bash command: ${command}.\n`+
-        `Can you guess the filenames of input and outputs? Only the filenames of what is read and written are important`+ 
-        `- not the things in between (es pipe operator), and stdin,stdout and stderr are not considered inputs or outputs.\n`+
-        `Consider that when unknown programs are executed, they might write to files and you don't know what they are.\n`+
-        `If you are sure there is no input or output, please write "-". If it cannot be determined, write "Unknown".\n`+
+        `Please guess the filenames of input and outputs. Only the filenames of what is read and written by the commands are important,`+ 
+        ` not the things in between (es pipe operator), and stdin,stdout and stderr are not considered input or output files.\n`+
+        `When unknown programs are executed, they might write to files and you don't have the information of what they are.\n`+
+        `If you are sure that there is no input or output, write "-" to signal their absence."+
+        " If instead you don't have the information to safely assume their names, write "Unknown".\n`+
         `I would also like a short name of a theorical Snakemake rule for this command.\n`+
         `Please write: INPUT=[...]; OUTPUT=[...]; NAME=[...]. DO NOT, EVER output other things, only INPUT=[...]; OUTPUT=[...]; NAME=[...]. Do not forget the = symbol.`;
     }
 
     static inferCommandInfoPrompt(command: string, examplesPrompt: string): string{
         return `I have the following bash command: ${command}.\n`+
-        `It might need to be translated into a snakemake or a Make rule, but it could be just a one-time command from the user.\n`+
-        "For example the user might run commands as 'dir', 'cd ..' to navigate his environment. "+
+        `It might be part of some data analysis or processing work and need to be translated into `+
+        `a Snakemake or Make rule, but it could also be just a one-time command from the user.\n`+
+        "For example the user might run commands as 'dir', 'cd ..' to navigate his environment, "+
+        "and these commands don't make into the pipeline he's building.\n"+
         `Generally, commands that for sure do not write to files are not worth making into rules.\n${examplesPrompt}\n`+
         `Please try to infer if this command is worth making into a rule or not.\n\n`+
         "If the command becomes a rule, please also try to guess:\n"+
         "-A possible name for the rule. The name should be short and meaningful given what the command does.\n"+
-        `-The name of the of input and output files used or written by the command. Only the names of read or written files are important`+ 
-        `, the things in between (es pipe operator), stdin, stdout and stderr are NOT considered inputs or outputs.\n`+
-        `It is possible that the command itself calls some executable and you are not able to find out the names `+
-        "of the input or output files. In this case, write 'Unknown'. If you are sure there is no input or output, please write '-'\n"+
+        `-The filenames of the input and output files. Only the filenames of what is read and written by the commands in their entirety are important,`+ 
+        ` not the things in between (es pipe operator), and stdin,stdout and stderr are not considered input or output files.\n`+
+        `When unknown programs are executed, they might write to files and you don't have the information of what they are.\n`+
+        `If you are sure that there is no input or output, write "-" to signal their absence."+
+        " If instead you don't have the information to safely assume their names, write "Unknown".\n`+
         "Please output your response following this JSON schema:\n"+
         "{is_rule: boolean, rule_name: string, input: string, output: string}\n"+
         "If there are multiple input or output names, write them in a single string separated by comma, es input: 'a.txt, b.txt'.\n"+
         "If the command is not a rule, set is_rule to false and leave the other fields empty.\n";
-        }
+    }
 
     static ruleFromCommandPrompt(command: string, ruleName: string, ruleFormat: string, inputs: string, 
         output: string, rulesContext:string="", ruleAll: string | null = null,
@@ -43,37 +47,38 @@ class ModelPrompts{
         const comment: boolean = 
             ruleFormat==="Snakemake" && ExtensionSettings.instance.getCommentEveryRule();
         let prompt = `Convert this bash command into a ${ruleFormat} rule:\n${command}\n`+
-        `It is estimated that the input could be (${inputs}) and the output could be (${output}) `+
-        `- but it could be wrong. A possible name for the rule could be ${ruleName}. ${rulesContext} `+
-        `Please do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary.\n`;
+        `The estimated inputs filenames are (${inputs}) and the estimated output filenames (${output}) `+
+        `- but it is only an estimate and could be wrong. A possible name for the rule could be '${ruleName}', but you can modify it if needed.`+
+        ` ${rulesContext} `+
+        `When converting respect the new-lines chosen by the user, don't remove them. You might add new-lines for readability, but only if necessary.\n`;
         if (ruleFormat==="Snakemake"){
-            prompt += `Please use named input and outputs, with meaningful names. For example:rule example:\n\tinput:\n\t\tbam_file='somefile.bam'\n`;
-            prompt += "If the rule contains some type of loop - like a for loop - acting on multiple files, "+
+            prompt += `Use named input and outputs, with meaningful names. For example:rule example:\n\tinput:\n\t\tbam_file='somefile.bam'\n`;
+            prompt += "If the rule contains some type of loop, acting on multiple files, "+
             "generate one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' "+
-            "to generate all output files. The name of the second rule should NOT be 'all', should be a meaningful name connected "+
-            "to the original rule."
+            "to generate all output files. The name of the second rule should be a meaningful name connected to the name of "+
+            "the original one. The name of the second rule cannot be simply 'all' because this name is reserved.\n";
             if (logField){
-                prompt += "\nPlease add a log field to the rule with the name of the log file. For example, log: 'logs/{rule}.log'. "+
+                prompt += "\nAdd a log field to the rule with the name of the log file. For example, log: 'logs/{rule}.log'. "+
                 "If the rule contains wildcards, they must be part of the log file name or Snakemake will throw an error. "+
-                "Log field must be added before shell field.";
+                "Log field must be added before the shell field.";
             }
             if (comment){
-                prompt += "\nPlease add a short comment describing what the rule does. The comment must be short. "+
-                "Do not say 'this rule does...' or cite the name of the rule, it's a waste of characters, just say what it does. "+
-                "The comment must be just before the definition of the rule, es. #This rule does something\nrule something: ...";
+                prompt += "\nAdd a short comment describing what the rule does. The comment must be short and concise. "+
+                "Simply say what the rule does. "+
+                "The comment must be just before the definition of the rule. "+
+                "For example:\n#Trim fasta files using tool X\nrule trim_with_X: ...";
             }
-            prompt += "Please use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n" +
-            `If one of the rules contains some type of loop - like a for loop - acting on multiple files, generate`+
-            ` one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' to generate all output files. `+
-            `The name of the second rule should should NOT be 'all', it should be a meaningful name connected to the original rule.\n`;
+            if (env_directive && env_name){
+                prompt += `\n-You also must set the 'conda' directive in the output rule to ${env_name}:\nconda:\n\t'${env_name}'\n. This is used by Snakemake to re-build the environment.`
+            }
             if (ruleAll){
                 prompt += "\nThe Snakefile already contains a rule all: " + ruleAll + ".\n" +
                 "Please add the new rules to the rule all.\n" +
                 "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
                 "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
-                    prompt += "\nNote: the rule all must be written entirely, so take the one existing and add inputs to it.\n"+
-                    "The other rules on the other hand must not repeat the rules already existing in the file.";
+                    prompt += "\nNote: the rule all must be written entirely, so take the one existing, add inputs to it and return it in its entirety.\n"+
+                    "Ther other rules already existing in the Snakefile must not be repeated, only write the new ones.";
                 }
             } else {
                 prompt += "Please also write a 'rule all' to produce all files.\n" +
@@ -83,9 +88,6 @@ class ModelPrompts{
                     prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
                     "but their outputs must be included in the 'rule_all'.";
                 }
-            }
-            if (env_directive && env_name){
-                prompt += `\n-You also MUST set the 'conda' directive in the output rule to ${env_name}:\nconda:\n\t'${env_name}'\n. This is used by Snakemake to re-build the environment.`
             }
         } else {
             prompt += "\nPlease return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
@@ -175,13 +177,11 @@ class ModelPrompts{
         prompt += "please check if some values inside these rules can be moved to a configuration field.\n" +
         "Generally, the config must contains stuff like hardcoded absolute paths, hardcoded values that the user might want to change "+
         "on different runs of the Snakemake pipeline. Output files generally should not be in the config.\n"+
-        "Also, if the Snakefile has a config already, consider its values to see if they fit in the new rules.\n"+
+        "Also, if the Snakefile already has a config, you can use its values in the new rules, if they fit.\n"+
         "Important: the 'conda' directive of rules, when existing, must never be modified or moved to the config. Do not put the conda .yaml file names into the config. Do not put things related to conda environments in the config.yaml.\n" +
-        "Remember, the config is a simple yaml file. It does not contain logic, only values.\n"+
+        "The config is a simple yaml file, it contains only values, never logic.\n"+
         "The config is meant for the user to make the pipeline more "+
         "maintainable, allowing to run it with different configurations. Not all values are worth putting in the config.\n"+
-        "All the values put in the config MUST be accessed in the Snakefile. If a value is not readed in the Snakefile, "+
-        "it must not go in the config.\n"+
         "Examples of good config fields:\nGENOME_PATH='/home/user/.../genome.fasta' #Very good, hardcoded paths are better in a config\n"+
         "NUMBER_RANDOMIZATION: 4 #Good, especially if this value is used in an expand to generate multiple files\n"+
         "STAR_OUT_SAM_TYPE: 'BAM' #Good, this is a value that might be changed by the user\n"+
@@ -189,8 +189,7 @@ class ModelPrompts{
         "conda_env: 'your_conda_env_name' #No, conda env info doesn't go here!\n"+
         "conda create -n snaketest python=3.9 #NO! This is not even a yaml field, it's a command. Never do that!\n"+
         "Please output your response in JSON following this schema:\n"+
-        "{rules: string, add_to_config: string}\n"+
-        "Remember JSON does not support triple quotes for multi-line strings; they will break the JSON.\n";
+        "{rules: string, add_to_config: string}\n";
         if (rules.snakefile_content){
             prompt += "Where 'rules' are the newly added rules with your changed applied, ";
         } else {
@@ -198,46 +197,50 @@ class ModelPrompts{
         }
         prompt += "and 'add_to_config' is a string that contains the new lines to be added to the config file.\n"+
         "You do not have to use a config if it's not needed, do it only if it's worth it.\n"+
-        "If you don't want to add new configs, or you don't need to, just set add_to_config to an empty string and 'rules' to the same rules you received.\n";
+        "If you don't want to add new configs, or you don't need to, just set add_to_config to an empty string and 'rules' to the same rules you received.\n"+
+        "Remember JSON does not support triple quotes for multi-line strings; you must use escape characters to manage multi-line.\n";
         return prompt;
     }
 
     static rulesFromCommandsBasicPrompt(formattedRules: string[], ruleFormat: string, extraPrompt: string, 
         rulesContext:string="", ruleAll: string|null = null, set_env_directive: boolean): string{
-        let prompt =  `I have the following set of bash commands. Can you convert them into ${ruleFormat} rules? `+
-        `Note that Estimated inputs and outputs are just guesses and could be wrong.\n`+
+        let prompt =  `I have the following set of bash commands:\n\n`+
         `${formattedRules.join("\n")}\n${rulesContext}\n`+
+        ` Please convert them into ${ruleFormat} rules.\n`+
+        `Note that Estimated inputs and outputs are just guesses and could be wrong. `+
+        "The rule names are suggestions, you can modify them if needed.\n"+
         `When producing the new rules, follow these instructions:\n`+
-        `-Do not remove the new-lines chosen by the user. You might add new-lines for readability but only if necessary. \n`+
+        `-Respect the new-lines chosen by the user, don't remove them. You can add new-lines for readability if necessary.\n`+
         extraPrompt;
         if (ruleFormat==="Snakemake"){
-            prompt += "-Use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n" +
-            `-If one of the rules contains some type of loop - like a for loop - acting on multiple files, generate`+
-            ` one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' to generate all output files. `+
-            `Note: The name of the second rule should should NOT be 'all', it should be a meaningful name connected to the original rule.`;
+            prompt += "-Use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n";
+            prompt += "If some of the rules contain some type of loops, acting on multiple files, "+
+            "generate one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' "+
+            "to generate all output files. The name of the second rule should be a meaningful name connected to the name of "+
+            "the original one. The name of the second rule cannot be simply 'all' because this name is reserved.\n";
+            if (set_env_directive){
+                prompt += "\n-If a rule contains a field 'conda_env_path', set the 'conda' directive in the output rule. " +
+                "Keeping track of the environments used is important for reproducibility. Snakemake offers the conda directive"+
+                " to attach a yaml file to the rules - es:\n"+
+                "rule SOMETHING:\n\t#Input and outputs etc...\n\tconda:\n\t\t'env_file.yaml'\n\t#Shell directive...\n.";
+            }
             if (ruleAll){
                 prompt += "\n-The Snakefile already contains a rule all:\n " + ruleAll + "\n" +
-                "Please add the new rules to the rule all.\n" +
-                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
+                "Add the new rules to the rule all.\n" +
+                "Return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
                 "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote: the rule 'all' must be written entirely, so take the one existing and add inputs to it.\n"+
                     "The other rules on the other hand must not repeat the rules already existing in the file.";
                 }
             } else {
-                prompt += "Please also write a 'rule all' to produce all files.\n" +
+                prompt += "Write also a 'rule all' to produce all files.\n" +
                 "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
                 "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
                     "but their outputs must be included in the 'rule_all'.";
                 }
-            }
-            if (set_env_directive){
-                prompt += "\n-If a rule contains a field 'conda_env_path', set the 'conda' directive in the output rule. " +
-                "Keeping track of the environments used is important for reproducibility. Snakemake offers the conda directive"+
-                " to attach a yaml file to the rules - es:\n"+
-                "rule SOMETHING:\n\t#Input and outputs and whathever...\n\tconda:\n\t\t'env_file.yaml'\n\t#Shell directive...\n.";
             }
         } else {
             prompt += "\nPlease return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
@@ -269,22 +272,21 @@ class ModelPrompts{
         const commentEveryLine: boolean = ExtensionSettings.instance.getCommentEveryRule();
         let extraPrompt = "";
         if (useWildcards){
-            extraPrompt += `- Prefer the usage of generic names for input-outputs using wildcards, when possible. `+
+            extraPrompt += `-Prefer the usage of generic names for input-outputs using wildcards, when possible. `+
             `For example input: "data.csv", output: "transformed_data.csv" could be written as input: "{file}.csv", `+
             `output: "transformed_{file}.csv".\n`+
-            `- Multiple commands that execute the same operation on different files can be merged in a single rule `+
-            `using generic inputs/outputs and wildcards. Following the example above, another rule could be input: "GENES.csv", `+
-            `output: "transformed_GENES.csv" could be merged with the previous rule.\n`;
+            `-Multiple commands that execute the same operation on different files can be merged in a single rule `+
+            `using generic inputs/outputs and wildcards. Following the example above, another command could be input: "GENES.csv", `+
+            `output: "transformed_GENES.csv"; this case is already covered by the rule with generic input and output names.\n`;
         }
         if (logDirective){
-            extraPrompt += "- Add a log directive to each rule with the name of the log file. "+
+            extraPrompt += "-Add a log directive to each rule with the name of the log file. "+
             "For example, log: 'logs/{rule}.log'. If the rule contains wildcards, they must be part of the log file "+
             "name or Snakemake will throw an error. Log fields must be added before shell fields.\n";
         }
         if (commentEveryLine){
-            extraPrompt += "- For each rule, add a short comment describing what the rule does. The comment must be short. "+
-            "Do not say 'this rule does...' or cite the name of the rule, it's a waste of characters, just say what it does. "+
-            "The comment must be just before the definition of the rule, es. #This rule does something\nrule something: ...\n"
+            extraPrompt += "-For each rule, add a short, concise comment describing what the rule does. "+
+            "The comment must be just before the definition of the rule, es. #Trim fasta files using tool X\nrule run_X: ...\n"
         }
         return extraPrompt;
     }
