@@ -52,15 +52,7 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 		});
 		this._disposable_stream = stream;
 
-		const manageResult = (_:any) => {
-			if (stream.cancelled) {
-				return;
-			}
-			const result = md.render(stream.acc);
-			this._view?.webview.postMessage({ type: 'model_response_end', response: result });
-			this.history.push(prompt);
-			this.history.push(stream.acc);
-		}
+		let manageResult;
 		const manageError = (_:any) => {
 			if (stream.cancelled) {
 				return;
@@ -69,10 +61,48 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 		}
 
 		if (this.currentMode === "notebook") {
+			manageResult = (_:any) => {
+				if (stream.cancelled) {
+					return;
+				}
+				const result = md.render(stream.acc);
+				this._view?.webview.postMessage({ type: 'model_response_end', response: result });
+				this.history.push(prompt);
+				this.history.push(stream.acc);
+			}
 			this.notebookChatExtension.process_chat_tab(
 				prompt, this.history, this.viewModel.llm, stream
 			).then(manageResult).catch(manageError);
 		} else {
+			const manageResult = (_:any) => {
+				if (stream.cancelled) {
+					return;
+				}
+				// Parse code
+				const codeRegex = /```([^`]+)```/g;
+				const codeMatches = stream.acc.match(codeRegex);
+				let blocks = "";
+				if (codeMatches) {
+					codeMatches.forEach((match) => {
+						blocks = blocks +  "\n" +
+							match.replace(/```.*\n/g, '')
+							.replaceAll(/```/g, '')
+							.trim()
+					});
+				}
+				if (blocks.length > 0) {
+					blocks = encodeURIComponent(blocks);
+					stream.acc = stream.acc + "\n\n" +
+					`[Add to Snakefile](command:add_snakefile?${blocks})\n\n`+
+					`[Add to Snakefile (raw)](command:add_snakefile_raw?${blocks})\n\n` +
+					"*Add to Snakefile (raw) directly appends the generated rules to the Snakefile, "+
+					" without processing them.*";
+				}
+				const result = md.render(stream.acc);
+				this._view?.webview.postMessage({ type: 'model_response_end', response: result });
+				this.history.push(prompt);
+				this.history.push(stream.acc);
+			}
 			const has_open_notebbok = this.notebookChatExtension.has_open_notebook();
 			this.chatExtension.process_chat_tab(
 				prompt, this.history, this.viewModel.llm, stream, has_open_notebbok
@@ -139,6 +169,21 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 					const command_and_args = decodeURIComponent(data.command).split('?');
 					const command = command_and_args[0];
 					if (this.chatExtension.getEnabledCommands().indexOf(command) === -1) {
+						return;
+					}
+					if (command === "add_snakefile" || command === "add_snakefile_raw") {
+						const blocks = command_and_args[1];
+						if (command === "add_snakefile") {
+							this._view?.webview.postMessage({ type: 'start_loading', blocks: blocks });
+							this.viewModel.appendRules(blocks).then(() => {
+								this._view?.webview.postMessage({ type: 'stop_loading' });
+							}).catch(() => {
+								this._view?.webview.postMessage({ type: 'stop_loading' });
+							});
+						} else {
+							this.viewModel.appendRulesRaw(blocks);
+						}
+						
 						return;
 					}
 					let args = (command_and_args[1] ? command_and_args[1] : "")
@@ -232,6 +277,9 @@ export class ChatPanelView implements vscode.WebviewViewProvider {
 						<div id="switch_to_bash" class="codicon codicon-book" title="Currently in Notebook mode\nSwitch to Bash mode"></div>
                     	<div id="send-button" class="codicon codicon-send"></div>
 					</div>
+                </div>
+				<div id="loadingscreen">
+                    <div class="spinner"></div>
                 </div>
 				<link rel="stylesheet" href="${highlightjsStyle}">
 				<link href="${style}" rel="stylesheet">

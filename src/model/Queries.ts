@@ -244,6 +244,24 @@ class ModelPrompts{
         return prompt;
     }
 
+    static processRulesFromChatBasicPrompt(rules: string, snakefile_content: string, ruleAll: string): string{
+        let prompt =  `I have a Snakefile with some rules, and new Snakemake rules that the user is adding.\n`+
+        "This is the content of the existing Snakefile: " + snakefile_content + "\n\n"+
+        "These are the new rules: " + rules + "\n\n";
+        "Please do the following tasks:\n"+
+        "1-Filter out the new rules that are already present in the Snakefile. A new rule should be added only if not existing.\n";
+        if(ruleAll.length>0){
+            "2-Consider the current rule all of the Snakefile:\n"+ruleAll+
+            "\n Update the rule all with the outputs of the newly added rules.";
+        } else {
+            "2- Generate a rule all that includes all the outputs of the new rules.\n";
+        }
+        prompt += "Output the results in JSON format. Remember JSON does not support triple quotes for multi-line strings. Follow this schema:\n"+
+        "{'rules': string, 'rule_all': string}\n"+
+        "'rules' is the new rules to add to the Snakefile. Can be an empty string if no rule needs to be added. rule_all is the rule all for the Snakefile."
+        return prompt;
+    }
+
     static snakemakeBestPracticesPrompt(): string{
         const useWildcards: boolean = ExtensionSettings.instance.getSnakemakeBestPracticesPreferGenericFilenames();
         const logDirective: boolean = ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules();
@@ -477,6 +495,62 @@ Please write the documentation as a string in a JSON in this format: {documentat
                 }
                 return r;
             } catch (e){
+                prompt = "I asked you this:\n" + prompt_original + "\nBut you gave me this:\n" + response
+                + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
+            }
+        }
+        return currentSnakefileContext;
+    }
+
+    async processRulesFromChat(rules: string){
+        const ruleFormat = ExtensionSettings.instance.getRulesOutputFormat();
+        let extraPrompt = "";
+        if (ruleFormat!=="Snakemake" || !ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt()){
+            return new SnakefileContext(
+                null, rules,
+                null, [], [], [], [], "", "", "", "",[]
+              );
+        }
+        let context = "";
+        let ruleAll = null;
+        let currentSnakefileContext: SnakefileContext = new SnakefileContext(
+            null, rules,
+            null, [], [], [], [], "", "", "", "",[]
+          );
+
+        const c = await OpenedSnakefileContent.getCurrentEditorContent();
+        if (!c || !c["content"] || c["content"].length === 0){
+            return currentSnakefileContext
+        }
+        currentSnakefileContext = c;
+        ruleAll = this.extractAllRule(currentSnakefileContext["content"]||"");
+        
+        const prompt_original = ModelPrompts.processRulesFromChatBasicPrompt(
+            rules, currentSnakefileContext["content"]||"", ruleAll||""
+        );
+        
+        let prompt = prompt_original;
+        for (let i = 0; i < 5; i++){
+            const response = await this.modelComms.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
+            try{
+                let r = this.parseJsonFromResponseGeneric(response);
+                currentSnakefileContext['remove'] = ruleAll;
+                currentSnakefileContext['rule_all'] = r['rule_all'];
+                currentSnakefileContext['rule'] = r['rules'];
+                if (ExtensionSettings.instance.getGenerateConfig()){
+                    const prompt = ModelPrompts.rulesMakeConfig(currentSnakefileContext);
+                    const response = await this.modelComms.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
+                    const parsed = this.parseJsonFromResponseGeneric(response);
+                    if (parsed["rules"]){
+                        currentSnakefileContext["rule"] = parsed["rules"];
+                    }
+                    if (parsed["add_to_config"]){
+                        currentSnakefileContext["add_to_config"] = parsed["add_to_config"];
+                    }
+                }
+                return currentSnakefileContext;
+            } catch (e){
+                console.log(e);
                 prompt = "I asked you this:\n" + prompt_original + "\nBut you gave me this:\n" + response
                 + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
             }

@@ -57,7 +57,14 @@ export class WriteToFiles{
         });
     }
 
-    
+    async writeStringToCurrentFile(value: string): Promise<boolean>{
+        return this.writeToCurrentFile(
+            new SnakefileContext(
+                null, null,
+                null, [], [], [], [], value, "", "", "",[]
+              )
+        )
+    }
 
     async writeToCurrentFile(value: SnakefileContext): Promise<boolean>{
         let rules = value['rule']||"";
@@ -74,7 +81,7 @@ export class WriteToFiles{
         if (!editor){
             const result = await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { "languageId": "Snakemake"}).then(() => {
                 editor = vscode.window.activeTextEditor;
-                return this.writeToEditor(rules, rule_all, editor, null, config_include);
+                return this.writeToEditor(rules, rule_all, editor, null, "#Snakefile\n"+config_include);
             });
         } else {
             const result = this.writeToEditor(rules, rule_all, editor, remove, config_include);

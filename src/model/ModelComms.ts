@@ -12,7 +12,7 @@ export class ModelNotReadyError extends Error {
 
 export enum PromptTemperature{
     GREEDY_DECODING = 0,
-    DAG_GEN = 0.1, //DAG is kept with its own enum because it's sensible and needs experimenting on its own
+    DAG_GEN = 0.1, //DAG is kept with its own enum because it's sensible and needs experimenting on its own.
     RULE_OUTPUT = 0.2, //Low t. for code, rules generation
     CREATIVE = 0.5, //Creative t. used for hello messages, documentation...
     MEDIUM_DETERMINISTIC = 0.3 //Medium t. for things like guessing rules names...

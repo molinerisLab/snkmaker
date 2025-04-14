@@ -130,12 +130,18 @@
                 document.getElementById('switch_to_bash').style.display = 'block';
                 document.getElementById('switch_to_notebook').style.display = 'none';
                 break;
+            case 'stop_loading':
+                document.getElementById("loadingscreen").style.setProperty('display', 'none');
+                break;
+            case 'start_loading':
+                document.getElementById("loadingscreen").style.setProperty('display', 'flex');
+                break;
             
         }
     });
 
     document.getElementById('chat-mode-indicator-notebook').style.setProperty('display', 'none');
-
+    document.getElementById("loadingscreen").style.setProperty('display', 'none');
     main();
 
     document.addEventListener('click', event => {

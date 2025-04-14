@@ -170,7 +170,8 @@ HERE IS THE HISTORY:`;
             'open-loging-details',
             'add-history-manually',
             'generate-documentation',
-            'switch_assistant_mode' //This is a pseudo-command, only recognized by ChatPanelView
+            'switch_assistant_mode', //This is a pseudo-command, only recognized by ChatPanelView
+            "add_snakefile_raw", "add_snakefile" //Other pseudo-commands
         ];
     }
 

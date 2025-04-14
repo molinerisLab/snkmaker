@@ -37,10 +37,10 @@ export class OpenedSnakefileContent{
         for (let line of lines) {
             const trimmed_line = line.replaceAll(' ', "");
             if (trimmed_line.includes("include:")) {
-                let include = line.split(":")[1].replaceAll('"', "").trim();
+                let include = line.split(":")[1].replaceAll('"', "").replaceAll("'", "").trim();
                 includePaths[include] = "";
             } else if (trimmed_line.includes("configfile:")) {
-                const configfile = line.split(":")[1].replaceAll('"', "").trim();
+                const configfile = line.split(":")[1].replaceAll('"', "").replaceAll("'", "").trim();
                 configPaths[configfile] = "";
             }
         }

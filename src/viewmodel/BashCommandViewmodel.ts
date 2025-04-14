@@ -167,7 +167,7 @@ export class BashCommandViewModel{
     }
 
     private ruleOutputRoutine(output: Promise<SnakefileContext|null>, commands: BashCommandContainer[]){
-      output.then((rules) => {
+      const r = output.then((rules) => {
         if (rules !== null){
           this.writeToFiles.writeToCurrentFile(rules).then((success) => {
             if (success){
@@ -189,6 +189,17 @@ export class BashCommandViewModel{
         this.observableCommands.next(this.terminalHistory.getHistory());
       });
       this.observableCommands.next(this.terminalHistory.getHistory());
+      return r;
+    }
+
+    appendRulesRaw(rules: string){
+      this.writeToFiles.tryToFocusOnSnakefile();
+      this.writeToFiles.writeStringToCurrentFile(rules);
+    }
+
+    async appendRules(rules: string){
+      this.writeToFiles.tryToFocusOnSnakefile();
+      return this.ruleOutputRoutine(this.terminalHistory.processRulesFromChat(rules), []);
     }
 
     printRule(command: BashCommandContainer){

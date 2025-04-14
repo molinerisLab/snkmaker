@@ -284,6 +284,12 @@ export class TerminalHistory {
         }
     }
 
+    async processRulesFromChat(rules: string){
+        const rule = await this.queries.processRulesFromChat(rules);
+        await this.validateAndCorrectRules(rule);
+        return rule;
+    }
+
     async getAllRules(): Promise<any | null>{
         const important = this.history.filter(command=>command.getImportant()===true && command.getTemporary()===false);
         if (important.length === 0){

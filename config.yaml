@@ -1,0 +1,5 @@
+#config.yaml
+bam_file: '../../../star/RNA_RPE_HET_PRPF31.ribo.ex.bam'
+mats_jc_file: 'rMATS/MATS.JC.txt'
+significance_threshold: 50
+mats_file: 'rMATS/MATS_4/ALL_splicing_events.MATS.JC.txt'
