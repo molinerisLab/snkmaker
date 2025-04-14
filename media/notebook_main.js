@@ -454,7 +454,7 @@
                         //Can add to writes if not already in it
                         actionButtonWrites.style.display = textIsInCellWrites ? 'none' : 'flex';
                         actionButtonDepends.style.display = (textIsInCellReads && !textIsInCellWildcards) ? 'none' : 'flex';
-                        actionButtonWildcards.style.display = (textIsInCellWildcards) ? 'none' : 'flex';
+                        actionButtonWildcards.style.display = (textIsInCellWildcards||cells.cells[i].rule.type=='script') ? 'none' : 'flex';
                     }
                 } else {
                     actionButton.style.display = 'none';

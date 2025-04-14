@@ -153,6 +153,7 @@ export class NotebookPresenter{
         try{
             const nodes = this.model.changeRuleState(cell_index, state);
             this.model.saveState();
+            this.view.setNotebookCells(this.model.cells);
             this.view.setRulesNodes(nodes);
         } catch(error: any){
             if (error instanceof IllegalTypeChangeError) {

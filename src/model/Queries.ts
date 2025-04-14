@@ -65,11 +65,11 @@ class ModelPrompts{
             prompt += "Please use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n" +
             `If one of the rules contains some type of loop - like a for loop - acting on multiple files, generate`+
             ` one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' to generate all output files. `+
-            `The name of the second rule should should NOT be 'all', it should be a meaningful name connected to the original rule.`;
+            `The name of the second rule should should NOT be 'all', it should be a meaningful name connected to the original rule.\n`;
             if (ruleAll){
                 prompt += "\nThe Snakefile already contains a rule all: " + ruleAll + ".\n" +
                 "Please add the new rules to the rule all.\n" +
-                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!). The JSON contains a field 'rule' which is a string, that contains the entire "+
+                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
                 "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote: the rule all must be written entirely, so take the one existing and add inputs to it.\n"+
@@ -77,7 +77,7 @@ class ModelPrompts{
                 }
             } else {
                 prompt += "Please also write a 'rule all' to produce all files.\n" +
-                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!). The JSON contains a field 'rule' which is a string, that contains the entire "+
+                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
                 "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
@@ -88,7 +88,7 @@ class ModelPrompts{
                 prompt += `\n-You also MUST set the 'conda' directive in the output rule to ${env_name}:\nconda:\n\t'${env_name}'\n. This is used by Snakemake to re-build the environment.`
             }
         } else {
-            prompt += "\nPlease return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!). The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
+            prompt += "\nPlease return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
         }
 
     return prompt;
@@ -104,10 +104,10 @@ class ModelPrompts{
         let prompt = `I have a Snakfile formed like that:\n`+
         `Snakefile:\n${rules.get_snakefile()}\n`;
         if (rules.snakefile_content){
-            prompt += `Snakefile content, first part (fixed):\n${rules.snakefile_content.replaceAll(
+            prompt += `Snakefile content, first part (it is fixed, cannot be modified):\n${rules.snakefile_content.replaceAll(
                 rules.rule_all || "", ""
             )})}\n` +
-            `Rules, second part (can modify):\n${rules.rule_all}\n${rules.rule}\n`;
+            `Rules, second part (can be modified):\n${rules.rule_all}\n${rules.rule}\n`;
         } else {
             prompt += `Rules:\n${rules.rule}\n`;
         }
@@ -124,6 +124,7 @@ class ModelPrompts{
         `I would like to correct the rules so that they run correctly.\n`;
         if (rules.snakefile_content && rules.snakefile_content.length > 0){
             prompt += `Note: you can not modify all snakefile; the first part is fixed. `+
+            "If the error originates from the fixed part, then it can't be resolved by you. "+
             `You can modify the second part of it`;
             if (rules.rule_all){
                 prompt += `, and you can also modify the rule 'all'\n`;
@@ -217,7 +218,7 @@ class ModelPrompts{
             if (ruleAll){
                 prompt += "\n-The Snakefile already contains a rule all:\n " + ruleAll + "\n" +
                 "Please add the new rules to the rule all.\n" +
-                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!). The JSON contains a field 'rule' which is a string, that contains the entire "+
+                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
                 "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote: the rule 'all' must be written entirely, so take the one existing and add inputs to it.\n"+
@@ -225,7 +226,7 @@ class ModelPrompts{
                 }
             } else {
                 prompt += "Please also write a 'rule all' to produce all files.\n" +
-                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!). The JSON contains a field 'rule' which is a string, that contains the entire "+
+                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
                 "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
@@ -239,7 +240,7 @@ class ModelPrompts{
                 "rule SOMETHING:\n\t#Input and outputs and whathever...\n\tconda:\n\t\t'env_file.yaml'\n\t#Shell directive...\n.";
             }
         } else {
-            prompt += "\nPlease return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!). The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
+            prompt += "\nPlease return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
         }
         return prompt;
     }
@@ -635,15 +636,15 @@ Please write the documentation as a string in a JSON in this format: {documentat
         return response;
     }
 
-    async autoCorrectRulesFromError(rules: SnakefileContext, error: string){
+    async autoCorrectRulesFromError(rules: SnakefileContext, error: string): Promise<{ rules: SnakefileContext; can_correct: boolean; }>{
         const original_prompt = ModelPrompts.correctRulesFromErrorPrompt(rules, error);
         let prompt = original_prompt;
-        for (let i = 0; i < 5; i++){
+        for (let i = 0; i < 2; i++){
             const response = await this.modelComms.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
             try{
                 let r = this.parseJsonFromResponseGeneric(response);
                 if (r["can_correct"] === false){
-                    return rules;
+                    return {rules: rules, can_correct: false};
                 }
                 if (r["rules"]){
                     rules["rule"] = r["rules"];
@@ -654,13 +655,13 @@ Please write the documentation as a string in a JSON in this format: {documentat
                 if (r["additional_config"]){
                     rules["add_to_config"] = r["additional_config"];
                 }
-                return rules;
+                return {rules: rules, can_correct: true};
             } catch (e){
                 prompt = "I asked you this:\n" + original_prompt + "\nBut you gave me this:\n" + response
                 + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
             }
         }
-        return rules;
+        return {rules: rules, can_correct: false};
     }
 
 }

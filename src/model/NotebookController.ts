@@ -627,12 +627,18 @@ export class NotebookController{
             if (oldType !== cell.state){
                 diff_str += `#### State:\n\t* ${oldType} -> ${cell.state}\n`;
             }
-            if (diff_str.length>0){
-                diff.push(`\n### Cell ${index}:\n`+diff_str);
-            }
             target.reads = cell.dependencies;
             target.writes = cell.writes;
             target.wildcards = cell.wildcards;
+            if (target.rule.type === 'script'){
+                target.wildcards.forEach((wildcard) => {
+                    this.addCellDependency(index, wildcard);
+                    diff_str += `#### Wildcard to dependency:\n\t* ${wildcard}\n`;
+                });
+            }
+            if (diff_str.length>0){
+                diff.push(`\n### Cell ${index}:\n`+diff_str);
+            }
         }
         this.cells.buildDependencyGraph();
         return "\n\n## Performed changes:\n\n" + diff.join("") + "\n*Changes can be undo with Ctrl+Z*";
@@ -1229,6 +1235,11 @@ export class NotebookController{
 
     changeRuleState(index: number, newState: string): CellDependencyGraph{
         this.cells.setRuleDetails(index, undefined, newState as "rule" | "script" | "undecided");
+        if (newState === 'script'){
+            this.cells.cells[index].wildcards.forEach((wildcard) => {
+                this.addCellDependency(index, wildcard);
+            });
+        }
         return this.cells;
     }
 

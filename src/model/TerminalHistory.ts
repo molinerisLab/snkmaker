@@ -245,13 +245,18 @@ export class TerminalHistory {
             return rules;
         }
 
-        for (let i = 0; i < 3; i++){
+        for (let i = 0; i < 4; i++){
             const valid: { success: boolean; message?: string;} = await this.testRules.validateRules(rules);
             if (valid.success){
                 return rules;
             }
             SnkmakerLogger.instance()?.log(`Generated rule not valid: ${valid.message}`);
-            rules = await this.queries.autoCorrectRulesFromError(rules, valid.message||"");
+            const response = await this.queries.autoCorrectRulesFromError(rules, valid.message||"");
+            if (response.can_correct){
+                rules = response.rules;
+            } else {
+                break;
+            }
             SnkmakerLogger.instance()?.log(`Corrected rule: ${rules}`);
         }
         return rules;
