@@ -761,12 +761,84 @@ export class NotebookController{
         this.cells.makeFunctionsIndependent();
         //Build dependency indexes:
         this.cells.buildDependencyGraph();
+        if (this.cells.cells.filter((cell) => cell.missingDependencies.length>0).length > 0){
+            await this.tryFixIssues();
+        }
         return this.cells;
     }
 
     async makeRulesGraph(): Promise<CellDependencyGraph>{
         await this.rulesGuessNameAndState();
         return this.cells;
+    }
+
+    private async tryFixIssues(){
+        const tabuList: Set<string> = new Set();
+        for (let i=0; i<this.cells.cells.length; i++){
+            const cell = this.cells.cells[i];
+            if (cell.missingDependencies.length === 0){
+                continue;
+            }
+            //Fix hallucinated dependencies
+            const prompt = "I have the following piece of python code:\n" + cell.code +
+            "\nThis code belongs to a larger file. A first analysis performed by an LLM has determined the variables that this piece of code reads from "+
+            "the external context - meaning the code can read these variables before it writes them, so they must be written "+
+            "by some other piece of code before it.\n"+
+            "Between these variables there are some that you need to check again, to ensure it's correct to "+
+            "consider them external dependencies. The variables are:\n" +
+            cell.missingDependencies.join(", ") +
+            "\nRemember, a variable is an external dependencies if all these conditions are met:\n"+
+            "1-The code accesses the content of the variable.\n"+
+            "2-The code does not define or modify the variable before accessing it.\n"+
+            "In other words, the code raises an exception because it tries to read an undefined variable.\n"+
+            "For each of these variable, determine if they are an external dependency or not.\n"+
+            "Return a JSON object with the following schema:\n"+
+            "{ \"variables\": [ {\"name\": <string>, \"is_external\": <boolean>} ] }"+
+            "If a variable is not external, you need to include it in the response anyway and set is_external to false.\n";
+            const response = await this.llm.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
+            try{
+                const parsed = this.parseJsonFromResponse(response);
+                if (parsed.variables && Array.isArray(parsed.variables)){
+                    const remove = parsed.variables.filter((varObj: any) => varObj.is_external === false).map((varObj: any) => varObj.name);
+                    cell.missingDependencies = cell.missingDependencies.filter((dep) => !remove.includes(dep));
+                }
+            } catch (e:any){
+                console.log("Error parsing response: ", e.message);
+            }
+            if (cell.missingDependencies.length === 0){
+                continue;
+            }
+            //Fix missing dependencies
+            const dep = cell.missingDependencies.filter((dep) => !tabuList.has(dep));
+            const prompt2 = "I have the following list of pieces of python code:\n\n" +
+            this.cells.cells.map((cell, index) => {
+                return "Piece n. " + index + "\nCode:\n" + cell.code;
+            }).join("\n\n") +
+            "\n\nAnd I have the following set of variables that I am interested in checking:\n" +
+            dep.join(", ") +
+            "\n\nFor each of these variables, I need you to tell me if they are defined or written or modified in some "+
+            "of the pieces of code I gave you. I am interested only in pieces that writes or define the variable, not in those that read it."+
+            "\n\nPlease return a JSON object with the following schema:\n"+
+            "{variables: [ {\"name\": <string>, \"pieces\": [<number>, <number>, ...] } ] }"+
+            "\nWhere pieces is the list of pieces of code that define or write the variable. If a variable is not defined or written in any piece of code, it's an empty list.";
+            const response2 = await this.llm.runQuery(prompt2, PromptTemperature.RULE_OUTPUT);
+            try{
+                const parsed2 = this.parseJsonFromResponse(response2);
+                if (parsed2.variables && Array.isArray(parsed2.variables)){
+                    const toRemove = parsed2.variables.filter((varObj: any) => varObj.pieces.length === 0).map((varObj: any) => varObj.name);
+                    cell.missingDependencies = cell.missingDependencies.filter((dep) => !toRemove.includes(dep));
+                    if (toRemove.length > 0){
+                        //Update DAG -newly added writes could resolve other dependencies issues too.
+                        this.cells.buildDependencyGraph();
+                    }
+                }
+                cell.missingDependencies.forEach((dep) => {
+                    tabuList.add(dep);
+                });
+            } catch (e:any){
+                console.log("Error parsing response: ", e.message);
+            }
+        }
     }
 
     private async rulesGuessNameAndState(changeFrom: number = 0){

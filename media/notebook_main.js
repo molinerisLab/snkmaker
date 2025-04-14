@@ -268,9 +268,10 @@
         //Set up header
         document.getElementById('main_header').innerHTML = `
             <h1>Export Notebook into Snakemake - Step 1</h1>
-            <h2>Note: this is an experimental feature, still unstable.</h2>
+            <h2>Resolving notebook context.</h2>
             <div id="header_instructions">
-            <p>The following page presents the formatted notebook cells with their data dependencies. Before proceeding, review the cell and their dependencies.</p>
+            <p>In this step the notebook context is being resolved into a Directed Acyclic Graph.</p>
+            <p>The end product is a collection of scripts and rules, with defined data dependencies.</p>
             <br>
             <p>Manage cells:</p>
             <p class="with_space">Cells can be removed, split or merged. Use the buttons on the top-right of each cell to perform actions on them.</p>
