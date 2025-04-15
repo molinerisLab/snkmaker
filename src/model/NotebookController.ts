@@ -716,7 +716,9 @@ export class NotebookController{
         validate_function: ((response: any) => string|null)|undefined=undefined): Promise<any> {
         let prompt = original_prompt;
         let response = "";
-        for (let i=0; i<5; i++){
+        let suggestion = " Remember your response is parsed by a script, "+
+        "so it must be in the correct format. You can add reasonings, but the symbols { and } must be used only in the response JSON. Do not write an example JSON.";
+        for (let i=0; i<4; i++){
             try{
                 response = await this.llm.runQuery(prompt, t);
                 const parsed = this.parseJsonFromResponse(response);
@@ -734,11 +736,20 @@ export class NotebookController{
                 }
                 console.log(prompt);
                 console.log(response);
+                if (i==2){
+                    //Prompt the model itself for a solution
+                    const p = prompt = "I asked you this:\n\n" + original_prompt + 
+                    "\n\nAnd your response was: \n" + response +
+                    "\n\nBut when trying to parse your response in json I got this error: \n" + e.message +
+                    "\n\nGive me a review of what went wrong in your response, and a "+
+                    "suggestion on how to fix it. Only the review and suggestion, not the fixed response.";
+                    suggestion = await this.llm.runQuery(p, PromptTemperature.MEDIUM_DETERMINISTIC);
+                    suggestion = "\nAnalysis on what went wrong:\n" + suggestion;
+                }
                 prompt = "I asked you this:\n\n" + original_prompt + 
                 "\n\nAnd your response was: \n" + response +
                 "\n\nBut when trying to parse your response in json I got this error: \n" + e.message +
-                "\n\nPlease try again. Remember your response is parsed by a script, "+
-                "so it must be in the correct format. Do not write an example json before the real one or the parser will fail.";
+                "\n\nPlease try again."+suggestion;
             }
         }
     }
@@ -1302,8 +1313,12 @@ export class NotebookController{
                 ((this.cells.config.length>0) ? `This is the config file of the Snakemake pipeline:\n${this.cells.config}\n\n` : '') +
                 "When saving files, you can decide the name, format and number of files. Consider the number of scripts that will read them to make a good decision.\n" +
                 "\nPlease write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema:\n"+
-                "{ 'prefix_code': string 'code to read arguments, files', 'suffix_code': string 'code to save each file', 'rule': string (snakemake rule) }\n"+
-                "Please do not repeat the code already existing, only valorize the fields. If a field is empty, write an empty array or empty string, don't skip the field.\n"
+                "{ 'prefix_code': string, 'suffix_code': string, 'rule': string}\n"+
+                "prefix_code is the code to read arguments, files and initialize the state.\n"+
+                "suffix_code is the code to save the variables into output files, and rule is the Snakemake rule.\n"+
+                "Note, prefix code is appended before the script and suffix code after it. This happens automatically, "+
+                "you only need to write the requestes pieces of code, not to repeat the entire script.\n"+
+                "If a field does not need to contain anything, write an empty array or empty string, don't skip the field.\n"
                 const formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT);
                 node.prefixCode = getImportStatementsFromScripts(cell, this.cells.cells) + "\n" + formatted.prefix_code.trim().replace("#Begin prefix code...\n", "").replace("#End prefix code...", "");
                 node.postfixCode = formatted.suffix_code.trim().replace("#Start Suffix code...\n", "").replace("#End Suffix code...", "");

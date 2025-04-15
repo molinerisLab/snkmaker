@@ -113,9 +113,9 @@ export class AddModelView{
 								<li>70b parameters</li>
 								<li>Max tokens: 4k+</li>
 							</ul>
-							<p>Note: Chain-of-Thought (CoT) models are generally <strong>not</strong> recommended - while they do provide excellent performances,
+							<p>Note: 'reasoning' models that produce inner monologues are generally <strong>not</strong> recommended. While they do provide excellent performances,
 							their additional cost and slower response times are not worth the trade-off in the context of 
-							Snakemaker. The only exception where CoT models can be worth it is the second step of the 
+							Snakemaker. The only exception where reasoning models can be worth it is the second step of the 
 							notebook export process.</p>
 							<br>
 							<h3>API details</h3>
