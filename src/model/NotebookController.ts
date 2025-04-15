@@ -172,7 +172,7 @@ export class CellDependencyGraph{
                 return true;
             });
             for (let toRemove of importSet){
-                const regex = new RegExp(`\\s*\\b${toRemove}\\b\\s*[;\\n]?`, 'g');
+                const regex = new RegExp(`[ \\t]*\\b${toRemove}\\b\\s*[;\\n]?`, 'g')
                 cell.code = cell.code.replace(regex, '');
             }
         }
@@ -794,13 +794,19 @@ export class NotebookController{
             "For each of these variable, determine if they are an external dependency or not.\n"+
             "Return a JSON object with the following schema:\n"+
             "{ \"variables\": [ {\"name\": <string>, \"is_external\": <boolean>} ] }"+
-            "If a variable is not external, you need to include it in the response anyway and set is_external to false.\n";
+            "If a variable is not external, you need to include it in the response anyway and set is_external to false.\n"+
+            "You can add reasonings to your response, but the only { and } in your response must belong to the JSON,"+
+            " or the parser will break. So use the curly braces only to delimit the JSON object.";
             const response = await this.llm.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
             try{
                 const parsed = this.parseJsonFromResponse(response);
                 if (parsed.variables && Array.isArray(parsed.variables)){
-                    const remove = parsed.variables.filter((varObj: any) => varObj.is_external === false).map((varObj: any) => varObj.name);
-                    cell.missingDependencies = cell.missingDependencies.filter((dep) => !remove.includes(dep));
+                    parsed.variables.forEach((varObj:any) => {
+                            if (varObj.is_external === false){
+                                this.removeCellDependency(i, varObj.name);
+                            }
+                        }
+                    );
                 }
             } catch (e:any){
                 console.log("Error parsing response: ", e.message);
@@ -820,17 +826,20 @@ export class NotebookController{
             "of the pieces of code I gave you. I am interested only in pieces that writes or define the variable, not in those that read it."+
             "\n\nPlease return a JSON object with the following schema:\n"+
             "{variables: [ {\"name\": <string>, \"pieces\": [<number>, <number>, ...] } ] }"+
-            "\nWhere pieces is the list of pieces of code that define or write the variable. If a variable is not defined or written in any piece of code, it's an empty list.";
+            "\nWhere pieces is the list of pieces of code that define or write the variable. If a variable is not defined or written in any piece of code, it's an empty list.\n"+
+            "You can add reasonings to your response, but the only { and } in your response must belong to the JSON,"+
+            " or the parser will break. So use the curly braces only to delimit the JSON object.";
             const response2 = await this.llm.runQuery(prompt2, PromptTemperature.RULE_OUTPUT);
             try{
                 const parsed2 = this.parseJsonFromResponse(response2);
                 if (parsed2.variables && Array.isArray(parsed2.variables)){
-                    const toRemove = parsed2.variables.filter((varObj: any) => varObj.pieces.length === 0).map((varObj: any) => varObj.name);
-                    cell.missingDependencies = cell.missingDependencies.filter((dep) => !toRemove.includes(dep));
-                    if (toRemove.length > 0){
-                        //Update DAG -newly added writes could resolve other dependencies issues too.
-                        this.cells.buildDependencyGraph();
-                    }
+                    parsed2.variables.forEach(
+                        (varObj:any) => {
+                            varObj.pieces.forEach((pieceIndex: number) => {
+                                this.addCellWrite(pieceIndex, varObj.name);
+                            });
+                        }
+                    )
                 }
                 cell.missingDependencies.forEach((dep) => {
                     tabuList.add(dep);
