@@ -1507,11 +1507,12 @@ export class NotebookController{
                 break;
             }
             const prompt = `I have this snakefile:\n\n${snakefile}\n\n`+
-            (config.length > 0 ? `And this config file:\n\n${config}\n\n` : "") +
-            `The rules are not valid. The error is:\n\n${result.message}\n\n`+
-            `Please fix this error.\n`+
+            (config.length > 0 ? `And this config file (config.yaml):\n\n${config}\n\n` : "") +
+            `The Snakefile is not valid. The error is:\n\n${result.message}\n\n`+
+            `Please try to fix this error.\n`+
             `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings) following this schema:\n`+
-            (config.length > 0 ? `{ 'rules': string, 'config': string } (corresponding to the new snakefile rules and the new config)` : "{ 'rules': string}");
+            (config.length > 0 ? `{ 'rules': string, 'config': string }\(rules is the new snakefile, config the new config.yaml)` : "{ 'rules': string }\n(rules is the new snakefile)")+
+            "\nRemember: if the config.yaml is not empty, it must be included with configfile: 'config.yaml' in the snakefile. If it's empty, it must not.";
             const validate_function = (response: any) => {
                 if (!response.rules || typeof response.rules !== 'string') {
                     return "Invalid response format: 'rules' must be a string";
@@ -1522,6 +1523,15 @@ export class NotebookController{
             snakefile = formatted.rules.trim();
             if (formatted.config){
                 config = formatted.config.trim();
+            }
+            //Optimization: sometimes smaller model mess up with the configfile directive.
+            //If it can be fixed manually it saves iterations
+            const has_config_file = snakefile.includes("configfile:");
+            const has_config = config.length > 0;
+            if (has_config_file && !has_config){
+                snakefile = snakefile.replace(/configfile:\s*(["']{1,3})?config.yaml\1?\s*\n/g, "");
+            } else if (!has_config_file && has_config){
+                snakefile = "configfile: \"config.yaml\"\n\n" + snakefile;
             }
         }
         return {rules: snakefile, config: config};
