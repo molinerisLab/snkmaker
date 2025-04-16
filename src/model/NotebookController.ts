@@ -1433,7 +1433,9 @@ export class NotebookController{
         if (!success){
             return {rules: snakefile, config: config};
         }
-        for (let i=0; i<3; i++){
+        const n_tries = ExtensionSettings.instance.getIterativeValidationAndFix();
+        const stepback_at = ExtensionSettings.instance.getIterativeValidationAndFixActivateStepBack();
+        for (let i=0; i<n_tries; i++){
             const c = new SnakefileContext(
                 null, snakefile, "", [], [], [], [], "", "", config, null, []
             );
@@ -1441,13 +1443,32 @@ export class NotebookController{
             if (result.success){
                 break;
             }
-            const prompt = `I have this snakefile:\n\n${snakefile}\n\n`+
-            (config.length > 0 ? `And this config file (config.yaml):\n\n${config}\n\n` : "") +
-            `The Snakefile is not valid. The error is:\n\n${result.message}\n\n`+
-            `Please try to fix this error.\n`+
-            `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings) following this schema:\n`+
-            (config.length > 0 ? `{ 'rules': string, 'config': string }\(rules is the new snakefile, config the new config.yaml)` : "{ 'rules': string }\n(rules is the new snakefile)")+
-            "\nRemember: if the config.yaml is not empty, it must be included with configfile: 'config.yaml' in the snakefile. If it's empty, it must not.";
+            console.log("Snakefile " + i);
+            let prompt;
+            if (i < stepback_at){
+                prompt = `I have this snakefile:\n\`\`\`snakefile\n${snakefile}\`\`\`\n`+
+                (config.length > 0 ? `And this config file (config.yaml):\n\`\`\`config.yaml\n${config}\`\`\`\n` : "") +
+                `When parsing I get the following error:\n\`\`\`error\n${result.message}\`\`\`\n`+
+                `Try to modify the snakefile to fix the error.\n`+
+                `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings and special characters must be escaped) following this schema:\n`+
+                (config.length > 0 ? `{ 'rules': string, 'config': string }\(rules is the new snakefile, config the new config.yaml)` : "{ 'rules': string }\n(rules is the new snakefile)")+
+                "\nRemember: if the config.yaml is not empty, it must be included with configfile: 'config.yaml' in the snakefile. If it's empty, it must not.";
+            } else {
+                const suggestion_prompt = `I have this snakefile:\n\`\`\`snakefile\n${snakefile}\`\`\`\n`+
+                (config.length > 0 ? `And this config file (config.yaml):\n\`\`\`config.yaml\n${config}\`\`\`\n` : "") +
+                `When parsing I get the following error:\n\`\`\`error\n${result.message}\`\`\`\n`+
+                "Analyze the Snakefile and this error, and give me a review of what is wrong in the code, "+
+                "and some suggestions on how to fix it. Write only the review and the suggestions, not the fixed snakefile.";
+                const suggestion = await this.llm.runQuery(suggestion_prompt, PromptTemperature.MEDIUM_DETERMINISTIC);
+                prompt = `I have this snakefile:\n\`\`\`snakefile\n${snakefile}\`\`\`\n`+
+                (config.length > 0 ? `And this config file (config.yaml):\n\`\`\`config.yaml\n${config}\`\`\`\n` : "") +
+                `When parsing I get the following error:\n\`\`\`error\n${result.message}\`\`\`\n`+
+                `A review of the error and suggestions on how to fix it:\n\`\`\`review\n${suggestion}\`\`\`\n`+
+                `Try to modify the snakefile to fix the error.\n`+
+                `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings and special characters must be escaped) following this schema:\n`+
+                (config.length > 0 ? `{ 'rules': string, 'config': string }\(rules is the new snakefile, config the new config.yaml)` : "{ 'rules': string }\n(rules is the new snakefile)")+
+                "\nRemember: if the config.yaml is not empty, it must be included with configfile: 'config.yaml' in the snakefile. If it's empty, it must not.";
+            }
             const validate_function = (response: any) => {
                 if (!response.rules || typeof response.rules !== 'string') {
                     return "Invalid response format: 'rules' must be a string";
@@ -1478,27 +1499,48 @@ export class NotebookController{
         if (!success){
             return scripts;
         }
-        for (let i=0; i<scripts.length; i++){
-            for (let j=0; j<3; j++){
-                const script = scripts[i];
-                const result = await validator.testPythonScript(script.script);
-                if (result.success){
-                    break;
-                }
-                const prompt = `I have this python script:\n\n${script.script}\n\n`+
-                `The script is not valid. The error is:\n\n${result.message}\n\n`+
-                `Please fix this error.\n`+
-                `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings) following this schema:\n`+
-                `{ 'script': string } (corresponding to the new python script)`;
-                const validate_function = (response: any) => {
-                    if (!response.script || typeof response.script !== 'string') {
-                        return "Invalid response format: 'script' must be a string";
-                    }
-                    return null;
-                }
-                let formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate_function);
-                scripts[i].script = formatted.script.trim();
+        const n_tries = ExtensionSettings.instance.getIterativeValidationAndFix();
+        const stepback_at = ExtensionSettings.instance.getIterativeValidationAndFixActivateStepBack();
+        for (let i=0; i<n_tries; i++){
+            const script = scripts[i];
+            const result = await validator.testPythonScript(script.script);
+            if (result.success){
+                break;
             }
+            console.log("Script " + i);
+            let prompt;
+            if (i < stepback_at){
+                prompt = `I have this python script:\n\`\`\`python\n${script.script}\n\`\`\`\n`+
+                `The script contains errors, when trying to parse it the error is:\n\`\`\`error\n${result.message}\n\`\`\`\n`+
+                `Modify the script to fix the error.\n`+
+                `Write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings and special characters must be escaped) following this schema:\n`+
+                `{ 'script': string } (corresponding to the new python script)`;
+            } else {
+                const suggestion_prompt = `I have this python script:\n\`\`\`python\n${script.script}\n\`\`\`\n`+
+                `The script contains errors, when trying to parse it the error is:\n\`\`\`error\n${result.message}\n\`\`\`\n`+
+                "Analyze the script and this error, and give me a review of what is wrong in the code, "+
+                "and some suggestions on how to fix it. The review and suggestions must be concise. The end goal of these suggestions "+
+                "is to fix bugs, not improve the overall quality or readability of code, so they must be "+
+                "limited to fixing errors.\n"+
+                "Write only the review and the suggestions, not the fixed script.";
+
+                const suggestion = await this.llm.runQuery(suggestion_prompt, PromptTemperature.MEDIUM_DETERMINISTIC);
+                prompt = `I have this python script:\n\`\`\`python\n${script.script}\n\`\`\`\n`+
+                `The script contains errors, when trying to parse it the error is:\n\`\`\`error\n${result.message}\n\`\`\`\n`+
+                `A review of the error and suggestions on how to fix it:\n\`\`\`review\n${suggestion}\n\`\`\`\n`+
+                `Modify the script to fix the error.\n`+
+                `Write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings and special characters must be escaped) following this schema:\n`+
+                `{ 'script': string } (corresponding to the new python script)`;
+            }
+            const validate_function = (response: any) => {
+                if (!response.script || typeof response.script !== 'string') {
+                    return "Invalid response format: 'script' must be a string";
+                }
+                return null;
+            }
+            let formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate_function);
+            scripts[i].script = formatted.script.trim();
+
         }
         return scripts;
     }

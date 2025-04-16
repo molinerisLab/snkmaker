@@ -102,57 +102,69 @@ class ModelPrompts{
         `Please output only the name. DO NOT, EVER output other things.`;
     }
 
-    static correctRulesFromErrorPrompt(rules: SnakefileContext, error: string): string{
-        let prompt = `I have a Snakfile formed like that:\n`+
-        `Snakefile:\n${rules.get_snakefile()}\n`;
-        if (rules.snakefile_content){
-            prompt += `Snakefile content, first part (it is fixed, cannot be modified):\n${rules.snakefile_content.replaceAll(
-                rules.rule_all || "", ""
-            )})}\n` +
-            `Rules, second part (can be modified):\n${rules.rule_all}\n${rules.rule}\n`;
+    static correctRuleFromErrorBasicPrompt(rules: SnakefileContext, error: string): string{
+        let prompt = "";
+        if (rules.snakefile_content && rules.snakefile_content.length>0){
+            prompt = `I have a Snakefile which can be divided in two sections. `+
+            `The first section is fixed and cannot be modified, while the second can still be changed.\n`+
+            `Snakefile first section (fixed):\n\`\`\`snakefile\n${rules.snakefile_content}\n\`\`\`\n`+
+            `Snakefile second section (can be modified):\n\`\`\`snakefile\n${rules.rule + "\n" + (rules.rule_all || "")}\n\`\`\`\n`;
         } else {
-            prompt += `Rules:\n${rules.rule}\n`;
+            prompt = `I have this Snakefile:\`\`\`snakefile\n${rules.get_snakefile()}\n\`\`\`\n`
         }
         if (rules.config_paths.length > 0){
-            prompt += `Base config:\n${rules.config_content.join("\n")}\n`;
+            prompt += `Base config (fixed, can't be modified):\`\`\`config.yaml\n${rules.config_content.join("\n")}\n\`\`\`\n`;
         }
         if (rules.include_paths.length > 0){
-            prompt += `Includes:\n${rules.include_content.join("\n")}\n`;
+            prompt += `Includes:\`\`\`rules (fixed, can't be modified)\n${rules.include_content.join("\n")}\n\`\`\`\n`;
         }
         if (rules.add_to_config){
-            prompt += `Additional config part:\n${rules.add_to_config}\n`;
+            prompt += `Additional config part (can be modified):\`\`\`extra config\n${rules.add_to_config}\n\`\`\`\n`;
         }
-        prompt += `\nI have the following error:\n\n${error}\n\n`+
-        `I would like to correct the rules so that they run correctly.\n`;
-        if (rules.snakefile_content && rules.snakefile_content.length > 0){
-            prompt += `Note: you can not modify all snakefile; the first part is fixed. `+
-            "If the error originates from the fixed part, then it can't be resolved by you. "+
-            `You can modify the second part of it`;
-            if (rules.rule_all){
-                prompt += `, and you can also modify the rule 'all'\n`;
-            }
+        prompt += `This snakefile has problems, and when parsing it I get the following error:\`\`\`error\n${error}\n\`\`\`\n`;
+        return prompt; 
+    }
+
+    static correctRulesFromErrorStepbackPrompt(rules: SnakefileContext, error: string): string{
+        let prompt = ModelPrompts.correctRuleFromErrorBasicPrompt(rules, error);
+        prompt += "Analyze the error, the current state of the Snakefile, and give me a review "+
+        "of what is the problem in it, and some suggestions on how to fix it. The review and suggestions must be concise."+
+        "\nThe suggestions provide high level suggestions on how to fix the error.\n"+
+        "The end goal is to fix the error, not to perform generic improvements in the snakefile or its readability. Focus on actual errors."+
+        "\nDo not write the solution, just the review and suggestions.\n";
+        return prompt; 
+    }
+
+    static correctRulesFromErrorPrompt(rules: SnakefileContext, error: string, suggestion:string|undefined): string{
+        let prompt = ModelPrompts.correctRuleFromErrorBasicPrompt(rules, error);
+        if (suggestion){
+            prompt += "This is a review of the problem and some suggestions on how to fix it:\`\`\`review\n" +
+            suggestion + "\n\`\`\`\n";
+        }
+        prompt += `Fix the rules to correct the problem.\n`;
+        if ((rules.snakefile_content && rules.snakefile_content.length > 0)||rules.config_paths.length > 0||rules.include_paths.length > 0){
+            prompt += `Remember, you can't modify the entire snakefile because some parts are fixed. `+
+            "If the error originates from a fixed part, then it simply cannot be resolved by you."+
+            " If you can not fix the error, you can set the field 'can_correct' to false.\n";
             if (rules.add_to_config){
-                prompt += `Regarding the config, you can only modify the 'Additional config part'\n`;
-                prompt += `You can add or remove lines from it, but you can not remove from the rest of the config.\n`;
+                prompt += `Regarding the config, you can modify the 'Additional config part'\n`;
+                prompt += `You can add or remove lines from it, but you can not remove lines from the rest of the config.\n`;
             } else {
-                prompt += `Regarding the config, you can add lines to it, but you can not remove them\n`;
+                prompt += `Regarding the config, it is fixed so you can't remove lines from it, but you can add new ones.\n`;
             }
         }
         prompt += `Please output the corrected rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema:`+
-        ` {can_correct: boolean, rules: string, rule_all: string, additional_config: string}\nPlease do not add explanations.`;
-        prompt += `If you are not able to correct this snakefile just set can_correct to false.`;
-        if (rules.rule_all){
-            prompt += `Please write the updated rule all in the rule_all field.\n`;
-        }
-        if (rules.snakefile_content && rules.snakefile_content.length > 0){
-            prompt += `Please write the updated rules corresponding to the second part of the snakefile in the rules field.\n`;
+        ` {can_correct: boolean, rules: string, rule_all: string, additional_config: string}\n`+
+        "-can_correct: boolean, true if you can correct the error, false if you can't.\n";
+        if (rules.snakefile_content && rules.snakefile_content.length>0){
+            prompt += "-rules: string, the corrected rules. It is an updated version of the second section of the rules.\n";
         } else {
-            prompt += `Please write the updated rules in the rules field.\n`;
+            prompt += "-rules: string, the corrected rules. It is an updated version of the rules.\n";
         }
         if (rules.add_to_config){
-            prompt += `Please write the updated 'Additional config' in the additional_config field. You can add new lines, or remove existing ones by simply not outputting them.\n`;
+            prompt += `-additional_config: string, the updated version of the Additional Config Part. It will replace this part of the config.\n`;
         } else {
-            prompt += "If you want to add new config lines, use the additional_config field.\n";
+            prompt += "-additional_config: string, new lines to append to the config. Can be an empty string.\n";
         }
         return prompt; 
     }
@@ -582,9 +594,14 @@ Please write the documentation as a string in a JSON in this format: {documentat
         return response;
     }
 
-    async autoCorrectRulesFromError(rules: SnakefileContext, error: string): Promise<{ rules: SnakefileContext; can_correct: boolean; }>{
-        const original_prompt = ModelPrompts.correctRulesFromErrorPrompt(rules, error);
-        let prompt = original_prompt;
+    async autoCorrectRulesFromError(rules: SnakefileContext, error: string, step_back:boolean):
+     Promise<{ rules: SnakefileContext; can_correct: boolean; }>{
+        let suggestion: string|undefined = undefined;
+        if (step_back){
+            const stepBackPrompt = ModelPrompts.correctRulesFromErrorStepbackPrompt(rules, error);
+            suggestion = await this.modelComms.runQuery(stepBackPrompt, PromptTemperature.MEDIUM_DETERMINISTIC);
+        }
+        const prompt = ModelPrompts.correctRulesFromErrorPrompt(rules, error, suggestion);
         let r = await this.modelComms.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT);
         if (r["can_correct"] === false){
             return {rules: rules, can_correct: false};

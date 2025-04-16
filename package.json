@@ -487,7 +487,7 @@
           "default": "",
           "markdownDescription": "Absolute path to the Snakemake executable. Used to test the generated rules' correctness. If empty, the extension will try to find it in the PATH."
         },
-        "snakemaker.validateSnakemakeRules": {
+        "snakemaker.ruleGeneration.validateSnakemakeRules": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "When generating Snakemake rules, validate them with the Snakemake executable and try to automatically correct errors."
@@ -499,13 +499,23 @@
         },
         "snakemaker.llm.numberParsingErrorTries": {
           "type": "number",
-          "default": 4,
+          "default": 3,
           "markdownDescription": "When an error parsing the LLM's response occurs, the extension will feed the error back to the model and ask for a fix. This value set a limit to the number of tries."
         },
         "snakemaker.llm.parsingErrorActivateStepBackAt": {
           "type": "number",
           "default": 2,
           "markdownDescription": "After a number of failures parsing the LLM's response, the step back strategy asks the LLM itself for a plan to fix the errors, and then fed the plan back to the LLM. This strategy is powerful but more expensive. A value >= numberParsingErrorTries will disable it."
+        },
+        "snakemaker.ruleGeneration.iterativeValidateAndFix.maxIterations": {
+          "type": "number",
+          "default": 4,
+          "markdownDescription": "When generating Snakemake rules or code, the extension will try to validate the generated code and fix it if needed. This value set a limit to the number of tries."
+        },
+        "snakemaker.ruleGeneration.iterativeValidateAndFix.activateStepBackAt": {
+          "type": "number",
+          "default": 3,
+          "markdownDescription": "When generating Snakemake rules or code, the extension will try to validate the generated code and fix it if needed; after a certain number of failures, the step back strategy asks the LLM itself for a plan to fix the errors, and then fed the plan back to the LLM. This strategy is powerful but more expensive. A value >= maxIterations will disable it."
         }
       }
     },

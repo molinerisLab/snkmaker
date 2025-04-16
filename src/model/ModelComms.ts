@@ -87,9 +87,9 @@ export class LLM{
                 let error_message = `Error type: ${e.name}, Message: ${e.message}`;
                 if (i>=stepBackLimit){
                     //Prompt the model itself for a solution
-                    const p = "I sent you this request:\n\`\`\`request\n" + original_prompt + "\n\`\`\`"+
-                    "Your response was:\n\`\`\`response\n" + response + "\n\`\`\`" +
-                    "When trying to parse your response in JSON format, I get this error:\n\`\`\`error\n" + error_message + "\n\`\`\`" +
+                    const p = "I sent you this request:\n\`\`\`request\n" + original_prompt + "\n\`\`\`\n"+
+                    "Your response was:\n\`\`\`response\n" + response + "\n\`\`\`\n" +
+                    "When trying to parse your response in JSON format, I get this error:\n\`\`\`error\n" + error_message + "\n\`\`\`\n" +
                     "Analyze your request, your previous response and this error, and give me a review of what went wrong, "+
                     "and suggestions on how to fix it. Write only the review and suggestions, not the fixed response.";
                     suggestion = await this.runQuery(p, PromptTemperature.MEDIUM_DETERMINISTIC);
@@ -97,7 +97,7 @@ export class LLM{
                 }
                 prompt = "I sent you this request:\n\`\`\`request\n" + original_prompt + "\n\`\`\`"+
                 "Your response was:\n\`\`\`response\n" + response + "\n\`\`\`" +
-                "When trying to parse your response in JSON format, I get this error:\n\`\`\`error\n" + error_message + "\n\`\`\`" +
+                "When trying to parse your response in JSON format, I get this error:\n\`\`\`error\n" + error_message + "\n\`\`\`\n" +
                 "Please try to fix your previous response. Here are some suggestions:\n"+suggestion;
             }
         }

@@ -22,6 +22,8 @@ export class ExtensionSettings{
     private generateConfig: boolean = false;
     private numberParsingErrorTries: number = 4;
     private numberParsingErrorActivateStepBack = 2;
+    private iterativeValidationAndFix = 4;
+    private iterativeValidationAndFixActivateStepBack = 3;
     
     public getAllowLogging(): boolean {
         return this.allowLogging;
@@ -62,6 +64,12 @@ export class ExtensionSettings{
     public getNumberParsingErrorActivateStepBack(): number {
         return this.numberParsingErrorActivateStepBack;
     }
+    public getIterativeValidationAndFix(): number {
+        return this.iterativeValidationAndFix;
+    }
+    public getIterativeValidationAndFixActivateStepBack(): number {
+        return this.iterativeValidationAndFixActivateStepBack;
+    }
 
     private constructor(){
         this.allowLogging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
@@ -69,7 +77,7 @@ export class ExtensionSettings{
         this.rulesOutputFormat = vscode.workspace.getConfiguration('snakemaker').get('rulesOutputFormat', "Snakemake");
         this.snakemakeBestPracticesSetLogFieldInSnakemakeRules = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.SetLogFieldInSnakemakeRules', false);
         this.snakemakeBestPracticesPreferGenericFilenames = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.PreferGenericFilenames', false);
-        this.validateSnakemakeRules = vscode.workspace.getConfiguration('snakemaker').get('validateSnakemakeRules', false);
+        this.validateSnakemakeRules = vscode.workspace.getConfiguration('snakemaker').get('ruleGeneration.validateSnakemakeRules', false);
         this.snakemakeAbsolutePath = vscode.workspace.getConfiguration('snakemaker').get('snakemakeAbsolutePath', "");
         this.includeCurrentFileIntoPrompt = vscode.workspace.getConfiguration('snakemaker').get('includeCurrentFileIntoPrompt', false);
         this.commentEveryRule = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.CommentEveryRule', false);
@@ -77,6 +85,8 @@ export class ExtensionSettings{
         this.generateConfig = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.GenerateConfig', false);
         this.numberParsingErrorTries = vscode.workspace.getConfiguration('snakemaker').get('llm.numberParsingErrorTries', 4);
         this.numberParsingErrorActivateStepBack = vscode.workspace.getConfiguration('snakemaker').get('llm.parsingErrorActivateStepBackAt', 2);
+        this.iterativeValidationAndFix = vscode.workspace.getConfiguration('snakemaker').get('ruleGeneration.iterativeValidateAndFix.maxIterations', 4);
+        this.iterativeValidationAndFixActivateStepBack = vscode.workspace.getConfiguration('snakemaker').get('ruleGeneration.iterativeValidateAndFix.activateStepBackAt', 3);
 
         vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration("snakemaker.allowLogging")) {
@@ -89,8 +99,8 @@ export class ExtensionSettings{
                 this.snakemakeBestPracticesSetLogFieldInSnakemakeRules = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.SetLogFieldInSnakemakeRules', false);
             } else if (event.affectsConfiguration("snakemaker.snakemakeBestPractices.PreferGenericFilenames")) {
                 this.snakemakeBestPracticesPreferGenericFilenames = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.PreferGenericFilenames', false);
-            } else if (event.affectsConfiguration("snakemaker.validateSnakemakeRules")) {
-                this.validateSnakemakeRules = vscode.workspace.getConfiguration('snakemaker').get('validateSnakemakeRules', false);
+            } else if (event.affectsConfiguration("snakemaker.ruleGeneration.validateSnakemakeRules")) {
+                this.validateSnakemakeRules = vscode.workspace.getConfiguration('snakemaker').get('ruleGeneration.validateSnakemakeRules', false);
             } else if (event.affectsConfiguration("snakemaker.snakemakeAbsolutePath")) {
                 this.snakemakeAbsolutePath = vscode.workspace.getConfiguration('snakemaker').get('snakemakeAbsolutePath', "");
             } else if (event.affectsConfiguration("snakemaker.includeCurrentFileIntoPrompt")){
@@ -105,6 +115,10 @@ export class ExtensionSettings{
                 this.numberParsingErrorTries = vscode.workspace.getConfiguration('snakemaker').get('llm.numberParsingErrorTries', 4);
             } else if (event.affectsConfiguration("snakemaker.llm.parsingErrorActivateStepBackAt")){
                 this.numberParsingErrorActivateStepBack = vscode.workspace.getConfiguration('snakemaker').get('llm.parsingErrorActivateStepBackAt', 2);
+            } else if (event.affectsConfiguration("snakemaker.ruleGeneration.iterativeValidateAndFix.maxIterations")){
+                this.iterativeValidationAndFix = vscode.workspace.getConfiguration('snakemaker').get('ruleGeneration.iterativeValidateAndFix.maxIterations', 4);
+            } else if (event.affectsConfiguration("snakemaker.ruleGeneration.iterativeValidateAndFix.activateStepBackAt")){
+                this.iterativeValidationAndFixActivateStepBack = vscode.workspace.getConfiguration('snakemaker').get('ruleGeneration.iterativeValidateAndFix.activateStepBackAt', 3);
             }
         });
     }
