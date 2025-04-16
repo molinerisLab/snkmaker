@@ -520,27 +520,6 @@ export class NotebookController{
         this.undoRedoStack = new UndoRedoStack();
     }
 
-    private parseJsonFromResponse(response: string): any{
-        let start = response.indexOf("{");
-        let end = response.lastIndexOf("}");
-        if (start !== -1 && end !== -1){
-            response = response.substring(start, end + 1);
-        }
-        try{
-            return JSON.parse(response);
-        } catch (e:any){
-            try{
-                console.log("Trying to repair json");
-                response = jsonrepair(response);
-                return JSON.parse(response);
-            } catch (e:any){
-                console.log(response);
-                console.log("Error parsing json: ", e.message);
-                throw e;
-            }
-        }
-    }
-
     openFrom(path: vscode.TextDocument){
         const data = path.getText();
         this.cells = JSON_Importer.importCellDependencyGraph(data);
@@ -711,49 +690,6 @@ export class NotebookController{
         return "\n\n## Performed changes:\n\n" + diffs.join("") + "\n\n*Changes can be undo with Ctrl+Z*";
     }
 
-
-    private async runPromptAndParse(original_prompt: string, t: PromptTemperature,
-        validate_function: ((response: any) => string|null)|undefined=undefined): Promise<any> {
-        let prompt = original_prompt;
-        let response = "";
-        let suggestion = " Remember your response is parsed by a script, "+
-        "so it must be in the correct format. You can add reasonings, but the symbols { and } must be used only in the response JSON. Do not write an example JSON.";
-        for (let i=0; i<4; i++){
-            try{
-                response = await this.llm.runQuery(prompt, t);
-                const parsed = this.parseJsonFromResponse(response);
-                if (validate_function){
-                    const validationError = validate_function(parsed);
-                    if (validationError) {
-                        throw new Error(validationError);
-                    }
-                }
-                return parsed;
-            } catch (e:any){
-                if (e instanceof ModelNotReadyError){
-                    vscode.window.showErrorMessage("Snakemaker: No LLM currently selected. Please select one in the model section.");
-                    return undefined;
-                }
-                console.log(prompt);
-                console.log(response);
-                if (i==2){
-                    //Prompt the model itself for a solution
-                    const p = prompt = "I asked you this:\n\n" + original_prompt + 
-                    "\n\nAnd your response was: \n" + response +
-                    "\n\nBut when trying to parse your response in json I got this error: \n" + e.message +
-                    "\n\nGive me a review of what went wrong in your response, and a "+
-                    "suggestion on how to fix it. Only the review and suggestion, not the fixed response.";
-                    suggestion = await this.llm.runQuery(p, PromptTemperature.MEDIUM_DETERMINISTIC);
-                    suggestion = "\nAnalysis on what went wrong:\n" + suggestion;
-                }
-                prompt = "I asked you this:\n\n" + original_prompt + 
-                "\n\nAnd your response was: \n" + response +
-                "\n\nBut when trying to parse your response in json I got this error: \n" + e.message +
-                "\n\nPlease try again."+suggestion;
-            }
-        }
-    }
-
     //Opens notebook, create cell graph with read/write dependencies, parse imports and functions.
     async openNotebook(notebookPath: vscode.Uri): Promise<CellDependencyGraph>{
         this.path = notebookPath;
@@ -808,9 +744,8 @@ export class NotebookController{
             "If a variable is not external, you need to include it in the response anyway and set is_external to false.\n"+
             "You can add reasonings to your response, but the only { and } in your response must belong to the JSON,"+
             " or the parser will break. So use the curly braces only to delimit the JSON object.";
-            const response = await this.llm.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
             try{
-                const parsed = this.parseJsonFromResponse(response);
+                const parsed = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, undefined, true);
                 if (parsed.variables && Array.isArray(parsed.variables)){
                     parsed.variables.forEach((varObj:any) => {
                             if (varObj.is_external === false){
@@ -840,9 +775,8 @@ export class NotebookController{
             "\nWhere pieces is the list of pieces of code that define or write the variable. If a variable is not defined or written in any piece of code, it's an empty list.\n"+
             "You can add reasonings to your response, but the only { and } in your response must belong to the JSON,"+
             " or the parser will break. So use the curly braces only to delimit the JSON object.";
-            const response2 = await this.llm.runQuery(prompt2, PromptTemperature.RULE_OUTPUT);
             try{
-                const parsed2 = this.parseJsonFromResponse(response2);
+                const parsed2 = await this.llm.runQueryAndParse(prompt2, PromptTemperature.RULE_OUTPUT, undefined, true);
                 if (parsed2.variables && Array.isArray(parsed2.variables)){
                     parsed2.variables.forEach(
                         (varObj:any) => {
@@ -906,7 +840,7 @@ export class NotebookController{
             }
             return null;
         }
-        const formatted = await this.runPromptAndParse(prompt, PromptTemperature.MEDIUM_DETERMINISTIC, validate);
+        const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.MEDIUM_DETERMINISTIC, validate);
         if (formatted){
             this.cells.setRulesTypesAndNames(formatted, changeFrom);
         }
@@ -954,7 +888,7 @@ export class NotebookController{
                 }
                 return null;
             }
-            const formatted = await this.runPromptAndParse(prompt, PromptTemperature.DAG_GEN, validate);
+            const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.DAG_GEN, validate);
             if (!formatted || !formatted.cells || !Array.isArray(formatted.cells)) {
                 throw new Error("Invalid response format: 'rules' is missing or not an array");
             }
@@ -987,6 +921,7 @@ export class NotebookController{
         "Please write the needed imports as a list of indexes (example: import 0, 1, 5).\n"+
         "Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema:\n"+
         "{'cells': [cell_index: number, imports: [index of import for each import needed]]}";
+        
         const validate = (response: any) => {
             if (!response.cells || !Array.isArray(response.cells)) {
                 return "Invalid response format: 'cells' is missing or not an array";
@@ -998,7 +933,7 @@ export class NotebookController{
             }
             return null;
         }
-        const formatted = await this.runPromptAndParse(prompt, PromptTemperature.GREEDY_DECODING, validate);
+        const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.GREEDY_DECODING, validate);
         if (!formatted || !formatted.cells || !Array.isArray(formatted.cells)) {
             throw new Error("Invalid response format: 'rules' is missing or not an array");
         }
@@ -1042,7 +977,7 @@ export class NotebookController{
         `Please provide the new snakemake rule considering this updated prefix code.\n` +
         `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema: { 'snakemakeRule': string }\n`+
         "Please always output this JSON. If the rule does not need changing, output the same rule as before.";
-        const formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT);
+        const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT);
         this.cells.cells[index].rule.snakemakeRule = formatted.snakemakeRule;
         this.cells.cells[index].rule.postfixCode = code;
         //Propagate changes to other cells who reads from this one
@@ -1080,7 +1015,7 @@ export class NotebookController{
             `Please provide the new prefix and suffix code based on the new snakemake rule. You can not change main code.\n` +
             `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema: { 'prefix_code': string, 'suffix_code': string }\n`+
             "Please always output this JSON. If the code do not need changing, output the same code as before.";
-            const formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT);
+            const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT);
             this.cells.cells[index].rule.snakemakeRule = code;
             this.cells.cells[index].rule.prefixCode = formatted.prefix_code;
             this.cells.cells[index].rule.postfixCode = formatted.suffix_code;
@@ -1100,7 +1035,7 @@ export class NotebookController{
             `Please provide the new snakemake rule considering this updated prefix code.\n` +
             `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema: { 'snakemakeRule': string }\n`+
             "Please always output this JSON. If the rule does not need changing, output the same rule as before.";
-            const formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT);
+            const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT);
             this.cells.cells[index].rule.snakemakeRule = formatted.snakemakeRule;
             this.cells.cells[index].rule.prefixCode = code;
         } else {
@@ -1156,7 +1091,7 @@ export class NotebookController{
             }
             return null;
         }
-        const formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate);
+        const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate);
         if (formatted.config){
             this.cells.config = formatted.config;
         }
@@ -1221,7 +1156,7 @@ export class NotebookController{
             }
             return null;
         }
-        const formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate);
+        const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate);
         this.cells.config = newConfig;
         if (formatted.cells){
             formatted.cells.forEach((cell: any) => {
@@ -1319,7 +1254,7 @@ export class NotebookController{
                 "Note, prefix code is appended before the script and suffix code after it. This happens automatically, "+
                 "you only need to write the requestes pieces of code, not to repeat the entire script.\n"+
                 "If a field does not need to contain anything, write an empty array or empty string, don't skip the field.\n"
-                const formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT);
+                const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT);
                 node.prefixCode = getImportStatementsFromScripts(cell, this.cells.cells) + "\n" + formatted.prefix_code.trim().replace("#Begin prefix code...\n", "").replace("#End prefix code...", "");
                 node.postfixCode = formatted.suffix_code.trim().replace("#Start Suffix code...\n", "").replace("#End Suffix code...", "");
                 node.snakemakeRule = formatted.rule.trim().replace("#Rule...\n", "").replace("#End rule...", "");
@@ -1426,7 +1361,7 @@ export class NotebookController{
             "Please provide to me the list of READED variables, WRITTEN variables and READED file for each cell. For each variable use the same name used in the code without changing it.\n"+
             "\n\nPlease write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema:\n"+
             `{ "cells": [ {"cell_index": <number>, "reads": [<strings>], "writes": [<indexes>], "reads_file": [<indexes>]}  for each rule... ] }`;
-            const formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT);
+            const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT);
             if (!formatted.cells || !Array.isArray(formatted.cells)) {
                 throw new Error("Invalid response format: 'rules' is missing or not an array");
             }
@@ -1519,7 +1454,7 @@ export class NotebookController{
                 }
                 return null;
             }
-            let formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate_function);
+            let formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate_function);
             snakefile = formatted.rules.trim();
             if (formatted.config){
                 config = formatted.config.trim();
@@ -1561,7 +1496,7 @@ export class NotebookController{
                     }
                     return null;
                 }
-                let formatted = await this.runPromptAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate_function);
+                let formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate_function);
                 scripts[i].script = formatted.script.trim();
             }
         }

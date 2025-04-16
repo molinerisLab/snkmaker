@@ -2,6 +2,8 @@ import OpenAI from 'openai';
 import * as vscode from 'vscode';
 import { SnkmakerLogger } from '../utils/SnkmakerLogger';
 import { Stream } from 'openai/streaming.mjs';
+import { ExtensionSettings } from '../utils/ExtensionSettings';
+const { jsonrepair } = require('jsonrepair')
 
 export class ModelNotReadyError extends Error {
     constructor(message: string) {
@@ -28,6 +30,77 @@ export class LLM{
     constructor(private memento: vscode.Memento){
         this.current_model = -1;
         this.models = this.loadModels();
+    }
+
+    private parseJsonFromResponse(response: string): any{
+        let start = response.indexOf("{");
+        let end = response.lastIndexOf("}");
+        if (start !== -1 && end !== -1){
+            response = response.substring(start, end + 1);
+        }
+        try{
+            return JSON.parse(response);
+        } catch (e:any){
+            try{
+                console.log("Trying to repair json");
+                response = jsonrepair(response);
+                return JSON.parse(response);
+            } catch (e:any){
+                console.log("Error parsing json: ", e.message);
+                throw e;
+            }
+        }
+    }
+
+    async runQueryAndParse(prompt: string, t: PromptTemperature,
+         validate:((r: any)=>string|null)|undefined=undefined, skip_iterations: boolean=false): Promise<any>{
+        const original_prompt = prompt;
+        let response = "";
+        let suggestion = " Remember, your response is parsed by a script, so it must be in the correct format.\n"+
+        "The script searches for a JSON using the first { and the last }, so you can add reasonings, but the symbols { and } must be used only in the response JSON. "+
+        "If you add an example JSON, or use a { or } in the response before the actual JSON, it will break the parser.\n"+
+        "JSON also must be valid, must not contain triple-quote strings and must escape special characters.";
+        const limit = ExtensionSettings.instance.getNumberParsingErrorTries();
+        const stepBackLimit = ExtensionSettings.instance.getNumberParsingErrorActivateStepBack();
+        for (let i=0; i<limit; i++){
+            const response = await this.runQuery(prompt, t);
+            try{
+                const parsed = this.parseJsonFromResponse(response);
+                if (validate){
+                    const validationError = validate(parsed);
+                    if (validationError) {
+                        prompt = "I sent you this request:\n\`\`\`request\n" + original_prompt + "\n\`\`\`"+
+                        "Your response was:\n\`\`\`response\n" + response + "\n\`\`\`" +
+                        "Your response is not valid:\n\`\`\`validation error\n" + validationError + "\n\`\`\`" +
+                        "Please try to fix your previous response.";
+                        continue;
+                    }
+                }
+                return parsed;
+            } catch (e:any){
+                if (skip_iterations){
+                    break;
+                }
+                console.log("Error parsing LLM response");
+                console.log(prompt);
+                console.log(response);
+                let error_message = `Error type: ${e.name}, Message: ${e.message}`;
+                if (i>=stepBackLimit){
+                    //Prompt the model itself for a solution
+                    const p = "I sent you this request:\n\`\`\`request\n" + original_prompt + "\n\`\`\`"+
+                    "Your response was:\n\`\`\`response\n" + response + "\n\`\`\`" +
+                    "When trying to parse your response in JSON format, I get this error:\n\`\`\`error\n" + error_message + "\n\`\`\`" +
+                    "Analyze your request, your previous response and this error, and give me a review of what went wrong, "+
+                    "and suggestions on how to fix it. Write only the review and suggestions, not the fixed response.";
+                    suggestion = await this.runQuery(p, PromptTemperature.MEDIUM_DETERMINISTIC);
+                    suggestion = "\nAnalysis on what went wrong:\n" + suggestion;
+                }
+                prompt = "I sent you this request:\n\`\`\`request\n" + original_prompt + "\n\`\`\`"+
+                "Your response was:\n\`\`\`response\n" + response + "\n\`\`\`" +
+                "When trying to parse your response in JSON format, I get this error:\n\`\`\`error\n" + error_message + "\n\`\`\`" +
+                "Please try to fix your previous response. Here are some suggestions:\n"+suggestion;
+            }
+        }
     }
 
     async runQuery(query: string, t: PromptTemperature): Promise<string>{

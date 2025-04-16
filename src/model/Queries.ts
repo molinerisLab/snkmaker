@@ -309,54 +309,21 @@ export class Queries{
         this.modelComms = modelComms;
     }
 
-    private parseJsonFromResponse(response: string, context: SnakefileContext): SnakefileContext{
-        let start = response.indexOf("{");
-        let end = response.lastIndexOf("}");
-        if (start !== -1 && end !== -1){
-            response = response.substring(start, end + 1);
-        }
-        let result = {'rule': '', 'rule_all': null, 'remove': null, 'add_to_config': null};
-        let json;
-        try{
-            json = JSON.parse(response);
-        } catch (e){
-            console.log("Trying json repair");
-            try{
-                response = jsonrepair(response);
-                json = JSON.parse(response);
-                console.log("Json repair succeeded");
-            } catch (e){
-                console.log("Json repair failed");
-                console.log(response);
-                throw e;
+    private async updateSnakefileContextFromPrompt(prompt: string, context: SnakefileContext, temperature: PromptTemperature){
+        const validate = ((response:any) => {
+            if (!response.rule){
+                return "Error: no field named rule in the JSON";
             }
+            return null;
+        });
+        const formatted = await this.modelComms.runQueryAndParse(prompt, temperature, validate);
+        if (formatted["rule"]){
+            context["rule"] = formatted["rule"];
         }
-        if (json["rule"]){
-            context["rule"] = json["rule"];
-        } else {
-            throw new Error("No field named rule in the JSON");
-        }
-        if (json["rule_all"]){
-            context['rule_all'] = json["rule_all"];
+        if (formatted["rule_all"]){
+            context['rule_all'] = formatted["rule_all"];
         }
         return context;
-    }
-    private parseJsonFromResponseGeneric(response: string): any{
-        let start = response.indexOf("{");
-        let end = response.lastIndexOf("}");
-        if (start !== -1 && end !== -1){
-            response = response.substring(start, end + 1);
-        }
-        try{
-            return JSON.parse(response);
-        } catch (e){
-            try{
-                response = jsonrepair(response);
-                return JSON.parse(response);
-            } catch (e){
-                throw e;
-            }
-        }
     }
 
     cleanModelResponseStupidHeaders(response: string): string{
@@ -376,8 +343,12 @@ export class Queries{
         const query = `The user is building a data processing pipeline using bash command and snakemake:\n\n${context}.
 Please write a short documentation explaining what the user is doing. Use every information available to be as specific as you can. The documentation should be professional and mimick the style of a methodology section of a paper. It is possible you don't have enough information for a full methodology section, in this case write what you can.
 Please write the documentation as a string in a JSON in this format: {documentation: string}. The string should follow the markdown format.`;
-        const response = await this.modelComms.runQuery(query, PromptTemperature.CREATIVE);
-        const parsed = this.parseJsonFromResponseGeneric(response);
+        const parsed = await this.modelComms.runQueryAndParse(query, PromptTemperature.CREATIVE, (response:any) => {
+            if (!response.documentation){
+                return "Error: no field named documentation in the JSON";
+            }
+            return null;
+        });
         return parsed["documentation"];
     }
 
@@ -398,24 +369,34 @@ Please write the documentation as a string in a JSON in this format: {documentat
     async inferCommandInfo(command: string, positive_examples: string[], negative_examples: string[]){
         const examples = this.parseExamples(positive_examples, negative_examples);
         let prompt = ModelPrompts.inferCommandInfoPrompt(command, examples);
-        for(let i=0; i<5; i++){
-            const response = await this.modelComms.runQuery(prompt, PromptTemperature.MEDIUM_DETERMINISTIC);
-            try{
-                let r = this.parseJsonFromResponseGeneric(response);
-                if (r["is_rule"]){
-                    assert (r["rule_name"] !== undefined, "Rule name is undefined");
-                    assert (r["input"] !== undefined, "Input is undefined");
-                    assert (r["output"] !== undefined, "Output is undefined");
-                    return r;
-                } else {
-                    return {'is_rule': false, 'rule_name': '', 'input': '', 'output': ''};
+        const validate = ((response:any) => {
+            if (response.is_rule){
+                let e = "";
+                if (response.rule_name === undefined){
+                    e += "Error: no field named rule_name in the JSON\n";
                 }
-            } catch (e){
-                prompt = "I asked you this:\n" + prompt + "\nBut you gave me this:\n" + response
-                + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
+                if (response.input === undefined){
+                    e += "Error: no field named input in the JSON\n";
+                }
+                if (response.output === undefined){
+                    e += "Error: no field named output in the JSON\n";
+                }
+                if (e.length>0){
+                    return e;
+                }
             }
+            return null;
+        });
+        try{
+            const formatted = await this.modelComms.runQueryAndParse(prompt, PromptTemperature.MEDIUM_DETERMINISTIC, validate);
+            if (formatted["is_rule"]){
+                return formatted;
+            } else {
+                return {'is_rule': false, 'rule_name': '', 'input': '', 'output': ''};
+            }
+        } catch (e){
+            return {'is_rule': false, 'rule_name': '', 'input': '', 'output': ''};
         }
-        return {'is_rule': false, 'rule_name': '', 'input': '', 'output': ''};
     }   
 
     extractAllRule(snakefileContent: string): string | null {
@@ -476,33 +457,22 @@ Please write the documentation as a string in a JSON in this format: {documentat
                 ruleAll = this.extractAllRule(currentSnakefileContext["content"]||"");
             }
         }
-        const prompt_original = ModelPrompts.ruleFromCommandPrompt(
+        const prompt = ModelPrompts.ruleFromCommandPrompt(
             command, bashCommand.getRuleName(), ruleFormat, inputs, output, context, ruleAll, env_name, ExtensionSettings.instance.getAddCondaDirective()
         );
-        let prompt = prompt_original;
-        for (let i = 0; i < 5; i++){
-            const response = await this.modelComms.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
-            try{
-                let r = this.parseJsonFromResponse(response, currentSnakefileContext);
-                r['remove'] = ruleAll;
-                if (ExtensionSettings.instance.getGenerateConfig()){
-                    const prompt = ModelPrompts.rulesMakeConfig(r);
-                    const response = await this.modelComms.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
-                    const parsed = this.parseJsonFromResponseGeneric(response);
-                    if (parsed["rules"]){
-                        r["rule"] = parsed["rules"];
-                    }
-                    if (parsed["add_to_config"]){
-                        r["add_to_config"] = parsed["add_to_config"];
-                    }
-                }
-                return r;
-            } catch (e){
-                prompt = "I asked you this:\n" + prompt_original + "\nBut you gave me this:\n" + response
-                + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
+        const r = await this.updateSnakefileContextFromPrompt(prompt, currentSnakefileContext, PromptTemperature.RULE_OUTPUT);
+        r['remove'] = ruleAll;
+        if (ExtensionSettings.instance.getGenerateConfig()){
+            const config_prompt = ModelPrompts.rulesMakeConfig(r);
+            const config_parsed = await this.modelComms.runQueryAndParse(config_prompt, PromptTemperature.RULE_OUTPUT);
+            if (config_parsed["rules"]){
+                r["rule"] = config_parsed["rules"];
+            }
+            if (config_parsed["add_to_config"]){
+                r["add_to_config"] = config_parsed["add_to_config"];
             }
         }
-        return currentSnakefileContext;
+        return r;
     }
 
     async processRulesFromChat(rules: string){
@@ -528,34 +498,21 @@ Please write the documentation as a string in a JSON in this format: {documentat
         currentSnakefileContext = c;
         ruleAll = this.extractAllRule(currentSnakefileContext["content"]||"");
         
-        const prompt_original = ModelPrompts.processRulesFromChatBasicPrompt(
+        const prompt = ModelPrompts.processRulesFromChatBasicPrompt(
             rules, currentSnakefileContext["content"]||"", ruleAll||""
         );
-        
-        let prompt = prompt_original;
-        for (let i = 0; i < 5; i++){
-            const response = await this.modelComms.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
-            try{
-                let r = this.parseJsonFromResponseGeneric(response);
-                currentSnakefileContext['remove'] = ruleAll;
-                currentSnakefileContext['rule_all'] = r['rule_all'];
-                currentSnakefileContext['rule'] = r['rules'];
-                if (ExtensionSettings.instance.getGenerateConfig()){
-                    const prompt = ModelPrompts.rulesMakeConfig(currentSnakefileContext);
-                    const response = await this.modelComms.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
-                    const parsed = this.parseJsonFromResponseGeneric(response);
-                    if (parsed["rules"]){
-                        currentSnakefileContext["rule"] = parsed["rules"];
-                    }
-                    if (parsed["add_to_config"]){
-                        currentSnakefileContext["add_to_config"] = parsed["add_to_config"];
-                    }
-                }
-                return currentSnakefileContext;
-            } catch (e){
-                console.log(e);
-                prompt = "I asked you this:\n" + prompt_original + "\nBut you gave me this:\n" + response
-                + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
+        const r = await this.modelComms.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT);
+        currentSnakefileContext['remove'] = ruleAll;
+        currentSnakefileContext['rule_all'] = r['rule_all'];
+        currentSnakefileContext['rule'] = r['rules'];
+        if (ExtensionSettings.instance.getGenerateConfig()){
+            const config_prompt = ModelPrompts.rulesMakeConfig(currentSnakefileContext);
+            const config_parsed = await this.modelComms.runQueryAndParse(config_prompt, PromptTemperature.RULE_OUTPUT);
+            if (config_parsed["rules"]){
+                currentSnakefileContext["rule"] = config_parsed["rules"];
+            }
+            if (config_parsed["add_to_config"]){
+                currentSnakefileContext["add_to_config"] = config_parsed["add_to_config"];
             }
         }
         return currentSnakefileContext;
@@ -602,34 +559,21 @@ Please write the documentation as a string in a JSON in this format: {documentat
             }
         }
 
-        const prompt_original = ModelPrompts.rulesFromCommandsBasicPrompt(formatted, ruleFormat, extraPrompt, context, ruleAll, ExtensionSettings.instance.getAddCondaDirective());
+        const prompt = ModelPrompts.rulesFromCommandsBasicPrompt(formatted, ruleFormat, extraPrompt, context, ruleAll, ExtensionSettings.instance.getAddCondaDirective());
 
-        let prompt = prompt_original;
-        for (let i = 0; i < 5; i++){
-            const response = await this.modelComms.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
-            try{
-                let r = this.parseJsonFromResponse(response, currentSnakefileContext);
-                r['remove'] = ruleAll;
-                if (ExtensionSettings.instance.getGenerateConfig()){
-                    const prompt = ModelPrompts.rulesMakeConfig(r);
-                    const response = await this.modelComms.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
-                    const parsed = this.parseJsonFromResponseGeneric(response);
-                    if (parsed["rules"]){
-                        r["rule"] = parsed["rules"];
-                    }
-                    if (parsed["add_to_config"]){
-                        r["add_to_config"] = parsed["add_to_config"];
-                    }
-                }
-                return r;
-            } catch (e){
-                console.log(e);
-                prompt = "I asked you this:\n" + prompt_original + "\nBut you gave me this:\n" + response
-                + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
+        const r = await this.updateSnakefileContextFromPrompt(prompt, currentSnakefileContext, PromptTemperature.RULE_OUTPUT);
+        r['remove'] = ruleAll;
+        if (ExtensionSettings.instance.getGenerateConfig()){
+            const config_prompt = ModelPrompts.rulesMakeConfig(r);
+            const config_parsed = await this.modelComms.runQueryAndParse(config_prompt, PromptTemperature.RULE_OUTPUT);
+            if (config_parsed["rules"]){
+                r["rule"] = config_parsed["rules"];
+            }
+            if (config_parsed["add_to_config"]){
+                r["add_to_config"] = config_parsed["add_to_config"];
             }
         }
-        console.log("Error: unable to parse the response from the model.");
-        return currentSnakefileContext;
+        return r;
     }
 
     async guessOnlyName(command: BashCommand){
@@ -641,29 +585,20 @@ Please write the documentation as a string in a JSON in this format: {documentat
     async autoCorrectRulesFromError(rules: SnakefileContext, error: string): Promise<{ rules: SnakefileContext; can_correct: boolean; }>{
         const original_prompt = ModelPrompts.correctRulesFromErrorPrompt(rules, error);
         let prompt = original_prompt;
-        for (let i = 0; i < 2; i++){
-            const response = await this.modelComms.runQuery(prompt, PromptTemperature.RULE_OUTPUT);
-            try{
-                let r = this.parseJsonFromResponseGeneric(response);
-                if (r["can_correct"] === false){
-                    return {rules: rules, can_correct: false};
-                }
-                if (r["rules"]){
-                    rules["rule"] = r["rules"];
-                }
-                if (r["rule_all"]){
-                    rules["rule_all"] = r["rule_all"];
-                }
-                if (r["additional_config"]){
-                    rules["add_to_config"] = r["additional_config"];
-                }
-                return {rules: rules, can_correct: true};
-            } catch (e){
-                prompt = "I asked you this:\n" + original_prompt + "\nBut you gave me this:\n" + response
-                + "\nAnd this is not a valid JSON, when trying to parse it I get: " + e + "\nPlease try again.";
-            }
+        let r = await this.modelComms.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT);
+        if (r["can_correct"] === false){
+            return {rules: rules, can_correct: false};
         }
-        return {rules: rules, can_correct: false};
+        if (r["rules"]){
+            rules["rule"] = r["rules"];
+        }
+        if (r["rule_all"]){
+            rules["rule_all"] = r["rule_all"];
+        }
+        if (r["additional_config"]){
+            rules["add_to_config"] = r["additional_config"];
+        }
+        return {rules: rules, can_correct: true};
     }
 
 }

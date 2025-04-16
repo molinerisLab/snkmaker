@@ -20,6 +20,8 @@ export class ExtensionSettings{
     private commentEveryRule: boolean = false;
     private addCondaDirective: boolean = false;
     private generateConfig: boolean = false;
+    private numberParsingErrorTries: number = 4;
+    private numberParsingErrorActivateStepBack = 2;
     
     public getAllowLogging(): boolean {
         return this.allowLogging;
@@ -54,6 +56,12 @@ export class ExtensionSettings{
     public getGenerateConfig(): boolean {
         return this.generateConfig && this.rulesOutputFormat === "Snakemake";
     }
+    public getNumberParsingErrorTries(): number {
+        return this.numberParsingErrorTries;
+    }
+    public getNumberParsingErrorActivateStepBack(): number {
+        return this.numberParsingErrorActivateStepBack;
+    }
 
     private constructor(){
         this.allowLogging = vscode.workspace.getConfiguration('snakemaker').get('allowLogging', false);
@@ -67,6 +75,8 @@ export class ExtensionSettings{
         this.commentEveryRule = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.CommentEveryRule', false);
         this.addCondaDirective = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.AddCondaDirective', false);
         this.generateConfig = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.GenerateConfig', false);
+        this.numberParsingErrorTries = vscode.workspace.getConfiguration('snakemaker').get('llm.numberParsingErrorTries', 4);
+        this.numberParsingErrorActivateStepBack = vscode.workspace.getConfiguration('snakemaker').get('llm.parsingErrorActivateStepBackAt', 2);
 
         vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration("snakemaker.allowLogging")) {
@@ -91,6 +101,10 @@ export class ExtensionSettings{
                 this.addCondaDirective = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.AddCondaDirective', false);
             } else if (event.affectsConfiguration("snakemaker.GenerateConfig")){
                 this.generateConfig = vscode.workspace.getConfiguration('snakemaker').get('snakemakeBestPractices.GenerateConfig', false);
+            } else if (event.affectsConfiguration("snakemaker.llm.numberParsingErrorTries")){
+                this.numberParsingErrorTries = vscode.workspace.getConfiguration('snakemaker').get('llm.numberParsingErrorTries', 4);
+            } else if (event.affectsConfiguration("snakemaker.llm.parsingErrorActivateStepBackAt")){
+                this.numberParsingErrorActivateStepBack = vscode.workspace.getConfiguration('snakemaker').get('llm.parsingErrorActivateStepBackAt', 2);
             }
         });
     }
