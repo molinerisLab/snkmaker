@@ -58,9 +58,10 @@ class ModelPrompts{
             "to generate all output files. The name of the second rule should be a meaningful name connected to the name of "+
             "the original one. The name of the second rule cannot be simply 'all' because this name is reserved.\n";
             if (logField){
-                prompt += "\nAdd a log field to the rule with the name of the log file. For example, log: 'logs/{rule}.log'. "+
-                "If the rule contains wildcards, they must be part of the log file name or Snakemake will throw an error. "+
-                "Log field must be added before the shell field.";
+                prompt += "\nAdd a log field to the rule with the name of the log file. For example, log: 'logs/rulename.log'. "+
+                "Important: the log filename must contain the exact same wildcards of the rule's inputs and outputs, "+
+                "or Snakemake will throw an error. So if some wildcards are used in the input/output, include them in the log filename, and don't "+
+                "put new ones there. Also, log fields must be added before the shell field.\n";
             }
             if (comment){
                 prompt += "\nAdd a short comment describing what the rule does. The comment must be short and concise. "+
@@ -129,7 +130,7 @@ class ModelPrompts{
     static correctRulesFromErrorStepbackPrompt(rules: SnakefileContext, error: string): string{
         let prompt = ModelPrompts.correctRuleFromErrorBasicPrompt(rules, error);
         prompt += "Analyze the error, the current state of the Snakefile, and give me a review "+
-        "of what is the problem in it, and some suggestions on how to fix it. The review and suggestions must be concise."+
+        "of what is the problem in it, and some suggestions on how to fix it. The review and suggestions must be concise.\n"+
         "\nThe suggestions provide high level suggestions on how to fix the error.\n"+
         "The end goal is to fix the error, not to perform generic improvements in the snakefile or its readability. Focus on actual errors."+
         "\nDo not write the solution, just the review and suggestions.\n";
@@ -189,7 +190,7 @@ class ModelPrompts{
             prompt += `I have the following Snakemake rules:\n${rules.rule}\n`+
             "Considering the rules, "
         }
-        prompt += "please check if some values inside these rules can be moved to a configuration field.\n" +
+        prompt += "check if some values inside these rules can be moved to a configuration field.\n" +
         "Generally, the config must contains stuff like hardcoded absolute paths, hardcoded values that the user might want to change "+
         "on different runs of the Snakemake pipeline. Output files generally should not be in the config.\n"+
         "Also, if the Snakefile already has a config, you can use its values in the new rules, if they fit.\n"+
@@ -203,6 +204,8 @@ class ModelPrompts{
         "Examples of bad config fields:\n"+
         "conda_env: 'your_conda_env_name' #No, conda env info doesn't go here!\n"+
         "conda create -n snaketest python=3.9 #NO! This is not even a yaml field, it's a command. Never do that!\n"+
+        "You can add new lines to the config using the yaml notation, and access their values inside the rules "+
+        "using the python dictionary access notation, es. config['GENOME_PATH'].\n"+
         "Please output your response in JSON following this schema:\n"+
         "{rules: string, add_to_config: string}\n";
         if (rules.snakefile_content){
@@ -250,7 +253,8 @@ class ModelPrompts{
                 }
             } else {
                 prompt += "Also write a 'rule all' to produce all files. The rule all is characterized by only the input directive, where " +
-                "the outputs of the other rules are requested.\n" +
+                "the outputs of the other rules are requested. " +
+                "Simply list the outputs of the other rules in the rule all inputs. Do not use expand() if not strictly needed.\n"+
                 "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). "+
                 "The JSON contains a field 'rule' which is a string, that contains the all the rules "+
                 ", ex. {rule: string}. Please do not add explanations.";
@@ -298,8 +302,9 @@ class ModelPrompts{
         }
         if (logDirective){
             extraPrompt += "-Add a log directive to each rule with the name of the log file. "+
-            "For example, log: 'logs/{rule}.log'. If the rule contains wildcards, they must be part of the log file "+
-            "name or Snakemake will throw an error. Log fields must be added before shell fields.\n";
+            "For example, log: 'logs/rulename.log'. Important: the log filename must contain the exact same wildcards of the rule's inputs and outputs, "+
+            "or Snakemake will throw an error. So if some wildcards are used in the input/output, include them in the log filename, and don't "+
+            "put new ones here. Also, log fields must be added before the shell field.\n";
         }
         if (commentEveryLine){
             extraPrompt += "-For each rule, add a short, concise comment describing what the rule does. "+
@@ -310,7 +315,7 @@ class ModelPrompts{
 
     static rulesContextPrompt(currentRules: string){
         if (currentRules.length <= 20){return "";} //Skip prompt if file has a few characters inside
-        return `\nFor context, these are the rules already present:\n${currentRules}\n`+
+        return `\nFor context, these are the rules already present:\`\`\`snakefile\n${currentRules}\n\`\`\`\n`+
         "Please use the existing rules and config to:\n" +
         "1- Avoid repeating existing rules. If a rule is already present, do not write it again." +
         "If you need to return no rule at all, because they are all already present, return a newline instead.\n"+
@@ -555,8 +560,8 @@ Please write the documentation as a string in a JSON in this format: {documentat
                 if (envs[index]){
                     env = `\nconda_env_path: ${envs[index].filename}`
                 }
-                return `\nEstimated inputs: (${command.getInput()}) Estimated outputs: (${command.getOutput()})\nShell command:` + 
-                `${command.getCommandForModel()}\nPossible rule name: ${command.getRuleName()}${env}\n\n`
+                return `\n#Command...\nEstimated inputs: (${command.getInput()}) Estimated outputs: (${command.getOutput()})\nShell command:` + 
+                `${command.getCommandForModel()}\nPossible rule name: ${command.getRuleName()}${env}\n#End of command...\n`
             }
         );
         let context = "";
