@@ -76,7 +76,7 @@ export class WriteToFiles{
         var editor = vscode.window.activeTextEditor;
         let config_include = "";
         if (value['add_to_config'] && value['add_to_config'].length>0 && value['config_paths'].length === 0){
-            config_include = "configfile: config.yaml"
+            config_include = "configfile: 'config.yaml'"
         }
         if (!editor){
             const result = await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { "languageId": "Snakemake"}).then(() => {

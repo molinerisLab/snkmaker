@@ -71,7 +71,7 @@ class ModelPrompts{
             if (env_directive && env_name){
                 prompt += `\n-You also must set the 'conda' directive in the output rule to ${env_name}:\nconda:\n\t'${env_name}'\n. This is used by Snakemake to re-build the environment.`
             }
-            if (ruleAll){
+            if (ruleAll && ruleAll.length>0){
                 prompt += "\nThe Snakefile already contains a rule all: " + ruleAll + ".\n" +
                 "Please add the new rules to the rule all.\n" +
                 "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
@@ -82,8 +82,9 @@ class ModelPrompts{
                 }
             } else {
                 prompt += "Please also write a 'rule all' to produce all files.\n" +
-                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
-                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}. Please do not add explanations.";
+                "The rule all is characterized by only the input directive, where outputs of other rules are requested.\n" +
+                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains all "+
+                "the rules. Es. {rule: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
                     "but their outputs must be included in the 'rule_all'.";
@@ -166,6 +167,8 @@ class ModelPrompts{
         } else {
             prompt += "-additional_config: string, new lines to append to the config. Can be an empty string.\n";
         }
+        prompt += "-rule_all: string, the updated version of the rule all.\n"+
+        "Please write the rule all separately from the other rules, in the appropriate field."
         return prompt; 
     }
 
@@ -236,19 +239,21 @@ class ModelPrompts{
                 " to attach a yaml file to the rules - es:\n"+
                 "rule SOMETHING:\n\t#Input and outputs etc...\n\tconda:\n\t\t'env_file.yaml'\n\t#Shell directive...\n.";
             }
-            if (ruleAll){
+            if (ruleAll && ruleAll.length>0){
                 prompt += "\n-The Snakefile already contains a rule all:\n " + ruleAll + "\n" +
                 "Add the new rules to the rule all.\n" +
                 "Return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
-                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}. Please do not add explanations.";
+                "rules except for the rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
-                    prompt += "\nNote: the rule 'all' must be written entirely, so take the one existing and add inputs to it.\n"+
+                    prompt += "\nNote: the rule 'all' must be re-written entirely, so take the one existing and add inputs to it.\n"+
                     "The other rules on the other hand must not repeat the rules already existing in the file.";
                 }
             } else {
-                prompt += "Write also a 'rule all' to produce all files.\n" +
-                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
-                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string, add_to_config: string}. Please do not add explanations.";
+                prompt += "Also write a 'rule all' to produce all files. The rule all is characterized by only the input directive, where " +
+                "the outputs of the other rules are requested.\n" +
+                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). "+
+                "The JSON contains a field 'rule' which is a string, that contains the all the rules "+
+                ", ex. {rule: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
                     "but their outputs must be included in the 'rule_all'.";
@@ -474,6 +479,13 @@ Please write the documentation as a string in a JSON in this format: {documentat
         );
         const r = await this.updateSnakefileContextFromPrompt(prompt, currentSnakefileContext, PromptTemperature.RULE_OUTPUT);
         r['remove'] = ruleAll;
+        if (!ruleAll || ruleAll.length === 0){
+            ruleAll = this.extractAllRule(r["rule"]||"");
+            if (ruleAll){
+                r['rule_all'] = ruleAll;
+                r['rule'] = r['rule']?.replace(ruleAll, "")??null;
+            }
+        }
         if (ExtensionSettings.instance.getGenerateConfig()){
             const config_prompt = ModelPrompts.rulesMakeConfig(r);
             const config_parsed = await this.modelComms.runQueryAndParse(config_prompt, PromptTemperature.RULE_OUTPUT);
@@ -484,6 +496,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
                 r["add_to_config"] = config_parsed["add_to_config"];
             }
         }
+        r["rule"] = this.fixShellDirective(r["rule"]||"");
         return r;
     }
 
@@ -572,9 +585,15 @@ Please write the documentation as a string in a JSON in this format: {documentat
         }
 
         const prompt = ModelPrompts.rulesFromCommandsBasicPrompt(formatted, ruleFormat, extraPrompt, context, ruleAll, ExtensionSettings.instance.getAddCondaDirective());
-
         const r = await this.updateSnakefileContextFromPrompt(prompt, currentSnakefileContext, PromptTemperature.RULE_OUTPUT);
         r['remove'] = ruleAll;
+        if (!ruleAll || ruleAll.length === 0){
+            ruleAll = this.extractAllRule(r["rule"]||"");
+            if (ruleAll){
+                r['rule_all'] = ruleAll;
+                r['rule'] = r['rule']?.replace(ruleAll, "")??null;
+            }
+        }
         if (ExtensionSettings.instance.getGenerateConfig()){
             const config_prompt = ModelPrompts.rulesMakeConfig(r);
             const config_parsed = await this.modelComms.runQueryAndParse(config_prompt, PromptTemperature.RULE_OUTPUT);
@@ -585,7 +604,115 @@ Please write the documentation as a string in a JSON in this format: {documentat
                 r["add_to_config"] = config_parsed["add_to_config"];
             }
         }
+        r["rule"] = this.fixShellDirective(r["rule"]||"");
         return r;
+    }
+
+    private fixShellDirective(rules: string){
+        const lines = rules.split('\n');
+        const result: string[] = [];
+        let insideShellDirective = false;
+        let opening_i = -1; let opening_j = -1;
+        let ending_i = -1; let ending_j = -1;
+        let closing_symbol:string|null = null;
+        const shells:any = [];
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+            if (trimmed.length===0){
+                continue;
+            }
+            if (!insideShellDirective){
+                if (trimmed.match(/^shell\s*:/)) {
+                    insideShellDirective = true;
+                    const first_a = line.indexOf("'");
+                    const first_b = line.indexOf('"');
+                    if (first_a !== -1){
+                        if (first_b === -1){
+                            opening_i = i;
+                            opening_j = first_a;
+                            closing_symbol = "'";
+                        } else if (first_b < first_a){
+                            opening_i = i;
+                            opening_j = first_b;
+                            closing_symbol = '"';
+                        } else {
+                            opening_i = i;
+                            opening_j = first_a;
+                            closing_symbol = "'";
+                        }
+                    } else if (first_b !== -1){
+                        opening_i = i;
+                        opening_j = first_b;
+                        closing_symbol = '"';
+                    }
+                    if (closing_symbol){
+                        const index = line.lastIndexOf(closing_symbol);
+                        if (index!==undefined && index !== -1 && index !== opening_j){
+                            ending_i = i;
+                            ending_j = index;
+                        }
+                    }
+                }
+            } else {
+                if (trimmed.startsWith("#")||trimmed.startsWith("rule")){
+                    insideShellDirective = false;
+                    shells.push({'begin_i': opening_i, 'begin_j': opening_j, 'end_i': ending_i, 'end_j': ending_j, 'symbol': closing_symbol});
+                    opening_i = -1; opening_j = -1;
+                    ending_i = -1; ending_j = -1;
+                    closing_symbol = null;
+                    continue;
+                }
+                let index;
+                if (!closing_symbol){
+                    const first_a = line.indexOf("'");
+                    const first_b = line.indexOf('"');
+                    if (first_a !== -1){
+                        if (first_b === -1){
+                            opening_i = i;
+                            opening_j = first_a;
+                            closing_symbol = "'";
+                        } else if (first_b < first_a){
+                            opening_i = i;
+                            opening_j = first_b;
+                            closing_symbol = '"';
+                        } else {
+                            opening_i = i;
+                            opening_j = first_a;
+                            closing_symbol = "'";
+                        }
+                    } else if (first_b !== -1){
+                        opening_i = i;
+                        opening_j = first_b;
+                        closing_symbol = '"';
+                    }
+                }
+                if (closing_symbol){
+                    index = line.lastIndexOf(closing_symbol);
+                }
+                if (index!==undefined && index !== -1 && (index !== opening_j || i !== opening_i)){
+                    ending_i = i;
+                    ending_j = index;
+                }
+            }
+        }
+        if (insideShellDirective){
+            shells.push({'begin_i': opening_i, 'begin_j': opening_j, 'end_i': ending_i, 'end_j': ending_j, 'symbol': closing_symbol});
+        }
+        for (let i = shells.length-1; i>=0; i--){
+            const shell = shells[i];
+            const begin_i = shell['begin_i'];
+            const begin_j = shell['begin_j'];
+            const end_i = shell['end_i'];
+            const end_j = shell['end_j'];
+            const symbol = shell['symbol'];
+            if (begin_i === -1 || end_i === -1 || symbol === null){
+                continue;
+            }
+            lines[end_i] = lines[end_i].substring(0, end_j) + '\"\"\"';
+            lines[begin_i] = lines[begin_i].substring(0, begin_j) + '\"\"\"' + lines[begin_i].substring(begin_j+1);
+        }
+        return lines.join("\n");
     }
 
     async guessOnlyName(command: BashCommand){
@@ -607,7 +734,11 @@ Please write the documentation as a string in a JSON in this format: {documentat
             return {rules: rules, can_correct: false};
         }
         if (r["rules"]){
-            rules["rule"] = r["rules"];
+            const fakeRuleAll = this.extractAllRule(r["rules"]||"");
+            if (fakeRuleAll){
+                r["rules"] = r["rules"].replace(fakeRuleAll, "");
+            }
+            rules["rule"] = this.fixShellDirective(r["rules"]||"");
         }
         if (r["rule_all"]){
             rules["rule_all"] = r["rule_all"];

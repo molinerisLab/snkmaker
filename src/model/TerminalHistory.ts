@@ -252,14 +252,14 @@ export class TerminalHistory {
             if (valid.success){
                 return rules;
             }
-            SnkmakerLogger.instance()?.log(`Generated rule not valid: ${valid.message}`);
+            console.log("Error, " + i + " - " + valid.message);
+            SnkmakerLogger.instance()?.log(`Generated rule not valid: try ${i} - s.b.: ${n_tries_activate_step_back}`);
             const response = await this.queries.autoCorrectRulesFromError(rules, valid.message||"",i>=n_tries_activate_step_back);
             if (response.can_correct){
                 rules = response.rules;
             } else {
                 break;
             }
-            SnkmakerLogger.instance()?.log(`Corrected rule: ${rules}`);
         }
         return rules;
     }
