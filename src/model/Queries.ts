@@ -3,8 +3,6 @@ import { BashCommand, ExecutionEnvironment } from "./TerminalHistory";
 import { ExtensionSettings } from '../utils/ExtensionSettings';
 import * as vscode from 'vscode';
 import { OpenedSnakefileContent, SnakefileContext } from "../utils/OpenendSnakefileContent";
-import { assert } from "console";
-const { jsonrepair } = require('jsonrepair')
 
 class ModelPrompts{
     static ruleDetailsPrompt(command: string): string{
@@ -139,6 +137,14 @@ class ModelPrompts{
 
     static correctRulesFromErrorPrompt(rules: SnakefileContext, error: string, suggestion:string|undefined): string{
         let prompt = ModelPrompts.correctRuleFromErrorBasicPrompt(rules, error);
+        prompt += "These are common mistakes that can cause errors:\n"+
+        "-Some rule has a log directive containing a wildcard which is not contained in the input/output directives. In this case, change the log filename so it doesn't contain the wildcard.\n"+
+        "-Indentation errors: Snakemake is a python superset and like python it requires precise indentation.\n"+
+        "-Malformed configuration: the configuration must follow the yaml format.\n"+
+        "-Incorrect use of expand(..). Expand must be used only when there are multiple input files that can be defined by iterating over some list. Sometimes, it's better to explicitly list all files. The expand must be based on a valid list or range.\n"+
+        "-Multiple rules with the same name. In this case, if the rules are different, change the name of one of them. If they are equal, remove one.\n"+
+        "-Malformed rule, for example defined with { } instead of indentation. Follow the template:\n"+
+        "TEMPLATE OF RULE:\nrule rule_name:\n\tinput:\n\t\tinput_file1='somefile.bam',\n\t\tinput_file2='somefile2.bam'\n\toutput:\n\t\toutput_file='somefile.txt'\n\tlog:\n\t\t'logs/rulename.log'\n\tshell:\n\t\t'some_command'\n";
         if (suggestion){
             prompt += "This is a review of the problem and some suggestions on how to fix it:\`\`\`review\n" +
             suggestion + "\n\`\`\`\n";
@@ -178,36 +184,44 @@ class ModelPrompts{
         if (rules.snakefile_content){
             let preSnakefilePrompt = "";
             rules.config_content.forEach((config) => {
-                preSnakefilePrompt += `\nConfig:\n${config}\n`;
+                preSnakefilePrompt += `\n\`\`\`config\n${config}\n\`\`\`\n`;
             });
             rules.include_content.forEach((include) => {
-                preSnakefilePrompt += `\nInclude:\n${include}\n`;
+                preSnakefilePrompt += `\n\`\`\`included rules\n${include}\n\`\`\`\n`;
             });
-            prompt += `I have a Snakefile formed like that:\n${preSnakefilePrompt}\n${rules.snakefile_content}\n`+
-            `To which these new rules have just been added:\n${rules.rule}\n`+
+            prompt += `Consider this Snakemake pipeline:${preSnakefilePrompt}\n\`\`\`snakefile\n${rules.snakefile_content}\n\`\`\`\n`+
+            `To which these new rules have just been added:\n\`\`\`new rules\n${rules.rule}\n\`\`\`\n`+
             "Considering ONLY the new rules, ";
         } else {
-            prompt += `I have the following Snakemake rules:\n${rules.rule}\n`+
+            prompt += `Consider this Snakefile:\n\`\`\`snakefile\n${rules.rule}\n\`\`\`\n`+
             "Considering the rules, "
         }
-        prompt += "check if some values inside these rules can be moved to a configuration field.\n" +
-        "Generally, the config must contains stuff like hardcoded absolute paths, hardcoded values that the user might want to change "+
-        "on different runs of the Snakemake pipeline. Output files generally should not be in the config.\n"+
-        "Also, if the Snakefile already has a config, you can use its values in the new rules, if they fit.\n"+
-        "Important: the 'conda' directive of rules, when existing, must never be modified or moved to the config. Do not put the conda .yaml file names into the config. Do not put things related to conda environments in the config.yaml.\n" +
-        "The config is a simple yaml file, it contains only values, never logic.\n"+
-        "The config is meant for the user to make the pipeline more "+
-        "maintainable, allowing to run it with different configurations. Not all values are worth putting in the config.\n"+
+        prompt += "check if some values inside these rules can be moved to a configuration field";
+        if (rules.config_content.length > 0){
+            prompt += " and if some of the values already present in the config can be used in the new rules";
+        }
+        prompt += ".\nYou can:\n-Add new lines to the config.yaml file, defining new configuration fields. The config must follow the yaml format. "+
+        "YAML uses key-value pairs with :, for example BAM_FILE: ../../../star/RNA_RPE_HET_PRPF31.ribo.ex.bam\n"+
+        "-Replace values inside the rules. To access config values inside Snakemake rules, you use the python dictionary access notation, es. config['GENOME_PATH'] "+
+        "(you can not use the dot notation, only dictionary access notation).\n"+
+        "When you replace a wildcard with a config, you need to do that for all the directives of the rule that used the wildcard: input, output and, if it is defined, log."+
+        " If you replace the wildcard only in some of the directives and not the other, the snakefile will break.\n"+
+        "When deciding which values to add in the config, consider these guidelines:\n"+
+        "-The config.yaml contains only data in yaml format, it cannot contain logic.\n"+
+        "-The config is meant to make pipelines adaptable to different use-cases. If it can be interesting to the user to change it, it should be in the config. "+
+        "If not, it should not be in the config.\n"+
+        "-Output filenames generally should not be in the config.\n"+
+        "-Parameters passed to the scrits can be interesting to be in the config, the user might be interested in running the pipeline with different ones.\n"+
+        "-It is very useful to put hardcoded absolute paths in the config, so the user can move the pipeline to different machines and easily update them.\n"+
+        "-The conda directive must NEVER be changed, and things related to Conda environments should NEVER be put in the config.\n\n"+
         "Examples of good config fields:\nGENOME_PATH='/home/user/.../genome.fasta' #Very good, hardcoded paths are better in a config\n"+
         "NUMBER_RANDOMIZATION: 4 #Good, especially if this value is used in an expand to generate multiple files\n"+
-        "STAR_OUT_SAM_TYPE: 'BAM' #Good, this is a value that might be changed by the user\n"+
+        "STAR_OUT_SAM_TYPE: 'BAM' #Good, this is a parameter of the STAR tool that might be changed by the user\n"+
         "Examples of bad config fields:\n"+
         "conda_env: 'your_conda_env_name' #No, conda env info doesn't go here!\n"+
-        "conda create -n snaketest python=3.9 #NO! This is not even a yaml field, it's a command. Never do that!\n"+
-        "You can add new lines to the config using the yaml notation, and access their values inside the rules "+
-        "using the python dictionary access notation, es. config['GENOME_PATH'].\n"+
-        "Please output your response in JSON following this schema:\n"+
-        "{rules: string, add_to_config: string}\n";
+        "Please briefly explain your reasoning behind your decisions, and then output the results in JSON format following this schema:\n"+
+        "{rules: string, add_to_config: string}\n"+
+        "Be careful not to use the symbols { and } in your reasoning, these symbols are reserved for the JSON only.\n";
         if (rules.snakefile_content){
             prompt += "Where 'rules' are the newly added rules with your changed applied, ";
         } else {
@@ -315,7 +329,7 @@ class ModelPrompts{
 
     static rulesContextPrompt(currentRules: string){
         if (currentRules.length <= 20){return "";} //Skip prompt if file has a few characters inside
-        return `\nFor context, these are the rules already present:\`\`\`snakefile\n${currentRules}\n\`\`\`\n`+
+        return `\nFor context, these are the rules already present:${currentRules}\n`+
         "Please use the existing rules and config to:\n" +
         "1- Avoid repeating existing rules. If a rule is already present, do not write it again." +
         "If you need to return no rule at all, because they are all already present, return a newline instead.\n"+
@@ -333,15 +347,13 @@ export class Queries{
 
     private async updateSnakefileContextFromPrompt(prompt: string, context: SnakefileContext, temperature: PromptTemperature){
         const validate = ((response:any) => {
-            if (!response.rule){
+            if (response===undefined || response.rule===undefined || response.rule===null){
                 return "Error: no field named rule in the JSON";
             }
             return null;
         });
         const formatted = await this.modelComms.runQueryAndParse(prompt, temperature, validate);
-        if (formatted["rule"]){
-            context["rule"] = formatted["rule"];
-        }
+        context["rule"] = formatted["rule"];
         if (formatted["rule_all"]){
             context['rule_all'] = formatted["rule_all"];
         }

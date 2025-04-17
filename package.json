@@ -509,12 +509,12 @@
         },
         "snakemaker.ruleGeneration.iterativeValidateAndFix.maxIterations": {
           "type": "number",
-          "default": 4,
+          "default": 8,
           "markdownDescription": "When generating Snakemake rules or code, the extension will try to validate the generated code and fix it if needed. This value set a limit to the number of tries."
         },
         "snakemaker.ruleGeneration.iterativeValidateAndFix.activateStepBackAt": {
           "type": "number",
-          "default": 3,
+          "default": 6,
           "markdownDescription": "When generating Snakemake rules or code, the extension will try to validate the generated code and fix it if needed; after a certain number of failures, the step back strategy asks the LLM itself for a plan to fix the errors, and then fed the plan back to the LLM. This strategy is powerful but more expensive. A value >= maxIterations will disable it."
         }
       }

@@ -93,7 +93,7 @@ export class WriteToFiles{
         //Write config
         if (value['add_to_config'] && value['add_to_config'].length > 0){
             let to_output = value['add_to_config'];
-            if (value['config_paths'][0], value['config_content'][0] && value['config_content'][0].length > 0){
+            if (value['config_paths'][0] && value['config_content'][0] && value['config_content'][0].length > 0){
                 to_output = value['config_content'][0] + "\n" + to_output;
             }
             if (value['config_paths'][0]){

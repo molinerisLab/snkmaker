@@ -6,7 +6,7 @@ import { WriteToFiles } from "../utils/WriteToFiles";
 import * as vscode from 'vscode';
 import { NotebookViewCallbacks } from "../view/NotebookView";
 import { NotebookPresenter } from "./NotebookPresenter";
-import { OpenedSnakefileContent, SnakefileContext } from "../utils/OpenendSnakefileContent";
+import { ImportNotFoundError, OpenedSnakefileContent, SnakefileContext } from "../utils/OpenendSnakefileContent";
 
 export class BashCommandViewModel{
     llm: LLM;
@@ -76,7 +76,7 @@ export class BashCommandViewModel{
           this.observableCommands.next(this.terminalHistory.getHistory());
           this.updateCanUndoCanRedo();
       }).catch((e) => {
-        vscode.window.showInformationMessage(e.toString());
+        vscode.window.showErrorMessage(e.toString());
         this.observableCommands.next(this.terminalHistory.getHistory());
       });
       this.observableCommands.next(this.terminalHistory.getHistory());
@@ -178,14 +178,14 @@ export class BashCommandViewModel{
               vscode.window.showInformationMessage('No rule has been printed');
             }
           }).catch((e) => {
-            vscode.window.showInformationMessage(e.toString());
+            vscode.window.showErrorMessage(e.toString());
             this.observableCommands.next(this.terminalHistory.getHistory());
           });
         } else {
           vscode.window.showInformationMessage('No rules to print');
         }
       }).catch((e) => {
-        vscode.window.showInformationMessage(e.toString());
+        vscode.window.showErrorMessage(e.toString());
         this.observableCommands.next(this.terminalHistory.getHistory());
       });
       this.observableCommands.next(this.terminalHistory.getHistory());
@@ -222,7 +222,7 @@ export class BashCommandViewModel{
         vscode.window.showInformationMessage('Model activated. The model says hi: "' + hi + '"');
       }).catch((e) => {
         if (!skipErrorMessage){
-          vscode.window.showInformationMessage('Error activating model: ' + (<Error>e).message);
+          vscode.window.showErrorMessage('Error activating model: ' + (<Error>e).message);
         }
       }).finally(() => {
         this.isChangingModel = false;
@@ -302,7 +302,7 @@ export class BashCommandViewModel{
         this.updateCanUndoCanRedo();
         this.memento.update("stashed_state", exported);
       } catch (e){
-        vscode.window.showInformationMessage('Error loading workspace: ' + e);
+        vscode.window.showErrorMessage('Error loading workspace: ' + e);
       }
     }
 
@@ -340,7 +340,7 @@ export class BashCommandViewModel{
         this.terminalHistory.setHistoryFromChat(history);
         this.observableCommands.next(this.terminalHistory.getHistory());
       } catch (e){
-        vscode.window.showInformationMessage('Could not set history from LLM response');
+        vscode.window.showErrorMessage('Could not set history from LLM response');
       }
     }
 
@@ -398,6 +398,10 @@ export class BashCommandViewModel{
       return this.openedNotebookPresenter;
     }
 
+    fileNotFoundError(error: ImportNotFoundError){
+      vscode.window.showErrorMessage(error.message);
+    }
+
     async generateDocumentation(){
       const history = this.terminalHistory.getHistory().map((command) => command.getCommand()).join('\n\n');
       let contextForHistory = "These are bash commands that will be converted into snakemake rules:\n" + history;
@@ -408,23 +412,29 @@ export class BashCommandViewModel{
             const path = OpenedSnakefileContent.getCurrentEditorSnakefilePath();
             vscode.window.showInputBox({ prompt: 'Enter the path to the Snakefile', value: path || "" }).then(async (snakefilePath) => {
               if (snakefilePath) {
-                const content = await OpenedSnakefileContent.getFilePathContent(snakefilePath);
-                contextForHistory = "Snakefile:\n\n" + content + "\n\n" + contextForHistory;
-                this.terminalHistory.writeDocumentation(contextForHistory).then((docs) => {
-                  this.writeToFiles.writeToNewFile(docs).catch((e:any) => {
-                    vscode.window.showInformationMessage(e.toString());
+                try{
+                  const content = await OpenedSnakefileContent.getFilePathContent(snakefilePath);
+                  contextForHistory = "Snakefile:\n\n" + content + "\n\n" + contextForHistory;
+                  this.terminalHistory.writeDocumentation(contextForHistory).then((docs) => {
+                    this.writeToFiles.writeToNewFile(docs).catch((e:any) => {
+                      vscode.window.showErrorMessage(e.toString());
+                    });
+                  }).catch((e:any) => {
+                    vscode.window.showErrorMessage(e.toString());
                   });
-                }).catch((e:any) => {
-                  vscode.window.showInformationMessage(e.toString());
-                });
+                } catch (e:any) {
+                  if (e.name === 'FileNotFound'){
+                    this.fileNotFoundError(e);
+                  }
+                }
               } else {
-                vscode.window.showInformationMessage('No Snakefile path provided');
+                vscode.window.showErrorMessage('No Snakefile path provided');
               }
             });
           } else {
             this.terminalHistory.writeDocumentation(contextForHistory).then((docs) => {
               this.writeToFiles.writeToNewFile(docs).catch((e:any) => {
-                vscode.window.showInformationMessage(e.toString());
+                vscode.window.showErrorMessage(e.toString());
               });
             });
           }

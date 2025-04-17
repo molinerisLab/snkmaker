@@ -6,6 +6,13 @@ import { ExecutionEnvironment } from '../model/TerminalHistory';
 
 configfile: "config_DGE.yaml" */
 
+export class ImportNotFoundError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "FileNotFound";
+    }
+}
+
 export class SnakefileContext{
     constructor(
         public snakefile_path: string | null,
@@ -60,7 +67,7 @@ export class OpenedSnakefileContent{
                 includePaths[key] = includeContent;
             } catch (e) {
                 console.log("Error reading include file: ", e);
-                includeKeys.splice(includeKeys.indexOf(key), 1);
+                throw new ImportNotFoundError("The Snakefile tries to include " + key + ", but the file does not exist. Please check for unsaved files in your workspace.");
             }
         }
         for (let key of configKeys) {
@@ -75,7 +82,7 @@ export class OpenedSnakefileContent{
                 configPaths[key] = configContent;
             } catch (e) {
                 console.log("Error reading config file: ", e);
-                configKeys.splice(configKeys.indexOf(key), 1);
+                throw new ImportNotFoundError("The Snakefile tries to use the configfile " + key + ", but the file does not exist. Please check for unsaved files in your workspace.");
             }
         }
 
