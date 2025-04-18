@@ -726,8 +726,8 @@ Please write the documentation as a string in a JSON in this format: {documentat
             if (begin_i === -1 || end_i === -1 || symbol === null){
                 continue;
             }
-            lines[end_i] = lines[end_i].substring(0, end_j) + '\"\"\"';
-            lines[begin_i] = lines[begin_i].substring(0, begin_j) + '\"\"\"' + lines[begin_i].substring(begin_j+1);
+            lines[end_i] = lines[end_i].substring(0, end_j) + ' \"\"\"';
+            lines[begin_i] = lines[begin_i].substring(0, begin_j) + '\"\"\" ' + lines[begin_i].substring(begin_j+1);
         }
         return lines.join("\n");
     }
