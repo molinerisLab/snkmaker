@@ -26,7 +26,8 @@ export class SnakefileContext{
         public rule_all: string | null,
         public add_to_config: string | null,
         public remove: string | null,
-        public envs_to_export: ExecutionEnvironment[]
+        public envs_to_export: ExecutionEnvironment[],
+        public hasErrors: boolean = false,
     ) {}
     get_snakefile(){
         return (this.snakefile_content?.replaceAll(this.remove||"","") || "") + "\n" + this.rule + "\n" + (this.rule_all || "");

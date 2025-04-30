@@ -169,6 +169,9 @@ export class BashCommandViewModel{
     private ruleOutputRoutine(output: Promise<SnakefileContext|null>, commands: BashCommandContainer[]){
       const r = output.then((rules) => {
         if (rules !== null){
+          if (rules.hasErrors){
+            this.warnUserSnakefileHasErrors();
+          }
           this.writeToFiles.writeToCurrentFile(rules).then((success) => {
             if (success){
                 this.archiveCommands(commands);
@@ -190,6 +193,10 @@ export class BashCommandViewModel{
       });
       this.observableCommands.next(this.terminalHistory.getHistory());
       return r;
+    }
+
+    private warnUserSnakefileHasErrors(){
+      vscode.window.showWarningMessage('The output rules contain some syntax error. Please check the file before running it.');
     }
 
     appendRulesRaw(rules: string){

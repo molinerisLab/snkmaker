@@ -101,6 +101,7 @@ export class LLM{
                 "Please try to fix your previous response. Here are some suggestions:\n"+suggestion;
             }
         }
+        console.log("Error parsing LLM response");
     }
 
     async runQuery(query: string, t: PromptTemperature): Promise<string>{

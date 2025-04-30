@@ -257,7 +257,12 @@ export class TerminalHistory {
             const response = await this.queries.autoCorrectRulesFromError(rules, valid.message||"",i>=n_tries_activate_step_back);
             if (response.can_correct){
                 rules = response.rules;
+                if (i === n_tries-1){
+                    const valid: { success: boolean; message?: string;} = await this.testRules.validateRules(rules);
+                    rules.hasErrors = !valid.success;
+                }
             } else {
+                rules.hasErrors = true;
                 break;
             }
         }

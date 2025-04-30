@@ -847,7 +847,7 @@ export class NotebookController{
     }
 
     private async setDependenciesForCells(){
-        const BATCH_SIZE = 12;
+        const BATCH_SIZE = 7;
         for (let i=0; i<this.cells.cells.length; i+=BATCH_SIZE){
             const batch = this.cells.cells.slice(i, i+BATCH_SIZE);
             let prompt = "I have a jupyter notebook that is being processed into a snakemake pipeline. This process involves " +
@@ -1219,11 +1219,12 @@ export class NotebookController{
                 "1- A snakemake rule, with input, output, logs and script directives. "+
                 "As the python scripts are run inside the 'script' directive of Snakemake, they have access to "+
                 "input and output filenames, wildcards, config and params. The script can read them as: "+
-                "snakemake.input[0], [1].. snakemake.output[0], [1] .. snakemake.wildcards['wildcard_name']  (for example, from filename test_run_{N} you can access snakemake.wildcards['N'])\n"+
+                "snakemake.input[0], snakemake.input[1].. snakemake.output[0], [1] .. snakemake.wildcards['wildcard_name'] (for example, from filename test_run_{N} you can access snakemake.wildcards['N']); snakemake.config['config_names']\n"+
                 "Important: If a directive of the Snakemake rule is empty, for example because the script has no inputs or outputs, skip the directive entirely. "+
                 "It is legit to define a rule without the input directive, while it's not legit to define the directive and leave it empty.\n"+
-                "Important: the script directive must use the three-quotes syntax: \"\"\", and it simply states the path to the script to call. Example:\n"+
-                "script:\n\t\"\"\"my_script.py\"\"\"\n"+
+                "Important: the script directive must simply state the path to the script to call. Example:\n"+
+                "script:\n\t\"\my_script.py\"\n"+
+                "Important: remember the .py format for scripts.\n"+
                 "Important: if the rule contains wildcards, all of them must appear in all the directives: input, output and log (except if a directive is missing).\n"+
                 "2- A prefix code, that will be appended before the actual code in the script, that reads snakemake data, initialize variables, read files. Please always use the snakemake.input, snakemake.wildcards etc to initialize variables and filenames.\n"+
                 "3- A suffix code, that will be appended after the script, that saves the variables to the output files. Use snakemake.output for the filenames.\n"+
@@ -1427,19 +1428,21 @@ export class NotebookController{
         return [this.cells, update];
     }
 
-    async testRulesBeforeExporting(snakefile: string, config: string){
+    async testRulesBeforeExporting(snakefile: string, config: string): Promise<{ rules: string; config: string; hasErrors: boolean; }>{
         const validator = new TestRules();
         const success = await validator.testSnakemakePath();
         if (!success){
-            return {rules: snakefile, config: config};
+            return {rules: snakefile, config: config, hasErrors: false};
         }
         const n_tries = ExtensionSettings.instance.getIterativeValidationAndFix();
         const stepback_at = ExtensionSettings.instance.getIterativeValidationAndFixActivateStepBack();
+        let hasErrors:boolean = false;
         for (let i=0; i<n_tries; i++){
             const c = new SnakefileContext(
                 null, snakefile, "", [], [], [], [], "", "", config, null, []
             );
             const result = await validator.validateRules(c);
+            hasErrors = !result.success;
             if (result.success){
                 break;
             }
@@ -1489,11 +1492,19 @@ export class NotebookController{
             } else if (!has_config_file && has_config){
                 snakefile = "configfile: \"config.yaml\"\n\n" + snakefile;
             }
+            if (i === n_tries-1 && hasErrors){
+                const c = new SnakefileContext(
+                    null, snakefile, "", [], [], [], [], "", "", config, null, []
+                );
+                const result = await validator.validateRules(c);
+                hasErrors = !result.success;
+            }
         }
-        return {rules: snakefile, config: config};
+        return {rules: snakefile, config: config, hasErrors: hasErrors};
     }
 
-    async testPythonScriptsBeforeExporting(scripts: {'script': string, 'name': string}[]){
+    async testPythonScriptsBeforeExporting(scripts: {'script': string, 'name': string, hasError?:boolean|undefined}[]):
+        Promise<{ 'script': string, 'name': string, hasError?: boolean|undefined }[]>{
         const validator = new TestRules();
         const success = await validator.testPythonPath();
         if (!success){
@@ -1501,46 +1512,53 @@ export class NotebookController{
         }
         const n_tries = ExtensionSettings.instance.getIterativeValidationAndFix();
         const stepback_at = ExtensionSettings.instance.getIterativeValidationAndFixActivateStepBack();
-        for (let i=0; i<n_tries; i++){
-            const script = scripts[i];
-            const result = await validator.testPythonScript(script.script);
-            if (result.success){
-                break;
-            }
-            console.log("Script " + i);
-            let prompt;
-            if (i < stepback_at){
-                prompt = `I have this python script:\n\`\`\`python\n${script.script}\n\`\`\`\n`+
-                `The script contains errors, when trying to parse it the error is:\n\`\`\`error\n${result.message}\n\`\`\`\n`+
-                `Modify the script to fix the error.\n`+
-                `Write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings and special characters must be escaped) following this schema:\n`+
-                `{ 'script': string } (corresponding to the new python script)`;
-            } else {
-                const suggestion_prompt = `I have this python script:\n\`\`\`python\n${script.script}\n\`\`\`\n`+
-                `The script contains errors, when trying to parse it the error is:\n\`\`\`error\n${result.message}\n\`\`\`\n`+
-                "Analyze the script and this error, and give me a review of what is wrong in the code, "+
-                "and some suggestions on how to fix it. The review and suggestions must be concise. The end goal of these suggestions "+
-                "is to fix bugs, not improve the overall quality or readability of code, so they must be "+
-                "limited to fixing errors.\n"+
-                "Write only the review and the suggestions, not the fixed script.";
-
-                const suggestion = await this.llm.runQuery(suggestion_prompt, PromptTemperature.MEDIUM_DETERMINISTIC);
-                prompt = `I have this python script:\n\`\`\`python\n${script.script}\n\`\`\`\n`+
-                `The script contains errors, when trying to parse it the error is:\n\`\`\`error\n${result.message}\n\`\`\`\n`+
-                `A review of the error and suggestions on how to fix it:\n\`\`\`review\n${suggestion}\n\`\`\`\n`+
-                `Modify the script to fix the error.\n`+
-                `Write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings and special characters must be escaped) following this schema:\n`+
-                `{ 'script': string } (corresponding to the new python script)`;
-            }
-            const validate_function = (response: any) => {
-                if (!response.script || typeof response.script !== 'string') {
-                    return "Invalid response format: 'script' must be a string";
+        for (let k=0; k<scripts.length; k++){
+            let hasErrors = false;
+            for (let i=0; i<n_tries; i++){
+                const script = scripts[k];
+                const result = await validator.testPythonScript(script.script);
+                hasErrors = !result.success;
+                if (result.success){
+                    break;
                 }
-                return null;
-            }
-            let formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate_function);
-            scripts[i].script = formatted.script.trim();
+                let prompt;
+                if (i < stepback_at){
+                    prompt = `I have this python script:\n\`\`\`python\n${script.script}\n\`\`\`\n`+
+                    `The script contains errors, when trying to parse it the error is:\n\`\`\`error\n${result.message}\n\`\`\`\n`+
+                    `Modify the script to fix the error.\n`+
+                    `Write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings and special characters must be escaped) following this schema:\n`+
+                    `{ 'script': string } (corresponding to the new python script)`;
+                } else {
+                    const suggestion_prompt = `I have this python script:\n\`\`\`python\n${script.script}\n\`\`\`\n`+
+                    `The script contains errors, when trying to parse it the error is:\n\`\`\`error\n${result.message}\n\`\`\`\n`+
+                    "Analyze the script and this error, and give me a review of what is wrong in the code, "+
+                    "and some suggestions on how to fix it. The review and suggestions must be concise. The end goal of these suggestions "+
+                    "is to fix bugs, not improve the overall quality or readability of code, so they must be "+
+                    "limited to fixing errors.\n"+
+                    "Write only the review and the suggestions, not the fixed script.";
 
+                    const suggestion = await this.llm.runQuery(suggestion_prompt, PromptTemperature.MEDIUM_DETERMINISTIC);
+                    prompt = `I have this python script:\n\`\`\`python\n${script.script}\n\`\`\`\n`+
+                    `The script contains errors, when trying to parse it the error is:\n\`\`\`error\n${result.message}\n\`\`\`\n`+
+                    `A review of the error and suggestions on how to fix it:\n\`\`\`review\n${suggestion}\n\`\`\`\n`+
+                    `Modify the script to fix the error.\n`+
+                    `Write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings and special characters must be escaped) following this schema:\n`+
+                    `{ 'script': string } (corresponding to the new python script)`;
+                }
+                const validate_function = (response: any) => {
+                    if (!response.script || typeof response.script !== 'string') {
+                        return "Invalid response format: 'script' must be a string";
+                    }
+                    return null;
+                }
+                let formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate_function);
+                if (i === n_tries-1 && hasErrors){
+                    const result = await validator.testPythonScript(scripts[k].script);
+                    hasErrors = !result.success;
+                }
+                scripts[k].script = formatted.script.trim();
+                scripts[k].hasError = hasErrors;
+            }
         }
         return scripts;
     }
@@ -1555,7 +1573,7 @@ export class NotebookController{
         if (config.length > 0){
             snakefile = "configfile: \"config.yaml\"\n\n";
         }
-        let scripts: {'script': string, 'name': string}[] = [];
+        let scripts: {'script': string, 'name': string, 'hasError'?: boolean|undefined}[] = [];
         rules.forEach((rule) => {
             if (rule.rule){
                 snakefile += rule.rule + "\n\n";
@@ -1566,13 +1584,26 @@ export class NotebookController{
         });
         //Test rules
         if (ExtensionSettings.instance.getValidateSnakemakeRules()){
-            const result: {'rules': string, config: string} = await this.testRulesBeforeExporting(
+            const result: {'rules': string, config: string, hasErrors: boolean} = await this.testRulesBeforeExporting(
                 snakefile,
                 config
             );
             snakefile = result.rules;
             config = result.config;
             scripts = await this.testPythonScriptsBeforeExporting(scripts);
+            let scriptError = scripts.map((script) => {
+                if (script.hasError){
+                    return script.name + " has errors";
+                }
+                return "";
+            }).filter((s)=>s.length>0).join(", ");
+            if (result.hasErrors){
+                vscode.window.showErrorMessage("Some produced rules have parsing errors");
+            }
+            if (scriptError.length > 0){
+                vscode.window.showErrorMessage("The following scripts have parsing errors: " + scriptError);
+            }
+
         }
         scripts.forEach((script => waiting.push(writeFile(resolve(exportPath, script.name), script.script))));
 
