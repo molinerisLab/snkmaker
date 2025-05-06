@@ -44,36 +44,40 @@ class ModelPrompts{
             ruleFormat==="Snakemake" && ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules();
         const comment: boolean = 
             ruleFormat==="Snakemake" && ExtensionSettings.instance.getCommentEveryRule();
-        let prompt = `Convert this bash command into a ${ruleFormat} rule:\n${command}\n`+
-        `The estimated inputs filenames are (${inputs}) and the estimated output filenames (${output}) `+
-        `- but it is only an estimate and could be wrong. A possible name for the rule could be '${ruleName}', but you can modify it if needed.`+
-        ` ${rulesContext} `+
-        `When converting respect the new-lines chosen by the user, don't remove them. You might add new-lines for readability, but only if necessary.\n`;
+        
+        let prompt = `#Goal:\n\nConvert this bash command into a ${ruleFormat} rule:\n##Command:\n\n${command}\n`+
+        `##Additional info:\n\n* Estimated inputs filenames: (${inputs}).\n* Estimated output filenames (${output}).\n`+
+        `\n* Possible name for the rule: ${ruleName}\nNote: these are estimates and could be wrong. You can change the rule name if you need to.\n\n`+
+        `${rulesContext}\n\n`+
+        "# Specific instructions:\n\n"+
+        `* Respect the new-lines present in the bash commands, don't remove them. You might add new-lines for readability when necessary, never remove them.\n`;
         if (ruleFormat==="Snakemake"){
-            prompt += `Use named input and outputs, with meaningful names. For example:rule example:\n\tinput:\n\t\tbam_file='somefile.bam'\n`;
-            prompt += "If the rule contains some type of loop, acting on multiple files, "+
+            prompt += `* Use named input and outputs, with meaningful names. For example:rule example:\n\tinput:\n\t\tbam_file='somefile.bam'\n`;
+            prompt += "* If the rule contains some type of loop, acting on multiple files, "+
             "generate one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' "+
             "to generate all output files. The name of the second rule should be a meaningful name connected to the name of "+
             "the original one. The name of the second rule cannot be simply 'all' because this name is reserved.\n";
             if (logField){
-                prompt += "\nAdd a log field to the rule with the name of the log file. For example, log: 'logs/rulename.log'. "+
+                prompt += "* Add a log field to the rule with the name of the log file. For example, log: 'logs/rulename.log'. "+
                 "Important: the log filename must contain the exact same wildcards of the rule's inputs and outputs, "+
                 "or Snakemake will throw an error. So if some wildcards are used in the input/output, include them in the log filename, and don't "+
                 "put new ones there. Also, log fields must be added before the shell field.\n";
             }
             if (comment){
-                prompt += "\nAdd a short comment describing what the rule does. The comment must be short and concise. "+
+                prompt += "* Add a short comment describing what the rule does. The comment must be short and concise. "+
                 "Simply say what the rule does. "+
                 "The comment must be just before the definition of the rule. "+
-                "For example:\n#Trim fasta files using tool X\nrule trim_with_X: ...";
+                "For example:\n#Trim fasta files using tool X\nrule trim_with_X: ...\n";
             }
             if (env_directive && env_name){
-                prompt += `\n-You also must set the 'conda' directive in the output rule to ${env_name}:\nconda:\n\t'${env_name}'\n. This is used by Snakemake to re-build the environment.`
+                prompt += `* Set the 'conda' directive in the output rule to ${env_name}:\nconda:\n\t'${env_name}'\n. This is used by Snakemake to re-build the environment.`+
+                "Note: the conda .yaml file must be set only in the conda directive, never in other Snakemake fields. It must never be a wildcard.";
             }
             if (ruleAll && ruleAll.length>0){
-                prompt += "\nThe Snakefile already contains a rule all: " + ruleAll + ".\n" +
+                prompt += "* The Snakefile already contains a rule all:\n" + ruleAll + ".\n" +
                 "Please add the new rules to the rule all.\n" +
-                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
+                "\n# Output format\n\n"+
+                "Return the rules in JSON format. Remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content. The JSON contains a field 'rule' which is a string, that contains the entire "+
                 "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
                     prompt += "\nNote: the rule all must be written entirely, so take the one existing, add inputs to it and return it in its entirety.\n"+
@@ -90,7 +94,7 @@ class ModelPrompts{
                 }
             }
         } else {
-            prompt += "\nPlease return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
+            prompt += "\n\n# Output format\n\nPlease return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
         }
 
     return prompt;
@@ -103,31 +107,31 @@ class ModelPrompts{
     }
 
     static correctRuleFromErrorBasicPrompt(rules: SnakefileContext, error: string): string{
-        let prompt = "";
+        let prompt = "# General context:\n\n";
         if (rules.snakefile_content && rules.snakefile_content.length>0){
             prompt = `I have a Snakefile which can be divided in two sections. `+
             `The first section is fixed and cannot be modified, while the second can still be changed.\n`+
-            `Snakefile first section (fixed):\n\`\`\`snakefile\n${rules.snakefile_content}\n\`\`\`\n`+
-            `Snakefile second section (can be modified):\n\`\`\`snakefile\n${rules.rule + "\n" + (rules.rule_all || "")}\n\`\`\`\n`;
+            `## Snakefile first section (fixed):\n\n\`\`\`snakefile\n${rules.snakefile_content}\n\`\`\`\n`+
+            `## Snakefile second section (can be modified):\n\n\`\`\`snakefile\n${rules.rule + "\n" + (rules.rule_all || "")}\n\`\`\`\n`;
         } else {
             prompt = `I have this Snakefile:\`\`\`snakefile\n${rules.get_snakefile()}\n\`\`\`\n`
         }
         if (rules.config_paths.length > 0){
-            prompt += `Base config (fixed, can't be modified):\`\`\`config.yaml\n${rules.config_content.join("\n")}\n\`\`\`\n`;
+            prompt += `## Base config (fixed, can't be modified):\n\n\`\`\`config.yaml\n${rules.config_content.join("\n")}\n\`\`\`\n`;
         }
         if (rules.include_paths.length > 0){
-            prompt += `Includes:\`\`\`rules (fixed, can't be modified)\n${rules.include_content.join("\n")}\n\`\`\`\n`;
+            prompt += `## Includes:\n\n\`\`\`rules (fixed, can't be modified)\n${rules.include_content.join("\n")}\n\`\`\`\n`;
         }
         if (rules.add_to_config){
-            prompt += `Additional config part (can be modified):\`\`\`extra config\n${rules.add_to_config}\n\`\`\`\n`;
+            prompt += `## Additional config part (can be modified):\n\n\`\`\`extra config\n${rules.add_to_config}\n\`\`\`\n`;
         }
-        prompt += `This snakefile has problems, and when parsing it I get the following error:\`\`\`error\n${error}\n\`\`\`\n`;
+        prompt += `# Problem:\n\nThis snakefile has problems, and when parsing it I get the following error:\n\`\`\`error\n${error}\n\`\`\`\n`;
         return prompt; 
     }
 
     static correctRulesFromErrorStepbackPrompt(rules: SnakefileContext, error: string): string{
         let prompt = ModelPrompts.correctRuleFromErrorBasicPrompt(rules, error);
-        prompt += "Analyze the error, the current state of the Snakefile, and give me a review "+
+        prompt += "# Goal:\n\nAnalyze the error, the current state of the Snakefile, and give me a review "+
         "of what is the problem in it, and some suggestions on how to fix it. The review and suggestions must be concise.\n"+
         "\nThe suggestions provide high level suggestions on how to fix the error.\n"+
         "The end goal is to fix the error, not to perform generic improvements in the snakefile or its readability. Focus on actual errors."+
@@ -137,50 +141,50 @@ class ModelPrompts{
 
     static correctRulesFromErrorPrompt(rules: SnakefileContext, error: string, suggestion:string|undefined): string{
         let prompt = ModelPrompts.correctRuleFromErrorBasicPrompt(rules, error);
-        prompt += "These are common mistakes that can cause errors:\n"+
-        "-Some rule has a log directive containing a wildcard which is not contained in the input/output directives. In this case, change the log filename so it doesn't contain the wildcard.\n"+
-        "-Indentation errors: Snakemake is a python superset and like python it requires precise indentation.\n"+
-        "-Malformed configuration: the configuration must follow the yaml format.\n"+
-        "-Incorrect use of expand(..). Expand must be used only when there are multiple input files that can be defined by iterating over some list. Sometimes, it's better to explicitly list all files. The expand must be based on a valid list or range.\n"+
-        "-Multiple rules with the same name. In this case, if the rules are different, change the name of one of them. If they are equal, remove one.\n"+
-        "-Malformed rule, for example defined with { } instead of indentation. Follow the template:\n"+
-        "TEMPLATE OF RULE:\nrule rule_name:\n\tinput:\n\t\tinput_file1='somefile.bam',\n\t\tinput_file2='somefile2.bam'\n\toutput:\n\t\toutput_file='somefile.txt'\n\tlog:\n\t\t'logs/rulename.log'\n\tshell:\n\t\t'some_command'\n";
+        prompt += "# Common causes:\n\nThese are common mistakes that can cause errors:\n"+
+        "* Some rule has a log directive containing a wildcard which is not contained in the input/output directives. In this case, change the log filename so it doesn't contain the wildcard.\n"+
+        "* Indentation errors: Snakemake is a python superset and like python it requires precise indentation.\n"+
+        "* Malformed configuration: the configuration must follow the yaml format.\n"+
+        "* Incorrect use of expand(..). Expand must be used only when there are multiple input files that can be defined by iterating over some list. Sometimes, it's better to explicitly list all files. The expand must be based on a valid list or range.\n"+
+        "* Multiple rules with the same name. In this case, if the rules are different, change the name of one of them. If they are equal, remove one.\n"+
+        "* Malformed rule, for example defined with { } instead of indentation. Follow the template:\n"+
+        "## TEMPLATE OF A RULE:\n\nrule rule_name:\n\tinput:\n\t\tinput_file1='somefile.bam',\n\t\tinput_file2='somefile2.bam'\n\toutput:\n\t\toutput_file='somefile.txt'\n\tlog:\n\t\t'logs/rulename.log'\n\tshell:\n\t\t'some_command'\n";
         if (suggestion){
-            prompt += "This is a review of the problem and some suggestions on how to fix it:\`\`\`review\n" +
+            prompt += "# Review:\n\nThis is a review of the problem and some suggestions on how to fix it:\n\`\`\`review\n" +
             suggestion + "\n\`\`\`\n";
         }
-        prompt += `Fix the rules to correct the problem.\n`;
+        prompt += `# Goal:\n\nFix the rules to correct the problem.\n`;
         if ((rules.snakefile_content && rules.snakefile_content.length > 0)||rules.config_paths.length > 0||rules.include_paths.length > 0){
-            prompt += `Remember, you can't modify the entire snakefile because some parts are fixed. `+
-            "If the error originates from a fixed part, then it simply cannot be resolved by you."+
-            " If you can not fix the error, you can set the field 'can_correct' to false.\n";
+            prompt += `* Remember, you can't modify the entire snakefile because some parts are fixed. `+
+            "If the error originates from a fixed part, then it simply cannot be resolved by you.\n"+
+            "* If you can not fix the error, you can set the field 'can_correct' to false.\n";
             if (rules.add_to_config){
-                prompt += `Regarding the config, you can modify the 'Additional config part'\n`;
-                prompt += `You can add or remove lines from it, but you can not remove lines from the rest of the config.\n`;
+                prompt += `* Regarding the config, you can modify the 'Additional config part'\n`;
+                prompt += `* You can add or remove lines from it, but you can not remove lines from the rest of the config.\n`;
             } else {
-                prompt += `Regarding the config, it is fixed so you can't remove lines from it, but you can add new ones.\n`;
+                prompt += `* Regarding the config, it is fixed so you can't remove lines from it, but you can add new ones.\n`;
             }
         }
-        prompt += `Please output the corrected rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema:`+
+        prompt += `# Output format:\n\nPlease output the corrected rules in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema:\n`+
         ` {can_correct: boolean, rules: string, rule_all: string, additional_config: string}\n`+
-        "-can_correct: boolean, true if you can correct the error, false if you can't.\n";
+        "Where:\n* can_correct: boolean, true if you can correct the error, false if you can't.\n";
         if (rules.snakefile_content && rules.snakefile_content.length>0){
-            prompt += "-rules: string, the corrected rules. It is an updated version of the second section of the rules.\n";
+            prompt += "* rules: string, the corrected rules. It is an updated version of the second section of the rules.\n";
         } else {
-            prompt += "-rules: string, the corrected rules. It is an updated version of the rules.\n";
+            prompt += "* rules: string, the corrected rules. It is an updated version of the rules.\n";
         }
         if (rules.add_to_config){
-            prompt += `-additional_config: string, the updated version of the Additional Config Part. It will replace this part of the config.\n`;
+            prompt += `* additional_config: string, the updated version of the Additional Config Part. It will replace this part of the config.\n`;
         } else {
-            prompt += "-additional_config: string, new lines to append to the config. Can be an empty string.\n";
+            prompt += "* additional_config: string, new lines to append to the config. Can be an empty string.\n";
         }
-        prompt += "-rule_all: string, the updated version of the rule all.\n"+
-        "Please write the rule all separately from the other rules, in the appropriate field."
+        prompt += "* rule_all: string, the updated version of the rule all.\n"+
+        "\n*Please write the rule all separately from the other rules, in the appropriate field.*"
         return prompt; 
     }
 
     static rulesMakeConfig(rules: SnakefileContext){
-        let prompt = ``;
+        let prompt = `# Context:\n\n`;
         if (rules.snakefile_content){
             let preSnakefilePrompt = "";
             rules.config_content.forEach((config) => {
@@ -191,74 +195,78 @@ class ModelPrompts{
             });
             prompt += `Consider this Snakemake pipeline:${preSnakefilePrompt}\n\`\`\`snakefile\n${rules.snakefile_content}\n\`\`\`\n`+
             `To which these new rules have just been added:\n\`\`\`new rules\n${rules.rule}\n\`\`\`\n`+
-            "Considering ONLY the new rules, ";
+            "# Goal:\n\nConsidering ONLY the new rules, ";
         } else {
             prompt += `Consider this Snakefile:\n\`\`\`snakefile\n${rules.rule}\n\`\`\`\n`+
-            "Considering the rules, "
+            "# Goal:\n\nConsidering the rules, "
         }
         prompt += "check if some values inside these rules can be moved to a configuration field";
         if (rules.config_content.length > 0){
             prompt += " and if some of the values already present in the config can be used in the new rules";
         }
-        prompt += ".\nYou can:\n-Add new lines to the config.yaml file, defining new configuration fields. The config must follow the yaml format. "+
+        prompt += ".\nYou can:\n* Add new lines to the config.yaml file, defining new configuration fields. The config must follow the yaml format: "+
         "YAML uses key-value pairs with :, for example BAM_FILE: ../../../star/RNA_RPE_HET_PRPF31.ribo.ex.bam\n"+
-        "-Replace values inside the rules. To access config values inside Snakemake rules, you use the python dictionary access notation, es. config['GENOME_PATH'] "+
+        "* Replace values inside the rules. To access config values inside Snakemake rules, you use the python dictionary access notation, es. config['GENOME_PATH'] "+
         "(you can not use the dot notation, only dictionary access notation).\n"+
-        "When you replace a wildcard with a config, you need to do that for all the directives of the rule that used the wildcard: input, output and, if it is defined, log."+
+        "## Extra instructions to consider:\n\n"+
+        "* When you replace a wildcard with a config, you need to do that for all the directives of the rule that used the wildcard: input, output and, if it is defined, log."+
         " If you replace the wildcard only in some of the directives and not the other, the snakefile will break.\n"+
-        "When deciding which values to add in the config, consider these guidelines:\n"+
-        "-The config.yaml contains only data in yaml format, it cannot contain logic.\n"+
-        "-The config is meant to make pipelines adaptable to different use-cases. If it can be interesting to the user to change it, it should be in the config. "+
+        "* When deciding which values to add in the config, consider these guidelines:\n"+
+        "\t* The config.yaml contains only data in yaml format, it cannot contain logic.\n"+
+        "\t* The config is meant to make pipelines adaptable to different use-cases. If it can be interesting to the user to change it, it should be in the config. "+
         "If not, it should not be in the config.\n"+
-        "-Output filenames generally should not be in the config.\n"+
-        "-Parameters passed to the scrits can be interesting to be in the config, the user might be interested in running the pipeline with different ones.\n"+
-        "-It is very useful to put hardcoded absolute paths in the config, so the user can move the pipeline to different machines and easily update them.\n"+
-        "-The conda directive must NEVER be changed, and things related to Conda environments should NEVER be put in the config.\n\n"+
+        "\t* Output filenames generally should not be in the config.\n"+
+        "\t* Parameters passed to the scrits can be interesting to be in the config, the user might be interested in running the pipeline with different ones.\n"+
+        "\t* It is very useful to put hardcoded absolute paths in the config, so the user can move the pipeline to different machines and easily update them.\n"+
+        "\t* The conda directive must NEVER be changed, and things related to Conda environments should NEVER be put in the config.\n\n"+
         "Examples of good config fields:\nGENOME_PATH='/home/user/.../genome.fasta' #Very good, hardcoded paths are better in a config\n"+
         "NUMBER_RANDOMIZATION: 4 #Good, especially if this value is used in an expand to generate multiple files\n"+
         "STAR_OUT_SAM_TYPE: 'BAM' #Good, this is a parameter of the STAR tool that might be changed by the user\n"+
         "Examples of bad config fields:\n"+
         "conda_env: 'your_conda_env_name' #No, conda env info doesn't go here!\n"+
+        "# Output format:\n\n"
         "Please briefly explain your reasoning behind your decisions, and then output the results in JSON format following this schema:\n"+
         "{rules: string, add_to_config: string}\n"+
         "Be careful not to use the symbols { and } in your reasoning, these symbols are reserved for the JSON only.\n";
         if (rules.snakefile_content){
-            prompt += "Where 'rules' are the newly added rules with your changed applied, ";
+            prompt += "* 'rules' are the newly added rules with your changed applied, ";
         } else {
-            prompt += "Where 'rules' are the rules you just received with your changes applied, ";
+            prompt += "* 'rules' are the rules you just received with your changes applied, ";
         }
         prompt += "and 'add_to_config' is a string that contains the new lines to be added to the config file.\n"+
-        "You do not have to use a config if it's not needed, do it only if it's worth it.\n"+
-        "If you don't want to add new configs, or you don't need to, just set add_to_config to an empty string and 'rules' to the same rules you received.\n"+
-        "Remember JSON does not support triple quotes for multi-line strings; you must use escape characters to manage multi-line.\n";
+        "* You do not have to use a config if it's not needed, do it only if it's worth it.\n"+
+        "* If you don't want to add new configs, or you don't need to, just set add_to_config to an empty string and 'rules' to the same rules you received.\n"+
+        "**Remember JSON does not support triple quotes for multi-line strings; you must use escape characters to manage multi-line.**\n";
         return prompt;
     }
 
     static rulesFromCommandsBasicPrompt(formattedRules: string[], ruleFormat: string, extraPrompt: string, 
         rulesContext:string="", ruleAll: string|null = null, set_env_directive: boolean): string{
-        let prompt =  `I have the following set of bash commands:\n\n`+
+        let prompt =  `# Context:\n\nI have the following set of bash commands:\n\n`+
         `${formattedRules.join("\n")}\n${rulesContext}\n`+
-        ` Please convert them into ${ruleFormat} rules.\n`+
-        `Note that Estimated inputs and outputs are just guesses and could be wrong. `+
-        "The rule names are suggestions, you can modify them if needed.\n"+
-        `When producing the new rules, follow these instructions:\n`+
-        `-Respect the new-lines chosen by the user, don't remove them. You can add new-lines for readability if necessary.\n`+
+        "# Goal:\n\n"+
+        `Convert them into ${ruleFormat} rules.\n`+
+        `* Note that Estimated inputs and outputs are just guesses and could be wrong.\n`+
+        "* The rule names are suggestions, you can modify them if needed.\n"+
+        `## Extra instructions:\n\nWhen producing the new rules, follow these instructions:\n`+
+        `* Respect the new-lines chosen by the user, don't remove them. You can add new-lines for readability if necessary.\n`+
         extraPrompt;
         if (ruleFormat==="Snakemake"){
-            prompt += "-Use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n";
-            prompt += "If some of the rules contain some type of loops, acting on multiple files, "+
+            prompt += "* Use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n";
+            prompt += "* If some of the rules contain some type of loops, acting on multiple files, "+
             "generate one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' "+
             "to generate all output files. The name of the second rule should be a meaningful name connected to the name of "+
             "the original one. The name of the second rule cannot be simply 'all' because this name is reserved.\n";
             if (set_env_directive){
-                prompt += "\n-If a rule contains a field 'conda_env_path', set the 'conda' directive in the output rule. " +
-                "Keeping track of the environments used is important for reproducibility. Snakemake offers the conda directive"+
-                " to attach a yaml file to the rules - es:\n"+
-                "rule SOMETHING:\n\t#Input and outputs etc...\n\tconda:\n\t\t'env_file.yaml'\n\t#Shell directive...\n.";
+                prompt += "\* If a rule contains a field 'conda_env_path', set the 'conda' directive in the output rule. " +
+                "This allows Snakemake to re-build the environment from the yaml file. Usage example:\n"+
+                "rule SOMETHING:\n\t#Input and outputs etc...\n\tconda:\n\t\t'env_file.yaml'\n\t#Shell directive...\n."+
+                "**Note: the conda .yaml file must be set only in the conda directive, never in other Snakemake fields. It must never be a wildcard.**\n";
             }
             if (ruleAll && ruleAll.length>0){
-                prompt += "\n-The Snakefile already contains a rule all:\n " + ruleAll + "\n" +
+                prompt += "## Rule all:\n\nThe Snakefile already contains a rule all:\n " + ruleAll + "\n" +
                 "Add the new rules to the rule all.\n" +
+                "# Output format:\n\n"+
                 "Return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
                 "rules except for the rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
@@ -266,10 +274,10 @@ class ModelPrompts{
                     "The other rules on the other hand must not repeat the rules already existing in the file.";
                 }
             } else {
-                prompt += "Also write a 'rule all' to produce all files. The rule all is characterized by only the input directive, where " +
+                prompt += "## Rule all:\n\nAlso write a 'rule all' to produce all files. The rule all is characterized by only the input directive, where " +
                 "the outputs of the other rules are requested. " +
                 "Simply list the outputs of the other rules in the rule all inputs. Do not use expand() if not strictly needed.\n"+
-                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). "+
+                "# Output format:\n\nReturn the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). "+
                 "The JSON contains a field 'rule' which is a string, that contains the all the rules "+
                 ", ex. {rule: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
@@ -307,21 +315,21 @@ class ModelPrompts{
         const commentEveryLine: boolean = ExtensionSettings.instance.getCommentEveryRule();
         let extraPrompt = "";
         if (useWildcards){
-            extraPrompt += `-Prefer the usage of generic names for input-outputs using wildcards, when possible. `+
+            extraPrompt += `* Prefer the usage of generic names for input-outputs using wildcards, when possible. `+
             `For example input: "data.csv", output: "transformed_data.csv" could be written as input: "{file}.csv", `+
             `output: "transformed_{file}.csv".\n`+
-            `-Multiple commands that execute the same operation on different files can be merged in a single rule `+
+            `* Multiple commands that execute the same operation on different files can be merged in a single rule `+
             `using generic inputs/outputs and wildcards. Following the example above, another command could be input: "GENES.csv", `+
             `output: "transformed_GENES.csv"; this case is already covered by the rule with generic input and output names.\n`;
         }
         if (logDirective){
-            extraPrompt += "-Add a log directive to each rule with the name of the log file. "+
+            extraPrompt += "* Add a log directive to each rule with the name of the log file. "+
             "For example, log: 'logs/rulename.log'. Important: the log filename must contain the exact same wildcards of the rule's inputs and outputs, "+
             "or Snakemake will throw an error. So if some wildcards are used in the input/output, include them in the log filename, and don't "+
             "put new ones here. Also, log fields must be added before the shell field.\n";
         }
         if (commentEveryLine){
-            extraPrompt += "-For each rule, add a short, concise comment describing what the rule does. "+
+            extraPrompt += "* For each rule, add a short, concise comment describing what the rule does. "+
             "The comment must be just before the definition of the rule, es. #Trim fasta files using tool X\nrule run_X: ...\n"
         }
         return extraPrompt;
@@ -329,13 +337,14 @@ class ModelPrompts{
 
     static rulesContextPrompt(currentRules: string){
         if (currentRules.length <= 20){return "";} //Skip prompt if file has a few characters inside
-        return `\nFor context, these are the rules already present:${currentRules}\n`+
+        return `# Larger context:\n\nFor context, these are the rules already present:\n${currentRules}\n\n`+
+        "## How to use context:\n"+
         "Please use the existing rules and config to:\n" +
-        "1- Avoid repeating existing rules. If a rule is already present, do not write it again." +
+        "* Avoid repeating existing rules. If a rule is already present, do not write it again. " +
         "If you need to return no rule at all, because they are all already present, return a newline instead.\n"+
-        "2- Follow the style, formalisms and naming conventions of the rules already present.\n"+
-        "3- If a command results in a rule equal to one already present, do not output it.\n"+
-        "4- Consider the existing config, if available, for the new rules. If rules similar to the one you are generating use some configuration, use it in the new ones too.\n";
+        "* Follow the style, formalisms and naming conventions of the rules already present.\n"+
+        "* If a command results in a rule equal to one already present, do not output it.\n"+
+        "* Consider the existing config, if available, for the new rules. If rules similar to the one you are generating use some configuration, use it in the new ones too.\n";
     }
 
 }
@@ -662,6 +671,10 @@ Please write the documentation as a string in a JSON in this format: {documentat
                         opening_i = i;
                         opening_j = first_b;
                         closing_symbol = '"';
+                    }
+                    if (closing_symbol === '"' && line[opening_j+1] === '"' && line[opening_j+2] === '"'){
+                        //This line must be skipped - it's already using triple quotes
+                        insideShellDirective = false;
                     }
                     if (closing_symbol){
                         const index = line.lastIndexOf(closing_symbol);

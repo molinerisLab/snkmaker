@@ -71,7 +71,8 @@ export class WriteToFiles{
         let rule_all = value['rule_all'] || "";
         let remove = value['remove'];
         //Get the env files to export
-        const envs = new Set(value.envs_to_export.filter((env: ExecutionEnvironment) => !env.stored));
+        //const envs = new Set(value.envs_to_export.filter((env: ExecutionEnvironment) => !env.stored));
+        const envs = new Set(value.envs_to_export);
 
         var editor = vscode.window.activeTextEditor;
         let config_include = "";

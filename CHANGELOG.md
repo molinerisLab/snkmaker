@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2025-05-06
+
+### Changed:
+
+- Bug fixes.
+- Better prompting.
+- User now informed when Snakemaker is tracking the Conda environment.
+- More informative error message when to LLM is available.
+
 ## [0.2.5] - 2025-04-28
 
 ### Changed:

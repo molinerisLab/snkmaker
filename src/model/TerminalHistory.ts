@@ -85,7 +85,7 @@ export class TerminalHistory {
         this.updatingEnv = update
         const tmp_file = tmp.fileSync();
         this.tmp_path = tmp_file.name;
-        terminal.sendText("conda env export --from-history >" + tmp_file.name + " 2> /dev/null", true);
+        terminal.sendText("#Snakemaker will run 'conda env export' to track the execution environment.\nconda env export --from-history >" + tmp_file.name + " 2> /dev/null", true);
     }
 
     async addCommand(value: string, confidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, terminal: vscode.Terminal|null) {

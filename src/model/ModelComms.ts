@@ -26,6 +26,7 @@ export class LLM{
     current_model_id: string | undefined = undefined;
     copilotActive = false;
     isCopilotWaiting = true;
+    hasShownError = false;
 
     constructor(private memento: vscode.Memento){
         this.current_model = -1;
@@ -108,16 +109,20 @@ export class LLM{
         let tries = 0;
         if (this.isCopilotWaiting){
             while (this.current_model === -1){
-                await new Promise(r => setTimeout(r, 3000));
+                await new Promise(r => setTimeout(r, 1000));
                 SnkmakerLogger.instance()?.log("User tried running query but copilot still unactive and no model selected - sleeping");
             }
         }
-        while(this.current_model === -1 && tries < 15){
-            await new Promise(r => setTimeout(r, 1000));
+        while(this.current_model === -1 && tries < 10){
+            await new Promise(r => setTimeout(r, 800));
             tries += 1;
         }
         if (this.current_model === -1){
             SnkmakerLogger.instance()?.log("User tried running query but no model selected:\n"+query);
+            if (!this.hasShownError){
+                vscode.window.showErrorMessage("Snakemaker: Currently no LLM is selected - please select a language model using the model section of the Snakemaker panel.\nTip: sometimes VSCode fails to load Copilot APIs - try reloading the window.", {modal: true});
+                this.hasShownError = true;
+            }
             throw new ModelNotReadyError("No model currently selected - please select a model to use Snakemaker");
         }
         return this.models[this.current_model].runQuery(query, t).then(response => {
@@ -139,7 +144,11 @@ export class LLM{
             tries += 1;
         }
         if (this.current_model === -1){
-            throw new Error("No model currently selected - please select a model to use Snakemaker");
+            if (!this.hasShownError){
+                vscode.window.showErrorMessage("Snakemaker: No model currently selected - please select a model to use Snakemaker. Tip: sometimes VSCode fails to load Copilot APIs, try reloading the window.", {modal: true});
+                this.hasShownError = true;
+            }
+            throw new ModelNotReadyError("No model currently selected - please select a model to use Snakemaker");
         }
         return this.models[this.current_model].runChatQuery(queries).then(response => {
             return response;
@@ -151,7 +160,10 @@ export class LLM{
         if (id === null){
             const index_4o_mini = this.models.findIndex(model => model.getId().indexOf("gpt-4o-mini") !== -1);
             const index_4o = this.models.findIndex(model => model.getId().indexOf("gpt-4o") !== -1 && model.getId().indexOf("mini") === -1);
-            if (index_4o !== -1){
+            const index_4_1 = this.models.findIndex(model => model.getId().indexOf("gpt-4.1") !== -1);
+            if (index_4_1 !== -1){
+                index = index_4_1;
+            }else if (index_4o !== -1){
                 index = index_4o;
             } else if (index_4o_mini !== -1){
                 index = index_4o_mini;
