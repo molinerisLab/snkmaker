@@ -69,6 +69,7 @@ export class LLM{
                 if (validate){
                     const validationError = validate(parsed);
                     if (validationError) {
+                        console.log("Validation error: ", validationError);
                         prompt = "I sent you this request:\n\`\`\`request\n" + original_prompt + "\n\`\`\`"+
                         "Your response was:\n\`\`\`response\n" + response + "\n\`\`\`" +
                         "Your response is not valid:\n\`\`\`validation error\n" + validationError + "\n\`\`\`" +
@@ -82,8 +83,6 @@ export class LLM{
                     break;
                 }
                 console.log("Error parsing LLM response");
-                console.log(prompt);
-                console.log(response);
                 let error_message = `Error type: ${e.name}, Message: ${e.message}`;
                 if (i>=stepBackLimit){
                     //Prompt the model itself for a solution

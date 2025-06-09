@@ -282,7 +282,8 @@ export class TerminalHistory {
                 env = envs[command.get_terminal_env_index()];
             }
             
-            let rule = await this.queries.getRuleFromCommand(command, env?.filename||null);
+            //let rule = await this.queries.getRuleFromCommand(command, env?.filename||null);
+            let rule = await this.queries.getAllRulesFromCommands([command], [env]);
             await this.validateAndCorrectRules(rule);
             
             if (env){

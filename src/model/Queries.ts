@@ -258,7 +258,7 @@ class ModelPrompts{
             }
             if (ruleAll && ruleAll.length>0){
                 prompt += "\n-The Snakefile already contains a rule all:\n " + ruleAll + "\n" +
-                "Add the new rules to the rule all.\n" +
+                "Add the new rules' outputs to the rule all.\n" +
                 "Return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
                 "rules except for the rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}. Please do not add explanations.";
                 if (rulesContext.length>0){
@@ -458,63 +458,6 @@ Please write the documentation as a string in a JSON in this format: {documentat
             result.push(lines[i]);
         }
         return result.join("\n");
-    }
-
-    async getRuleFromCommand(bashCommand: BashCommand, env_name: string|null){
-        const ruleFormat = ExtensionSettings.instance.getRulesOutputFormat();
-        var inputs = bashCommand.getInput();
-        var output = bashCommand.getOutput();
-        const command = bashCommand.getCommandForModel();
-        if (inputs === "-"){ inputs = "No input";}
-        if (output === "-"){ output = "No output";}
-        let context = "";
-        let ruleAll = null;
-        let currentSnakefileContext: SnakefileContext = new SnakefileContext(
-            null,
-            null,
-            null,
-            [],
-            [],
-            [],
-            [],
-            null,
-            null,
-            null,
-            null,
-            []
-        );
-        if (ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt()){
-            const c = await OpenedSnakefileContent.getCurrentEditorContent();
-            if (c){
-                currentSnakefileContext = c;
-                context = ModelPrompts.rulesContextPrompt(currentSnakefileContext["content"]||"");
-                ruleAll = this.extractAllRule(currentSnakefileContext["content"]||"");
-            }
-        }
-        const prompt = ModelPrompts.ruleFromCommandPrompt(
-            command, bashCommand.getRuleName(), ruleFormat, inputs, output, context, ruleAll, env_name, ExtensionSettings.instance.getAddCondaDirective()
-        );
-        const r = await this.updateSnakefileContextFromPrompt(prompt, currentSnakefileContext, PromptTemperature.RULE_OUTPUT);
-        r['remove'] = ruleAll;
-        if (!ruleAll || ruleAll.length === 0){
-            ruleAll = this.extractAllRule(r["rule"]||"");
-            if (ruleAll){
-                r['rule_all'] = ruleAll;
-                r['rule'] = r['rule']?.replace(ruleAll, "")??null;
-            }
-        }
-        if (ExtensionSettings.instance.getGenerateConfig()){
-            const config_prompt = ModelPrompts.rulesMakeConfig(r);
-            const config_parsed = await this.modelComms.runQueryAndParse(config_prompt, PromptTemperature.RULE_OUTPUT);
-            if (config_parsed["rules"]){
-                r["rule"] = config_parsed["rules"];
-            }
-            if (config_parsed["add_to_config"]){
-                r["add_to_config"] = config_parsed["add_to_config"];
-            }
-        }
-        r["rule"] = this.fixShellDirective(r["rule"]||"");
-        return r;
     }
 
     async processRulesFromChat(rules: string){
