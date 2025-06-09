@@ -1072,6 +1072,10 @@ export class NotebookController{
         "changing the code to access it. Remember, from the python scripts you can access the " +
         "configuration with snakemake.config['variable_name'].\n" +
         "Also remember only rules can access the snakemake access. Scripts can not.\n" +
+        "Regarding the policies to write the config.yaml, follow these guidelines:\n" +
+        "* Input and output file names are not in the config.yaml; they are managed by Snakemake, they are hardcoded strings, with or without wildcards.\n" +
+        "* Hardcoded paths are good candidates for the config.yaml.\n"+
+        "* Values or parameters can be moved to the config if and only if it makes sense for the user running the Snakemake pipeline to change them.\n"+
         "This is the code of the cells:\n" +
         this.cells.cells.map((cell, index) => {
             let base = `Cell n. ${index}:\nType: ${cell.rule.type}\n`;
