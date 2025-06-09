@@ -975,9 +975,12 @@ export class NotebookController{
         `Cell uses wildcards: ${cell.wildcards.join(",")}\n\n` + 
         `Now the user changed the suffix code. The new suffix code is:\n#Start suffix code...\n${code}\n#End suffix code...\n` +
         `Please provide the new snakemake rule considering this updated prefix code.\n` +
-        `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema: { 'snakemakeRule': string }\n`+
-        "Please always output this JSON. If the rule does not need changing, output the same rule as before.";
-        const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT);
+        "Write the output in markdown format using the triple backticks to define code blocks."+
+        "Define a single code block named snakemakeRule.\n"+
+        "Es. ```snakemakeRule\n..the rule here..\n```\n"+
+        "It's important to set the correct names for code blocks, as they are parsed by a script.\n"+
+        "If the rule does not need changing, output the same rule as before.";
+        const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, undefined, false, "md");
         this.cells.cells[index].rule.snakemakeRule = formatted.snakemakeRule;
         this.cells.cells[index].rule.postfixCode = code;
         //Propagate changes to other cells who reads from this one
@@ -1013,9 +1016,14 @@ export class NotebookController{
             `Cell uses wildcards: ${cell.wildcards.join(",")}\n\n` + 
             `Now the user changed the Snakemake rule code. The new Snakemake rule is:\n${code}\n` +
             `Please provide the new prefix and suffix code based on the new snakemake rule. You can not change main code.\n` +
-            `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema: { 'prefix_code': string, 'suffix_code': string }\n`+
-            "Please always output this JSON. If the code do not need changing, output the same code as before.";
-            const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT);
+
+            "Write the output in markdown format using the triple backticks to define code blocks."+
+            "Define one code block named prefix_code and one code block named suffix_code.\n"+
+            "Es. ```prefix_code\n..code..\n```\n```suffix_code\n..code..\n```\n"+
+            "It's important to set the correct names for code blocks, as they are parsed by a script."+
+            "If the code do not need changing, output the same code as before.";
+
+            const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, undefined, false, "md");
             this.cells.cells[index].rule.snakemakeRule = code;
             this.cells.cells[index].rule.prefixCode = formatted.prefix_code;
             this.cells.cells[index].rule.postfixCode = formatted.suffix_code;
@@ -1033,9 +1041,14 @@ export class NotebookController{
             `Cell uses wildcards: ${cell.wildcards.join(",")}\n\n` + 
             `Now the user changed the prefix code. The new prefix code is:\n#Start prefix code...\n${code}\n#End prefix code...\n` +
             `Please provide the new snakemake rule considering this updated prefix code.\n` +
-            `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema: { 'snakemakeRule': string }\n`+
-            "Please always output this JSON. If the rule does not need changing, output the same rule as before.";
-            const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT);
+
+            "Write the output in markdown format using the triple backticks to define code blocks."+
+            "Define a single code block named snakemakeRule.\n"+
+            "Es. ```snakemakeRule\n..rule..\n```\n"+
+            "It's important to set the correct names for code blocks, as they are parsed by a script."+
+            "If the rule does not need changing, output the same rule as before.";
+
+            const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, undefined, false, "md");
             this.cells.cells[index].rule.snakemakeRule = formatted.snakemakeRule;
             this.cells.cells[index].rule.prefixCode = code;
         } else {
@@ -1248,14 +1261,18 @@ export class NotebookController{
                 ((wildcards.length===0) ? " - no wildcard needed -" : "Wildcards: " + wildcards.join(", ") + "\n\n") +
                 ((this.cells.config.length>0) ? `This is the config file of the Snakemake pipeline:\n${this.cells.config}\n\n` : '') +
                 "When saving files, you can decide the name, format and number of files. Consider the number of scripts that will read them to make a good decision.\n" +
-                "\nPlease write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings!) following this schema:\n"+
-                "{ 'prefix_code': string, 'suffix_code': string, 'rule': string}\n"+
+                
+                "Write the output in markdown format using the triple backticks to define code blocks."+
+                "Define the following code blocks: prefix_code, rule, suffix_code.\n"+
+                "Es. ```prefix_code\n..code here..\n```\n```rule\n..rule here..\n```\n```suffix_code\n..other code here..\n```\n"+
+                "It's important to set the correct names for code blocks, as they are parsed by a script.";
+
                 "prefix_code is the code to read arguments, files and initialize the state.\n"+
                 "suffix_code is the code to save the variables into output files, and rule is the Snakemake rule.\n"+
                 "Note, prefix code is appended before the script and suffix code after it. This happens automatically, "+
                 "you only need to write the requestes pieces of code, not to repeat the entire script.\n"+
-                "If a field does not need to contain anything, write an empty array or empty string, don't skip the field.\n"
-                const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT);
+                "If a field does not need to contain anything, write an empty code block, don't skip the block.\n"
+                const formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, undefined, false, "md");
                 node.prefixCode = getImportStatementsFromScripts(cell, this.cells.cells) + "\n" + formatted.prefix_code.trim().replace("#Begin prefix code...\n", "").replace("#End prefix code...", "");
                 node.postfixCode = formatted.suffix_code.trim().replace("#Start Suffix code...\n", "").replace("#End Suffix code...", "");
                 node.snakemakeRule = formatted.rule.trim().replace("#Rule...\n", "").replace("#End rule...", "");
@@ -1453,9 +1470,10 @@ export class NotebookController{
                 (config.length > 0 ? `And this config file (config.yaml):\n\`\`\`config.yaml\n${config}\`\`\`\n` : "") +
                 `When parsing I get the following error:\n\`\`\`error\n${result.message}\`\`\`\n`+
                 `Try to modify the snakefile to fix the error.\n`+
-                `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings and special characters must be escaped) following this schema:\n`+
-                (config.length > 0 ? `{ 'rules': string, 'config': string }\(rules is the new snakefile, config the new config.yaml)` : "{ 'rules': string }\n(rules is the new snakefile)")+
-                "\nRemember: if the config.yaml is not empty, it must be included with configfile: 'config.yaml' in the snakefile. If it's empty, it must not.";
+                `Write the output in markdown format using the triple backticks to define code blocks. Define the following code blocks:\n`+
+                (config.length > 0 ? "```rules\n..snakemake rules..\n```\n```config\n..yaml config..\n```\n\n(rules is the new snakefile, config the new config.yaml)\n\n"
+                : "```rules\n..snakemake rules..\n```\n\n(rules is the new snakefile)\n\n")+
+                "Remember: if the config.yaml is not empty, it must be included with configfile: 'config.yaml' in the snakefile. If it's empty, it must not.";
             } else {
                 const suggestion_prompt = `I have this snakefile:\n\`\`\`snakefile\n${snakefile}\`\`\`\n`+
                 (config.length > 0 ? `And this config file (config.yaml):\n\`\`\`config.yaml\n${config}\`\`\`\n` : "") +
@@ -1468,8 +1486,9 @@ export class NotebookController{
                 `When parsing I get the following error:\n\`\`\`error\n${result.message}\`\`\`\n`+
                 `A review of the error and suggestions on how to fix it:\n\`\`\`review\n${suggestion}\`\`\`\n`+
                 `Try to modify the snakefile to fix the error.\n`+
-                `Please write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings and special characters must be escaped) following this schema:\n`+
-                (config.length > 0 ? `{ 'rules': string, 'config': string }\(rules is the new snakefile, config the new config.yaml)` : "{ 'rules': string }\n(rules is the new snakefile)")+
+                `Write the output in markdown format using the triple backticks to define code blocks. Define the following code blocks:\n`+
+                (config.length > 0 ? "```rules\n..snakemake rules..\n```\n```config\n..yaml config..\n```\n\n(rules is the new snakefile, config the new config.yaml)\n\n"
+                : "```rules\n..snakemake rules..\n```\n\n(rules is the new snakefile)\n\n")+
                 "\nRemember: if the config.yaml is not empty, it must be included with configfile: 'config.yaml' in the snakefile. If it's empty, it must not.";
             }
             const validate_function = (response: any) => {
@@ -1478,7 +1497,7 @@ export class NotebookController{
                 }
                 return null;
             }
-            let formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate_function);
+            let formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate_function, false, "md");
             snakefile = formatted.rules.trim();
             if (formatted.config){
                 config = formatted.config.trim();
@@ -1526,8 +1545,11 @@ export class NotebookController{
                     prompt = `I have this python script:\n\`\`\`python\n${script.script}\n\`\`\`\n`+
                     `The script contains errors, when trying to parse it the error is:\n\`\`\`error\n${result.message}\n\`\`\`\n`+
                     `Modify the script to fix the error.\n`+
-                    `Write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings and special characters must be escaped) following this schema:\n`+
-                    `{ 'script': string } (corresponding to the new python script)`;
+                    
+                    "Write the output in markdown format using the triple backticks to define code blocks."+
+                    "Define a single code block named script.\n"+
+                    "Es. ```script\n..code here..\n```\n";
+
                 } else {
                     const suggestion_prompt = `I have this python script:\n\`\`\`python\n${script.script}\n\`\`\`\n`+
                     `The script contains errors, when trying to parse it the error is:\n\`\`\`error\n${result.message}\n\`\`\`\n`+
@@ -1542,8 +1564,9 @@ export class NotebookController{
                     `The script contains errors, when trying to parse it the error is:\n\`\`\`error\n${result.message}\n\`\`\`\n`+
                     `A review of the error and suggestions on how to fix it:\n\`\`\`review\n${suggestion}\n\`\`\`\n`+
                     `Modify the script to fix the error.\n`+
-                    `Write the output in JSON format (remember: JSON doesn't support the triple quote syntax for strings and special characters must be escaped) following this schema:\n`+
-                    `{ 'script': string } (corresponding to the new python script)`;
+                    "Write the output in markdown format using the triple backticks to define code blocks."+
+                    "Define a single code block named script.\n"+
+                    "Es. ```script\n..code here..\n```\n";
                 }
                 const validate_function = (response: any) => {
                     if (!response.script || typeof response.script !== 'string') {
@@ -1551,7 +1574,7 @@ export class NotebookController{
                     }
                     return null;
                 }
-                let formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate_function);
+                let formatted = await this.llm.runQueryAndParse(prompt, PromptTemperature.RULE_OUTPUT, validate_function, false, "md");
                 if (i === n_tries-1 && hasErrors){
                     const result = await validator.testPythonScript(scripts[k].script);
                     hasErrors = !result.success;
