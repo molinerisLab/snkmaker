@@ -52,20 +52,46 @@ export class LLM{
         }
     }
 
+    private parseCodeFromMarkdownResponse(response: string): any{
+        console.log(response);
+        let blocks: any = {};
+        // Updated regex: captures key and content
+        const codeBlockRegex = /```(\w+)\n([\s\S]*?)\n```/g;
+        let match;
+        while ((match = codeBlockRegex.exec(response)) !== null) {
+            if (match[1] && match[2]) {
+                blocks[match[1]] = match[2];
+            }
+        }
+        console.log(blocks);
+        return blocks;
+    }
+
     async runQueryAndParse(prompt: string, t: PromptTemperature,
-         validate:((r: any)=>string|null)|undefined=undefined, skip_iterations: boolean=false): Promise<any>{
+         validate:((r: any)=>string|null)|undefined=undefined, skip_iterations: boolean=false,
+            type: "json"|"md" = "json"): Promise<any>{
+
         const original_prompt = prompt;
         let response = "";
-        let suggestion = " Remember, your response is parsed by a script, so it must be in the correct format.\n"+
-        "The script searches for a JSON using the first { and the last }, so you can add reasonings, but the symbols { and } must be used only in the response JSON. "+
-        "If you add an example JSON, or use a { or } in the response before the actual JSON, it will break the parser.\n"+
-        "JSON also must be valid, must not contain triple-quote strings and must escape special characters.";
+        let suggestion = 
+            type === "json" ?
+                " Remember, your response is parsed by a script, so it must be in the correct format.\n"+
+                "The script searches for a JSON using the first { and the last }, so you can add reasonings, but the symbols { and } must be used only in the response JSON. "+
+                "If you add an example JSON, or use a { or } in the response before the actual JSON, it will break the parser.\n"+
+                "JSON also must be valid, must not contain triple-quote strings and must escape special characters."
+            :
+                " Remember, your response is parsed by a script, so it must be in the correct format.\n"+
+                "The script searches for a code block using the triple backticks, so you can add reasonings, but the symbols ``` must be used only in the response code block. "+
+                "The naming of the code blocks is important, the script will parse the code blocks depending on their names. Follow the instructions in the prompt.";
         const limit = ExtensionSettings.instance.getNumberParsingErrorTries();
         const stepBackLimit = ExtensionSettings.instance.getNumberParsingErrorActivateStepBack();
         for (let i=0; i<limit; i++){
             const response = await this.runQuery(prompt, t);
             try{
-                const parsed = this.parseJsonFromResponse(response);
+                const parsed = 
+                type === "json" ?
+                    this.parseJsonFromResponse(response) :
+                    this.parseCodeFromMarkdownResponse(response);
                 if (validate){
                     const validationError = validate(parsed);
                     if (validationError) {
@@ -88,7 +114,7 @@ export class LLM{
                     //Prompt the model itself for a solution
                     const p = "I sent you this request:\n\`\`\`request\n" + original_prompt + "\n\`\`\`\n"+
                     "Your response was:\n\`\`\`response\n" + response + "\n\`\`\`\n" +
-                    "When trying to parse your response in JSON format, I get this error:\n\`\`\`error\n" + error_message + "\n\`\`\`\n" +
+                    "When trying to parse your response, I get this error:\n\`\`\`error\n" + error_message + "\n\`\`\`\n" +
                     "Analyze your request, your previous response and this error, and give me a review of what went wrong, "+
                     "and suggestions on how to fix it. Write only the review and suggestions, not the fixed response.";
                     suggestion = await this.runQuery(p, PromptTemperature.MEDIUM_DETERMINISTIC);
@@ -315,7 +341,6 @@ class CopilotModel implements ModelComms{
         for await (const fragment of request.text) {
             response += fragment;
           }
-        response = response.replace(/```/g, '');
         return response;
     }
     async runChatQuery(queries: vscode.LanguageModelChatMessage[]): Promise<vscode.LanguageModelChatResponse> {

@@ -5,16 +5,6 @@ import * as vscode from 'vscode';
 import { OpenedSnakefileContent, SnakefileContext } from "../utils/OpenendSnakefileContent";
 
 class ModelPrompts{
-    static ruleDetailsPrompt(command: string): string{
-        return `I have the following bash command: ${command}.\n`+
-        `Please guess the filenames of input and outputs. Only the filenames of what is read and written by the commands are important,`+ 
-        ` not the things in between (es pipe operator), and stdin,stdout and stderr are not considered input or output files.\n`+
-        `When unknown programs are executed, they might write to files and you don't have the information of what they are.\n`+
-        `If you are sure that there is no input or output, write "-" to signal their absence."+
-        " If instead you don't have the information to safely assume their names, write "Unknown".\n`+
-        `I would also like a short name of a theorical Snakemake rule for this command.\n`+
-        `Please write: INPUT=[...]; OUTPUT=[...]; NAME=[...]. DO NOT, EVER output other things, only INPUT=[...]; OUTPUT=[...]; NAME=[...]. Do not forget the = symbol.`;
-    }
 
     static inferCommandInfoPrompt(command: string, examplesPrompt: string): string{
         return `I have the following bash command: ${command}.\n`+
@@ -35,65 +25,6 @@ class ModelPrompts{
         "{is_rule: boolean, rule_name: string, input: string, output: string}\n"+
         "If there are multiple input or output names, write them in a single string separated by comma, es input: 'a.txt, b.txt'.\n"+
         "If the command is not a rule, set is_rule to false and leave the other fields empty.\n";
-    }
-
-    static ruleFromCommandPrompt(command: string, ruleName: string, ruleFormat: string, inputs: string, 
-        output: string, rulesContext:string="", ruleAll: string | null = null,
-        env_name: string|null, env_directive: boolean): string{
-        const logField: boolean = 
-            ruleFormat==="Snakemake" && ExtensionSettings.instance.getSnakemakeBestPracticesSetLogFieldInSnakemakeRules();
-        const comment: boolean = 
-            ruleFormat==="Snakemake" && ExtensionSettings.instance.getCommentEveryRule();
-        let prompt = `Convert this bash command into a ${ruleFormat} rule:\n${command}\n`+
-        `The estimated inputs filenames are (${inputs}) and the estimated output filenames (${output}) `+
-        `- but it is only an estimate and could be wrong. A possible name for the rule could be '${ruleName}', but you can modify it if needed.`+
-        ` ${rulesContext} `+
-        `When converting respect the new-lines chosen by the user, don't remove them. You might add new-lines for readability, but only if necessary.\n`;
-        if (ruleFormat==="Snakemake"){
-            prompt += `Use named input and outputs, with meaningful names. For example:rule example:\n\tinput:\n\t\tbam_file='somefile.bam'\n`;
-            prompt += "If the rule contains some type of loop, acting on multiple files, "+
-            "generate one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' "+
-            "to generate all output files. The name of the second rule should be a meaningful name connected to the name of "+
-            "the original one. The name of the second rule cannot be simply 'all' because this name is reserved.\n";
-            if (logField){
-                prompt += "\nAdd a log field to the rule with the name of the log file. For example, log: 'logs/rulename.log'. "+
-                "Important: the log filename must contain the exact same wildcards of the rule's inputs and outputs, "+
-                "or Snakemake will throw an error. So if some wildcards are used in the input/output, include them in the log filename, and don't "+
-                "put new ones there. Also, log fields must be added before the shell field.\n";
-            }
-            if (comment){
-                prompt += "\nAdd a short comment describing what the rule does. The comment must be short and concise. "+
-                "Simply say what the rule does. "+
-                "The comment must be just before the definition of the rule. "+
-                "For example:\n#Trim fasta files using tool X\nrule trim_with_X: ...";
-            }
-            if (env_directive && env_name){
-                prompt += `\n-You also must set the 'conda' directive in the output rule to ${env_name}:\nconda:\n\t'${env_name}'\n. This is used by Snakemake to re-build the environment.`
-            }
-            if (ruleAll && ruleAll.length>0){
-                prompt += "\nThe Snakefile already contains a rule all: " + ruleAll + ".\n" +
-                "Please add the new rules to the rule all.\n" +
-                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
-                "rules except for rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}. Please do not add explanations.";
-                if (rulesContext.length>0){
-                    prompt += "\nNote: the rule all must be written entirely, so take the one existing, add inputs to it and return it in its entirety.\n"+
-                    "Ther other rules already existing in the Snakefile must not be repeated, only write the new ones.";
-                }
-            } else {
-                prompt += "Please also write a 'rule all' to produce all files.\n" +
-                "The rule all is characterized by only the input directive, where outputs of other rules are requested.\n" +
-                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains all "+
-                "the rules. Es. {rule: string}. Please do not add explanations.";
-                if (rulesContext.length>0){
-                    prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
-                    "but their outputs must be included in the 'rule_all'.";
-                }
-            }
-        } else {
-            prompt += "\nPlease return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
-        }
-
-    return prompt;
     }
 
     static guessNamePrompt(command: string): string{
@@ -219,18 +150,21 @@ class ModelPrompts{
         "STAR_OUT_SAM_TYPE: 'BAM' #Good, this is a parameter of the STAR tool that might be changed by the user\n"+
         "Examples of bad config fields:\n"+
         "conda_env: 'your_conda_env_name' #No, conda env info doesn't go here!\n"+
-        "Please briefly explain your reasoning behind your decisions, and then output the results in JSON format following this schema:\n"+
-        "{rules: string, add_to_config: string}\n"+
-        "Be careful not to use the symbols { and } in your reasoning, these symbols are reserved for the JSON only.\n";
+        "Please briefly explain your reasoning behind your decisions, and then "+
+        " print the rules in Markdown format using the triple backticks to define code blocks.\n"+
+        "Your markdown response includes two code blocks: rules and add_to_config\n"+
+        "Es. ```rules\nrule_name:\n\tinput: 'file.txt'\n\toutput: 'file2.txt'\n\tshell: \"\"\"command\"\"\"\n#Other rules...\n```\n"+
+        "```add_to_config\n#New lines to add to the config file\nBAM_FILE: ../../../star/RNA_RPE_HET_PRPF31.ribo.ex.bam\n```\n"+
+        "Don't use the triple backticks inside your reasoning, only for delimiting code blocks.\n"
         if (rules.snakefile_content){
-            prompt += "Where 'rules' are the newly added rules with your changed applied, ";
+            prompt += "The 'rules' block contains the newly added rules with your changed applied, ";
         } else {
-            prompt += "Where 'rules' are the rules you just received with your changes applied, ";
+            prompt += "The 'rules' block contains the rules you just received with your changes applied, ";
         }
-        prompt += "and 'add_to_config' is a string that contains the new lines to be added to the config file.\n"+
+        prompt += "and 'add_to_config' block contains the new lines to be added to the yaml config file.\n"+
         "You do not have to use a config if it's not needed, do it only if it's worth it.\n"+
-        "If you don't want to add new configs, or you don't need to, just set add_to_config to an empty string and 'rules' to the same rules you received.\n"+
-        "Remember JSON does not support triple quotes for multi-line strings; you must use escape characters to manage multi-line.\n";
+        "If you don't want to add new configs, or you don't need to, just set add_to_config as an empty block and 'rules' to the same rules you received.\n"+
+        "Remember, the code blocks must be named precisely 'rules' and 'add_to_config', in order to be parsed correctly.";
         return prompt;
     }
 
@@ -259,8 +193,11 @@ class ModelPrompts{
             if (ruleAll && ruleAll.length>0){
                 prompt += "\n-The Snakefile already contains a rule all:\n " + ruleAll + "\n" +
                 "Add the new rules' outputs to the rule all.\n" +
-                "Return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a field 'rule' which is a string, that contains the entire "+
-                "rules except for the rule all, and a field 'rule_all' that contains the rule all. Es. {rule: string, rule_all: string}. Please do not add explanations.";
+                "Please return the rules in Markdown format using the triple backticks to define code blocks.\n"+
+                "The MD response contains two code blocks: one named 'rule', containing the entire rules, "+
+                "and one named 'rule_all', containing the rule all.\n"+
+                "Es. ```rule\nrule_name:\n\tinput: 'file.txt'\n\toutput: 'file2.txt'\n\tshell: \"\"\"command\"\"\"\n#Other rules...\n```\n"+
+                "```rule_all\nrule all:\n\tinput: 'file1.txt', 'file2.txt'\n\toutput: 'all_outputs.txt'\n```\n";
                 if (rulesContext.length>0){
                     prompt += "\nNote: the rule 'all' must be re-written entirely, so take the one existing and add inputs to it.\n"+
                     "The other rules on the other hand must not repeat the rules already existing in the file.";
@@ -269,18 +206,20 @@ class ModelPrompts{
                 prompt += "Also write a 'rule all' to produce all files. The rule all is characterized by only the input directive, where " +
                 "the outputs of the other rules are requested. " +
                 "Simply list the outputs of the other rules in the rule all inputs. Do not use expand() if not strictly needed.\n"+
-                "Please return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). "+
-                "The JSON contains a field 'rule' which is a string, that contains the all the rules "+
-                ", ex. {rule: string}. Please do not add explanations.";
+                "Please return the rules in Markdown format using the triple backticks to define code blocks.\n"+
+                "The markdown response contains a single code block named 'rule', containing the entire rules.\n"+
+                "Es. ```rule\nrule_name:\n\tinput: 'file.txt'\n\toutput: 'file2.txt'\n\tshell: \"\"\"command\"\"\"\n#Other rules...\n```\n";
                 if (rulesContext.length>0){
                     prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
                     "but their outputs must be included in the 'rule_all'.";
                 }
             }
         } else {
-            prompt += "\nPlease return the rules in JSON format (remember: JSON doesn't support the triple quote syntax for multi-line strings-you need to use single quote and escape characters for multi-line content). The JSON contains a single field 'rule' which is a string, that contains the entire rules. Es. {rule: string}. Please do not add explanations.";
+            prompt += "Please return the rules in Markdown format using the triple backticks to define code blocks.\n"+
+                "The mardown response contains a single code block named 'rule', containing the entire rules.\n"+
+                "Es. ```rule\nrule_name:\n\tinput: 'file.txt'\n\toutput: 'file2.txt'\n\tshell: \"\"\"command\"\"\"\n#Other rules...\n```\n";
         }
-        return prompt;
+        return prompt;// + "\nImportant: for rules to be parsed by the system, it's important to include the triple backlist ``` at the beginning and end of the sections.\n";
     }
 
     static processRulesFromChatBasicPrompt(rules: string, snakefile_content: string, ruleAll: string): string{
@@ -352,7 +291,7 @@ export class Queries{
             }
             return null;
         });
-        const formatted = await this.modelComms.runQueryAndParse(prompt, temperature, validate);
+        const formatted = await this.modelComms.runQueryAndParse(prompt, temperature, validate, false, "md");
         context["rule"] = formatted["rule"];
         if (formatted["rule_all"]){
             context['rule_all'] = formatted["rule_all"];
@@ -462,7 +401,6 @@ Please write the documentation as a string in a JSON in this format: {documentat
 
     async processRulesFromChat(rules: string){
         const ruleFormat = ExtensionSettings.instance.getRulesOutputFormat();
-        let extraPrompt = "";
         if (ruleFormat!=="Snakemake" || !ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt()){
             return new SnakefileContext(
                 null, rules,
@@ -492,7 +430,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
         currentSnakefileContext['rule'] = r['rules'];
         if (ExtensionSettings.instance.getGenerateConfig()){
             const config_prompt = ModelPrompts.rulesMakeConfig(currentSnakefileContext);
-            const config_parsed = await this.modelComms.runQueryAndParse(config_prompt, PromptTemperature.RULE_OUTPUT);
+            const config_parsed = await this.modelComms.runQueryAndParse(config_prompt, PromptTemperature.RULE_OUTPUT, undefined, false, "md");
             if (config_parsed["rules"]){
                 currentSnakefileContext["rule"] = config_parsed["rules"];
             }
@@ -556,7 +494,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
         }
         if (ExtensionSettings.instance.getGenerateConfig()){
             const config_prompt = ModelPrompts.rulesMakeConfig(r);
-            const config_parsed = await this.modelComms.runQueryAndParse(config_prompt, PromptTemperature.RULE_OUTPUT);
+            const config_parsed = await this.modelComms.runQueryAndParse(config_prompt, PromptTemperature.RULE_OUTPUT, undefined, false, "md");
             if (config_parsed["rules"]){
                 r["rule"] = config_parsed["rules"];
             }
