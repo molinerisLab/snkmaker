@@ -169,6 +169,55 @@ class ModelPrompts{
         return prompt;
     }
 
+    static rulesFromRCommandBasicPrompt(formattedRules: string, extraPrompt: string,
+        rulesContext:string="", ruleAll: string|null = null): string{
+            // Nota: qui si chiede a modello di stampare solo le regole nuove. Ma per R potrebbe essere utile fargli ri generare l'intero snakefile, in modo che 
+            //possa adattare anche le regole vecchie al nuovo contesto.
+                let prompt =  `I have the following set of R commands:\n\n`+
+                `${formattedRules}\n${rulesContext}\n`+
+                ` Please convert them into Snakemake rules.\n`+
+                `When producing the new rules, follow these instructions:\n`+
+                "* How to divide the R commands in rules: generally, one or a few rules should cover the entire block, but you can consider the global context to take a decision. "+
+                "In general, splitting the commands in multiple rules can be useful if intermediate outputs are readed by different rules. If, instead, the entire block produces one meaningful output, it's better to leave it in a single rule.\n"+
+                "* Use the 'script' directive to insert the R code into the Snakefile.\n"+
+                "* The R commands might save data into variable, while you might need to explicitly add code to save files. Consider the entire context to find what data must be saved to which files.\n"+
+                `* Respect the new-lines chosen by the user, don't remove them. You can add new-lines for readability if necessary.\n`+
+                extraPrompt;
+                prompt += "-Use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n";
+                prompt += "If some of the rules contain some type of loops, acting on multiple files, "+
+                "generate one rule with wildcards to implement the loop body, and an additional rule that uses an 'expand' "+
+                "to generate all output files. The name of the second rule should be a meaningful name connected to the name of "+
+                "the original one. The name of the second rule cannot be simply 'all' because this name is reserved.\n";
+                if (ruleAll && ruleAll.length>0){
+                    prompt += "\n-The Snakefile already contains a rule all:\n " + ruleAll + "\n" +
+                    "Add the new rules' outputs to the rule all.\n" +
+                    "Please return the rules in Markdown format using the triple backticks to define code blocks.\n"+
+                    "Start by reasoning about how you can structure the rules; this thinking part is free, but it must not contain triple backticks code blocks; then "+
+                    "write two code blocks: one named 'rule', containing the entire rules, "+
+                    "and one named 'rule_all', containing the rule all.\n"+
+                    "Es. ```rule\nrule_name:\n\tinput: 'file.txt'\n\toutput: 'file2.txt'\n\tscript: \"\"\"r commands\"\"\"\n#Other rules...\n```\n"+
+                    "```rule_all\nrule all:\n\tinput: 'file1.txt', 'file2.txt'\n\toutput: 'all_outputs.txt'\n```\n";
+                    if (rulesContext.length>0){
+                        prompt += "\nNote: the rule 'all' must be re-written entirely, so take the one existing and add inputs to it.\n"+
+                        "The other rules on the other hand must not repeat the rules already existing in the file.";
+                    }
+                } else {
+                    prompt += "Also write a 'rule all' to produce all files. The rule all is characterized by only the input directive, where " +
+                    "the outputs of the other rules are requested. " +
+                    "Simply list the outputs of the other rules in the rule all inputs. Do not use expand() if not strictly needed.\n"+
+                    "Please return the rules in Markdown format using the triple backticks to define code blocks.\n"+
+                    "Start by reasoning about how you can structure the rules; this thinking part is free, but it must not contain triple backticks code blocks; then "+
+                    "write a single code block named 'rule', containing the entire rules.\n"+
+                    "Es. ```rule\nrule_name:\n\tinput: 'file.txt'\n\toutput: 'file2.txt'\n\tscript: \"\"\"r commands\"\"\"\n#Other rules...\n```\n";
+                    if (rulesContext.length>0){
+                        prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
+                        "but their outputs must be included in the 'rule_all'.";
+                    }
+                }
+                
+                return prompt;// + "\nImportant: for rules to be parsed by the system, it's important to include the triple backlist ``` at the beginning and end of the sections.\n";
+        }
+
     static rulesFromCommandsBasicPrompt(formattedRules: string[], ruleFormat: string, extraPrompt: string, 
         rulesContext:string="", ruleAll: string|null = null, set_env_directive: boolean): string{
         let prompt =  `I have the following set of bash commands:\n\n`+
@@ -450,13 +499,16 @@ Please write the documentation as a string in a JSON in this format: {documentat
                 "The rules output format is not Snakemake, so the R history will not be processed."
             );
         }
-        const formatted = rHistory.history.map((command, index) => {
-            return "## Command n. " + (index+1) + "\n\n" +
-            `${command}\n`
-        }).join("\n") + "\n# For context, these are old, previously exported commands:\n\n" + rHistory.archive.map((command, index) => {
-            return "## Old command n. " + (index+1) + "\n\n" +
-            `${command}\n`
-        }).join("\n")
+        const formatted = rHistory.history.map((command, index) =>
+            command.command
+        ).join("\n") + (
+            rHistory.archive.length > 0 ?
+            (
+                "\n# For context, these are old, previously exported commands:\n\n" + rHistory.archive.map((command, index) =>
+                    command.command
+                ).join("\n")
+            ) : ""
+        );
 
         let context = "";
         let ruleAll = null;
@@ -474,15 +526,15 @@ Please write the documentation as a string in a JSON in this format: {documentat
             null,
             []
         );
-        if (ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt() && rHistory.path){
-            const c = await OpenedSnakefileContent.getSnakefileContextByPath(rHistory.path);
+        if (ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt() && rHistory.pathToSnakefile){
+            const c = await OpenedSnakefileContent.getSnakefileContextByPath(rHistory.pathToSnakefile);
             if (c){
                 currentSnakefileContext = c;
                 context = ModelPrompts.rulesContextPrompt(currentSnakefileContext["content"]||"");
                 ruleAll = this.extractAllRule(currentSnakefileContext["content"]||"");
             }
         }
-        const prompt = ModelPrompts.rulesFromCRCommandBasicPrompt(formatted, ruleFormat, extraPrompt, context, ruleAll);
+        const prompt = ModelPrompts.rulesFromRCommandBasicPrompt(formatted, extraPrompt, context, ruleAll);
         const r = await this.updateSnakefileContextFromPrompt(prompt, currentSnakefileContext, PromptTemperature.RULE_OUTPUT);
         r['remove'] = ruleAll;
         if (!ruleAll || ruleAll.length === 0){

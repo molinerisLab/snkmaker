@@ -454,9 +454,18 @@ export class BashCommandViewModel{
 
     async newRCommandsToExport(commands: string[]){
       const rHistory = await this.rStudioController.getHistoryOfProject();
-      await rHistory.exportCommands(commands, this.llm);
-      
-
+      const context = await rHistory.exportCommands(commands, this.llm);
+      this.writeToFiles.writeToCurrentFile(context, rHistory.pathToSnakefile).then((success) => {
+        if (!success){
+          vscode.window.showErrorMessage('Could not write to Snakefile');
+        } else {
+          rHistory.saveIfFirstTime();
+        }
+      }
+      ).catch((e:any) => {
+        vscode.window.showErrorMessage(e.toString());
+      }
+      );
     }
 
 }
