@@ -3,6 +3,7 @@ import { BashCommand, ExecutionEnvironment } from "./TerminalHistory";
 import { ExtensionSettings } from '../utils/ExtensionSettings';
 import * as vscode from 'vscode';
 import { OpenedSnakefileContent, SnakefileContext } from "../utils/OpenendSnakefileContent";
+import { RStudioHistory } from "./RStudioHistory";
 
 class ModelPrompts{
 
@@ -441,6 +442,69 @@ Please write the documentation as a string in a JSON in this format: {documentat
         return currentSnakefileContext;
     }
 
+    async getRulesFromRHistory(rHistory: RStudioHistory): Promise<SnakefileContext>{
+        const ruleFormat = ExtensionSettings.instance.getRulesOutputFormat();
+        let extraPrompt = "";
+        if (ruleFormat!=="Snakemake"){
+            vscode.window.showWarningMessage(
+                "The rules output format is not Snakemake, so the R history will not be processed."
+            );
+        }
+        const formatted = rHistory.history.map((command, index) => {
+            return "## Command n. " + (index+1) + "\n\n" +
+            `${command}\n`
+        }).join("\n") + "\n# For context, these are old, previously exported commands:\n\n" + rHistory.archive.map((command, index) => {
+            return "## Old command n. " + (index+1) + "\n\n" +
+            `${command}\n`
+        }).join("\n")
+
+        let context = "";
+        let ruleAll = null;
+        let currentSnakefileContext: SnakefileContext = new SnakefileContext(
+            null,
+            null,
+            null,
+            [],
+            [],
+            [],
+            [],
+            null,
+            null,
+            null,
+            null,
+            []
+        );
+        if (ExtensionSettings.instance.getIncludeCurrentFileIntoPrompt() && rHistory.path){
+            const c = await OpenedSnakefileContent.getSnakefileContextByPath(rHistory.path);
+            if (c){
+                currentSnakefileContext = c;
+                context = ModelPrompts.rulesContextPrompt(currentSnakefileContext["content"]||"");
+                ruleAll = this.extractAllRule(currentSnakefileContext["content"]||"");
+            }
+        }
+        const prompt = ModelPrompts.rulesFromCRCommandBasicPrompt(formatted, ruleFormat, extraPrompt, context, ruleAll);
+        const r = await this.updateSnakefileContextFromPrompt(prompt, currentSnakefileContext, PromptTemperature.RULE_OUTPUT);
+        r['remove'] = ruleAll;
+        if (!ruleAll || ruleAll.length === 0){
+            ruleAll = this.extractAllRule(r["rule"]||"");
+            if (ruleAll){
+                r['rule_all'] = ruleAll;
+                r['rule'] = r['rule']?.replace(ruleAll, "")??null;
+            }
+        }
+        if (ExtensionSettings.instance.getGenerateConfig()){
+            const config_prompt = ModelPrompts.rulesMakeConfig(r);
+            const config_parsed = await this.modelComms.runQueryAndParse(config_prompt, PromptTemperature.RULE_OUTPUT, undefined, false, "md");
+            if (config_parsed["rules"]){
+                r["rule"] = config_parsed["rules"];
+            }
+            if (config_parsed["add_to_config"]){
+                r["add_to_config"] = config_parsed["add_to_config"];
+            }
+        }
+        return r;
+    }
+
     async getAllRulesFromCommands(commands: BashCommand[], envs: (ExecutionEnvironment | null)[]): Promise<SnakefileContext>{
         const ruleFormat = ExtensionSettings.instance.getRulesOutputFormat();
         let extraPrompt = "";
@@ -502,7 +566,6 @@ Please write the documentation as a string in a JSON in this format: {documentat
                 r["add_to_config"] = config_parsed["add_to_config"];
             }
         }
-        r["rule"] = this.fixShellDirective(r["rule"]||"");
         return r;
     }
 

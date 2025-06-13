@@ -7,6 +7,8 @@ import * as vscode from 'vscode';
 import { NotebookViewCallbacks } from "../view/NotebookView";
 import { NotebookPresenter } from "./NotebookPresenter";
 import { ImportNotFoundError, OpenedSnakefileContent, SnakefileContext } from "../utils/OpenendSnakefileContent";
+import { RStudioController } from "../model/RStudioHistory";
+import { Queries } from "../model/Queries";
 
 export class BashCommandViewModel{
     llm: LLM;
@@ -18,6 +20,8 @@ export class BashCommandViewModel{
     isListening = false;
     isChangingModel = false;
     openedNotebookPresenter: NotebookPresenter|null = null;
+    rStudioController = new RStudioController();
+
     
     constructor(private memento: vscode.Memento){
         this.llm = new LLM(memento);
@@ -446,6 +450,13 @@ export class BashCommandViewModel{
             });
           }
       });
+    }
+
+    async newRCommandsToExport(commands: string[]){
+      const rHistory = await this.rStudioController.getHistoryOfProject();
+      await rHistory.exportCommands(commands, this.llm);
+      
+
     }
 
 }

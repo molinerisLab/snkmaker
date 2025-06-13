@@ -53,7 +53,6 @@ export class LLM{
     }
 
     private parseCodeFromMarkdownResponse(response: string): any{
-        console.log(response);
         let blocks: any = {};
         // Updated regex: captures key and content
         const codeBlockRegex = /```(\w+)\n([\s\S]*?)\n```/g;
@@ -63,7 +62,6 @@ export class LLM{
                 blocks[match[1]] = match[2];
             }
         }
-        console.log(blocks);
         return blocks;
     }
 

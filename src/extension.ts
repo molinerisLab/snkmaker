@@ -13,6 +13,8 @@ import { AddHistoryView } from './view/AddHistoryView';
 import { NotebookView } from './view/NotebookView';
 import { ChatExtensionNotebook } from './utils/ChatExtensionNotebook';
 import { ChatPanelView } from './view/ChatPanelView';
+import * as http from 'http';
+import { RStudioController } from './model/RStudioHistory';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -306,6 +308,21 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 	context.subscriptions.push(setNotebookmode);
+
+	
+	const rStudioController = new RStudioController();
+
+	// Inside activate()
+	const server = http.createServer((req, res) => {
+		res.writeHead(200, {'Content-Type': 'text/plain'});
+		res.end('Hello from VS Code extension!\n');
+	});
+	server.listen(3000, '127.0.0.1', () => {
+		console.log('Server running at http://127.0.0.1:3000/');
+	});
+	context.subscriptions.push({ dispose: () => server.close() });
+
+
 }
 
 // This method is called when your extension is deactivated

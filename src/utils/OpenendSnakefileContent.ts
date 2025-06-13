@@ -135,6 +135,15 @@ export class OpenedSnakefileContent{
         );
         return content;
     }
+
+    static async getSnakefileContextByPath(path:string):Promise<SnakefileContext|null>{
+        const document = await vscode.workspace.openTextDocument(path);
+        const content = await OpenedSnakefileContent.manageInclude(
+            document.getText(),
+            path
+        );
+        return content;
+    }
     
     static async getFilePathContent(filePath: string): Promise<SnakefileContext> {
         const document = await vscode.workspace.openTextDocument(filePath);
