@@ -1,10 +1,16 @@
 import * as vscode from 'vscode';
 import { ExecutionEnvironment } from '../model/TerminalHistory';
-
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**	include: "Snakefile_versioned.sk"
 
 configfile: "config_DGE.yaml" */
+
+
+interface RScript{
+    filename: string, content: string, needToSave: boolean
+}
 
 export class ImportNotFoundError extends Error {
     constructor(message: string) {
@@ -14,6 +20,7 @@ export class ImportNotFoundError extends Error {
 }
 
 export class SnakefileContext{
+    public rScripts: RScript[] = [];
     constructor(
         public snakefile_path: string | null,
         public snakefile_content: string | null,
@@ -28,7 +35,10 @@ export class SnakefileContext{
         public remove: string | null,
         public envs_to_export: ExecutionEnvironment[],
         public hasErrors: boolean = false,
-    ) {}
+        rScripts: RScript[] = []
+    ) {
+        this.rScripts = rScripts;
+    }
     get_snakefile(){
         return (this.snakefile_content?.replaceAll(this.remove||"","") || "") + "\n" + this.rule + "\n" + (this.rule_all || "");
     }
@@ -106,7 +116,7 @@ export class OpenedSnakefileContent{
                 content; 
         }
 
-        return new SnakefileContext(
+        const c = new SnakefileContext(
             original_path,
             original_content,
             content,
@@ -120,6 +130,18 @@ export class OpenedSnakefileContent{
             null,
             []
         );
+
+        const regex = /(?:[a-zA-Z0-9_\/\.]+)\.[Rr]\b/g;
+        const matches = original_content.match(regex);
+        matches?.forEach(filePath => {
+            const fullPath = path.isAbsolute(filePath) ? filePath : path.join(includePath, filePath);
+            if (fs.existsSync(fullPath)){
+                const content = fs.readFileSync(fullPath, 'utf-8');
+                c.rScripts.push({filename: filePath, content, needToSave: false});
+            }
+        });
+
+        return c;
     }
 
     static async getCurrentEditorContent():Promise<SnakefileContext|null>{

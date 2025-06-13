@@ -121,6 +121,8 @@ export class WriteToFiles{
             }
         }
 
+        // TODO: qui bisogna salvare i dati dello snakefilecontext.rScript
+
         //Write to the file currently in focus, if any
         if (ExtensionSettings.instance.getAddCondaDirective()){
             if (editor && editor.document.uri && editor.document.uri.fsPath.toLowerCase().endsWith('snakefile')){
