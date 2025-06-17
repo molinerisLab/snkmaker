@@ -21,21 +21,6 @@ export function activate(context: vscode.ExtensionContext) {
 	
 	//Initialize logger and logics to enable-disable it.
 	SnkmakerLogger.initialize(context.extension.packageJSON.version);
-	//If first time extension opened, ask for opt-in to logging
-	const currentVersion = context.extension.packageJSON.version as string;
-	const lastVersion = context.globalState.get("version") as string ?? "0.0.0";
-	if (lastVersion !== currentVersion) {
-		context.globalState.update("version", currentVersion);
-		vscode.window.showInformationMessage(
-			"Welcome to Snakemaker! Please consider enabling logging to help us improve the extension.",
-			"Enable logging" 
-		).then((selection) => {
-			if (selection === "Enable logging") {
-				//Open VSCode settings
-				vscode.commands.executeCommand("workbench.action.openSettings", "snakemaker.allowLogging");
-			}
-		});
-	}
 
 	//Get memento - workspace saved state
 	const memento = context.workspaceState;
@@ -211,6 +196,13 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.executeCommand('markdown.showPreview', uri);
 	  });
 	context.subscriptions.push(logDetailsScreen);
+
+	const helpScreen = vscode.commands.registerCommand('snkmaker-open-readme', () => {
+		const uri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'README.md');
+		vscode.commands.executeCommand('markdown.showPreview', uri);
+	  });
+	context.subscriptions.push(helpScreen);
+
 	const disableLogging = vscode.commands.registerCommand('disable-logs-session', () => {
 		const logger = SnkmakerLogger.instance();
 		if (logger){
@@ -310,9 +302,9 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(setNotebookmode);
 
 	
-	const rStudioController = new RStudioController();
 
-	// Inside activate()
+	/*
+	const rStudioController = new RStudioController();
 	const server = http.createServer((req, res) => {
 		res.writeHead(200, {'Content-Type': 'text/plain'});
 		res.end('Hello from VS Code extension!\n');
@@ -320,7 +312,24 @@ export function activate(context: vscode.ExtensionContext) {
 	server.listen(3000, '127.0.0.1', () => {
 		console.log('Server running at http://127.0.0.1:3000/');
 	});
-	context.subscriptions.push({ dispose: () => server.close() });
+	context.subscriptions.push({ dispose: () => server.close() });*/
+
+	//If first time extension opened, ask for opt-in to logging
+	const currentVersion = context.extension.packageJSON.version as string;
+	const lastVersion = context.globalState.get("version") as string ?? "0.0.0";
+	if (lastVersion !== currentVersion) {
+		context.globalState.update("version", currentVersion);
+		vscode.commands.executeCommand('snkmaker-open-readme');
+		vscode.window.showInformationMessage(
+			"Welcome to Snakemaker! Please consider enabling logging to help us improve the extension.",
+			"Enable logging" 
+		).then((selection) => {
+			if (selection === "Enable logging") {
+				//Open VSCode settings
+				vscode.commands.executeCommand("workbench.action.openSettings", "snakemaker.allowLogging");
+			}
+		});
+	}
 
 
 }

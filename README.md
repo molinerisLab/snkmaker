@@ -16,11 +16,49 @@ Semi-automatic Snakemake workflow generation from unstructured Bash commands or 
 </table>
 
 ## Table of Contents
-- [General Usage](#general-usage)
+- [Setting up for first time](#setting-up-for-first-time)
 - [Bash Command Support](#bash-command-support)
 - [Notebook Support](#notebook-support)
-- [General Snakemaker Settings](#general-snakemaker-settings)
 - [Local Build and Install](#build-and-install)
+
+# Setting up for first time
+
+In order to work with Snakemaker, it's necessary to connect it to a LLM provider. There are two ways to connect it with some LLM:
+* Use Github Copilot via VSCode language API (recommended)
+* Manually connect remote or local LLM via OpenAI-compatible APIs.
+
+## Setting up with Github Copilot
+
+Github Copilot allows users to access most state-of-the-art models, and provides APIs that extensions as Snakemaker can use to directly connect to it. Setting up Copilot inside Snakemaker is straightforward:
+
+### Set up Github Copilot inside VsCode
+
+In order to work with it, Copilot must be active inside your VSCode. 
+
+* Follow the [official guidelines to install and enable Github Copilot](https://code.visualstudio.com/docs/copilot/setup).
+* Ensure Copilot is working: try to open copilot chat and verify the models are available.
+
+### Set up Copilot models inside Snakemaker
+
+Once Github Copilot is installed and available, it should be visible from the Snakemaker model tabs:
+* Open Snakemaker view in the VSCode left-side bar.
+* Expand the *models* section of the Snakemaker view.
+* A list of models labelles as **(copilot)** should be visible. The models can be activated with a double click.
+**If the list of models is empty:**: Snakemaker cannot communicate with VSCode language APIs. This sometimes happens even if Copilot is correctly installed. In order to fix it:
+* Ensure Copilot is actually available - test it using the standard Copilot chat.
+* Close and re-open VSCode, go back to the *models* section of Snakemaker.
+
+## Setting up with external models
+
+Snakemaker also supports external models via OpenAI-compatible APIs, supported by most vendors (OpenAI, Gemini, Openrouter) and local deploy tools (Ollama). In order to connect Snakemaker to an external LLM:
+* Open the Snakemaker view in the left-side Vscode panel.
+* Locate the *models* section of Snakemaker view.
+* Click "Add Model".
+* Provide the model's URL.
+* Provide the model's API key, or leave it empty if the LLM server requires no key (i.e. locally hosted models).
+* Provide the model's name, as required by the OpenAi APIs.
+* Provide the maximum tokens the model can produce in a single request.
+
 
 # Get help interactively
 
@@ -221,24 +259,6 @@ The assistant can answer prompts regarding the current state of the process, ide
   </tr>
 </table>
 
-# General Snakemaker settings
-
-## Change language model
-
-A model selection panel is provided at the bottom of the Snakemaker panel.
-
-<img src=".img/Models.png"/>
-
-Double-click on a model to activate it.
-
-### Add custom model
-
-Custom models can be added if they support OpenAi API standards. In order to add a custom model:
-* Click "Add Model" in the Model panel.
-* Provide the model's URL.
-* Provide the model's API key, or leave it empty if the model is free to use (i.e. locally hosted models).
-* Provide the model's name, required by the OpenAi API.
-* Provide the maximum tokens the model can consume in a single request.
 
 
 # Build and install extension for local usage

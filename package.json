@@ -287,6 +287,10 @@
         "title": "Snakemaker: Open Logging Feature Details"
       },
       {
+        "command": "snkmaker-open-readme",
+        "title": "Help: Snakemaker"
+      },
+      {
         "command": "disable-logs-session",
         "title": "Snakemaker: disable current session logs",
         "enablement": "config.snakemaker.allowLogging"
