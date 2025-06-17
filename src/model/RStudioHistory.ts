@@ -12,15 +12,25 @@ export class RStudioHistory {
     archive: RCommand[] = [];
     history: RCommand[] = [];
     path: string|null = null;
+    pathToSnakefile: string|null = null;
 
-    constructor(path: string|null = null) {
+    constructor(path: string|null = null, pathToSnakefile: string|null = null) {
+        this.pathToSnakefile = pathToSnakefile;
         this.history = [];
         this.archive = [];
         this.path = path;
     }
 
+    saveIfFirstTime(): void {
+        if (!this.path && this.pathToSnakefile) {
+            const dir = this.pathToSnakefile.slice(0, this.pathToSnakefile.lastIndexOf('/'));
+            this.path = dir + '/.rsnkmaker';
+            this.toJSON();
+        }
+    }
+
     private addCommands(commands: string[]): void {
-        this.history.concat(commands.map(cmd => ({ command: cmd })));
+        this.history = commands.map(cmd => {return { command: cmd }});
     }
 
     getHistory(): RCommand[] {
@@ -29,16 +39,24 @@ export class RStudioHistory {
 
 
     toJSON(): void {
-        const json = JSON.stringify(this.archive);
         if (this.path) {
+            const json = JSON.stringify(
+                {
+                    archive: this.archive,
+                    history: this.history
+                },
+                null, 2 // Pretty print with 2 spaces
+            );
             const fs = require('fs');
             fs.writeFileSync(this.path, json, 'utf8');
         }
     }
 
-    static fromJSON(jsonPath: string|null): RStudioHistory {
+    static fromJSON(jsonPath: string|null, snakemakePath:string|null=null): RStudioHistory {
         if (!jsonPath) {
-            return new RStudioHistory();
+            const h = new RStudioHistory();
+            h.pathToSnakefile = snakemakePath;
+            return h;
         }
         const fs = require('fs');
         const json = fs.readFileSync(jsonPath, 'utf8');
@@ -47,25 +65,24 @@ export class RStudioHistory {
         }
         const instance = new RStudioHistory();
         const parsed = JSON.parse(json);
-        if (Array.isArray(parsed)) {
-            instance.archive = parsed.map((cmd: any) => ({ command: cmd.command }));
-        } else {
-            vscode.window.showErrorMessage("Invalid RStudio history format in " + jsonPath);
-            return new RStudioHistory(jsonPath);
-        }
+        
+        instance.archive = parsed.archive || [];
+        instance.history = parsed.history || [];
+
+        instance.path = jsonPath;
+        instance.pathToSnakefile = snakemakePath;
         return instance;
     }
 
-    async exportCommands(commands: string[], llm: LLM): Promise<string> {
+    async exportCommands(commands: string[], llm: LLM): Promise<SnakefileContext> {
         this.addCommands(commands);
         const queries = new Queries(llm);
-        queries.getRulesFromRHistory(this);
-        
+        const context = queries.getRulesFromRHistory(this);
 
-        this.archive = this.archive.concat(commands.map(cmd => ({ command: cmd })));
+        this.archive = this.archive.concat(this.history);
         this.history = [];
         this.toJSON();
-
+        return context;
     }
 }
 
@@ -74,6 +91,9 @@ export class RStudioController{
 
     async getHistoryOfProject(): Promise<RStudioHistory> {
         const checkRProject = (filename: string): string|null => {
+            if (!filename) {
+                return null;
+            }
             const fs = require('fs');
             const path = require('path');
             const dir = path.dirname(filename);
@@ -86,38 +106,46 @@ export class RStudioController{
 
         // Look for a Snakefile in the workspace, look for a .rsnkmaker file in the workspace.
         let openedEditor = vscode.window.activeTextEditor;
+        let foundSnakefile = null;
         if (vscode.window.activeTextEditor){
             if (vscode.window.activeTextEditor.document.fileName.toLowerCase().endsWith('snakefile')){
                 const path = checkRProject(vscode.window.activeTextEditor.document.fileName);
+                foundSnakefile = vscode.window.activeTextEditor;
                 if (path){
-                    return RStudioHistory.fromJSON(path);
+                    return RStudioHistory.fromJSON(path, vscode.window.activeTextEditor.document.fileName);
                 }
             }
             const content = vscode.window.activeTextEditor.document.getText();
             if (/rule\s+[a-zA-Z0-9_]+\s*:/.test(content)) {
                 // This is likely a Snakefile
+                foundSnakefile = vscode.window.activeTextEditor;
                 const path = checkRProject(vscode.window.activeTextEditor.document.fileName);
                 if (path){
-                    return RStudioHistory.fromJSON(path);
+                    return RStudioHistory.fromJSON(path, vscode.window.activeTextEditor.document.fileName);
                 }
             }
         }
         await vscode.window.tabGroups.all.forEach(async (tabGroup) => {
             await tabGroup.tabs.forEach(async (tab) => {
                 if (tab.label.toLowerCase().endsWith('snakefile')){
-                    await vscode.window.showTextDocument(tab.input as vscode.TextDocument);
-                    const path = checkRProject((tab.input as vscode.TextDocument).fileName);
-                    if (path){
-                        return RStudioHistory.fromJSON(path);
+                    if (tab.input){
+                        await vscode.window.showTextDocument(tab.input as vscode.TextDocument);
+                        foundSnakefile = vscode.window.activeTextEditor;
+                        const path = checkRProject((tab.input as vscode.TextDocument).fileName);
+                        if (path){
+                            return RStudioHistory.fromJSON(path, (tab.input as vscode.TextDocument).fileName);
+                        }
                     }
                 }
             });
         });
         //Go back to previous editor, if any
-        if (openedEditor){
+        if (foundSnakefile){
+            await vscode.window.showTextDocument(foundSnakefile.document);
+        } else if (openedEditor){
             await vscode.window.showTextDocument(openedEditor.document);
         }
-        return RStudioHistory.fromJSON(openedEditor?.document.fileName || null);
+        return RStudioHistory.fromJSON(null, vscode.window.activeTextEditor?.document.fileName || null);
     }
 
 }

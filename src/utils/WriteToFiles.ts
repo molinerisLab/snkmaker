@@ -66,7 +66,7 @@ export class WriteToFiles{
         )
     }
 
-    async writeToCurrentFile(value: SnakefileContext): Promise<boolean>{
+    async writeToCurrentFile(value: SnakefileContext, path: string|null = null): Promise<boolean>{
         let rules = value['rule']||"";
         let rule_all = value['rule_all'] || "";
         let remove = value['remove'];
@@ -78,6 +78,14 @@ export class WriteToFiles{
         if (value['add_to_config'] && value['add_to_config'].length>0 && value['config_paths'].length === 0){
             config_include = "configfile: 'config.yaml'"
         }
+
+        if (path){
+            await vscode.workspace.openTextDocument(path).then((document) => {
+                vscode.window.showTextDocument(document).then((textEditor) => {
+                    editor = textEditor;
+                });
+            });
+        } 
         if (!editor){
             const result = await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { "languageId": "Snakemake"}).then(() => {
                 editor = vscode.window.activeTextEditor;
@@ -112,6 +120,8 @@ export class WriteToFiles{
                 }
             }
         }
+
+        // TODO: qui bisogna salvare i dati dello snakefilecontext.rScript
 
         //Write to the file currently in focus, if any
         if (ExtensionSettings.instance.getAddCondaDirective()){

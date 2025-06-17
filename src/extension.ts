@@ -305,6 +305,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	/*
 	const rStudioController = new RStudioController();
+	// Inside activate()
 	const server = http.createServer((req, res) => {
 		res.writeHead(200, {'Content-Type': 'text/plain'});
 		res.end('Hello from VS Code extension!\n');

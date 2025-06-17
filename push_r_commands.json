@@ -1,0 +1,21 @@
+{
+  "command": "push_r",
+  "data": [
+    "print('Hello, World!')",
+    "x <- 1:10",
+    "y <- x^2",
+    "plot(x, y, main='Plot of y = x^2', xlab='x', ylab='y')",
+    "summary(lm(y ~ x))",
+    "library(ggplot2)",
+    "ggplot(data.frame(x, y), aes(x, y)) + geom_point() + geom_smooth(method='lm')",
+    "install.packages('dplyr')",
+    "library(dplyr)",
+    "data(mtcars)",
+    "mtcars %>% group_by(cyl) %>% summarise(mean_mpg = mean(mpg))",
+    "set.seed(123)",
+    "sample_data <- sample(1:100, 10)",
+    "print(sample_data)",
+    "hist(mtcars$mpg, main='Histogram of MPG', xlab='Miles Per Gallon', col='blue')",
+    "boxplot(mpg ~ cyl, data=mtcars, main='Boxplot of MPG by Cylinder', xlab='Cylinders', ylab='Miles Per Gallon')"
+  ]
+}
