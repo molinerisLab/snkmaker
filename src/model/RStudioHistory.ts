@@ -125,20 +125,23 @@ export class RStudioController{
                 }
             }
         }
-        await vscode.window.tabGroups.all.forEach(async (tabGroup) => {
-            await tabGroup.tabs.forEach(async (tab) => {
-                if (tab.label.toLowerCase().endsWith('snakefile')){
-                    if (tab.input){
-                        await vscode.window.showTextDocument(tab.input as vscode.TextDocument);
-                        foundSnakefile = vscode.window.activeTextEditor;
-                        const path = checkRProject((tab.input as vscode.TextDocument).fileName);
-                        if (path){
-                            return RStudioHistory.fromJSON(path, (tab.input as vscode.TextDocument).fileName);
-                        }
+        const allTabs = vscode.window.tabGroups.all;
+        for (let i=0; i<allTabs.length; i++){
+            const tabGroup = allTabs[i];
+            const tabs = tabGroup.tabs;
+            for (let j=0; j<tabs.length; j++){
+                const tab = tabs[j];
+                await vscode.window.showTextDocument(tab.input as vscode.TextDocument);
+                const docname = vscode.window.activeTextEditor?.document.fileName;
+                if (docname && docname.toLowerCase().endsWith('snakefile')){
+                    foundSnakefile = vscode.window.activeTextEditor;
+                    const path = checkRProject(docname);
+                    if (path){
+                        return RStudioHistory.fromJSON(path, docname);
                     }
                 }
-            });
-        });
+            }
+        }
         //Go back to previous editor, if any
         if (foundSnakefile){
             await vscode.window.showTextDocument(foundSnakefile.document);

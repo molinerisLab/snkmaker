@@ -477,6 +477,9 @@ export class BashCommandViewModel{
     }
 
     async newRCommandsToExport(commands: string[]){
+      if (!this.isListening){
+        return;
+      }
       const rHistory = await this.rStudioController.getHistoryOfProject();
       const context = await rHistory.exportCommands(commands, this.llm);
       this.writeToFiles.writeToCurrentFile(context, rHistory.pathToSnakefile).then((success) => {
@@ -491,7 +494,6 @@ export class BashCommandViewModel{
       }
       );
     }
-
 }
 
 export type Observer<T> = (value: T) => void;

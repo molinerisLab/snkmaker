@@ -25,7 +25,7 @@ export function activate(context: vscode.ExtensionContext) {
 	//Get memento - workspace saved state
 	const memento = context.workspaceState;
 	// Set context
-	const bashCommandTitles = [' - NOT LISTENING', ' - LISTENING'];
+	let bashCommandTitles = [' - NOT LISTENING', ' - LISTENING'];
 	vscode.commands.executeCommand('setContext', 'myExtension.isListening', false);
 	vscode.commands.executeCommand('setContext', 'myExtension.canUndo', false);
 	vscode.commands.executeCommand('setContext', 'myExtension.canRedo', false);
@@ -305,35 +305,56 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 	const rStudioController = new RStudioController();
+	let serverPort = 7007;
+	const MAX_SERVER_PORT = serverPort+50;
+	let serverActive = false;
 	const server = http.createServer((req, res) => {
 		res.writeHead(200, {'Content-Type': 'text/plain'});
 		res.end('Hello from VS Code extension!\n');
 	});
-	server.listen(3000, '127.0.0.1', () => {
-		console.log('Server running at http://127.0.0.1:3000/');
-	});
-	server.on('request', (req, res) => {
-		if (req.method === 'POST'){
-			let body = '';
-			req.on('data', chunk => {
-				body += chunk.toString(); // Convert Buffer to string
-			});
-			req.on('end', () => {
-				try{
-					console.log('Received POST data:', body);
-					const parsed = JSON.parse(body);
-					if (parsed.command == "push_r"){
-						viewModel.newRCommandsToExport(parsed.data);
+	const listen = (port:number) => {
+		server.listen(port, 'localhost', () => {
+			serverActive = true;
+			console.log(`Server is listening on port ${port}`);
+			vscode.window.showInformationMessage(`Snakemaker server is listening on port ${port}`);
+			bashCommandTitles = [' - NOT LISTENING', ' - LISTENING - port ' + port];
+			bashCommandView.title = 'Bash Commands' + bashCommandTitles[viewModel.isListening?1:0];
+		});
+		server.on('request', (req, res) => {
+			if (req.method === 'POST'){
+				let body = '';
+				req.on('data', chunk => {
+					body += chunk.toString(); // Convert Buffer to string
+				});
+				req.on('end', () => {
+					try{
+						console.log('Received POST data:', body);
+						const parsed = JSON.parse(body);
+						if (parsed.command == "push_r"){
+							viewModel.newRCommandsToExport(parsed.data);
+						}
+					} catch (error) {
+						console.error('Error parsing POST data:', error);
+						res.writeHead(400, {'Content-Type': 'text/plain'});
+						res.end('Invalid JSON\n');
 					}
-				} catch (error) {
-					console.error('Error parsing POST data:', error);
-					res.writeHead(400, {'Content-Type': 'text/plain'});
-					res.end('Invalid JSON\n');
+				});
+				return;
+			}
+		});
+		server.on('error', (err:any) => {
+			if (err.code === 'EADDRINUSE') {
+				if (port < MAX_SERVER_PORT) {
+					serverPort++;
+					listen(serverPort);
+				} else {
+					vscode.window.showErrorMessage(`Snakemaker: could not start server, ports between 505 and ${MAX_SERVER_PORT} are in use.`);
 				}
-			});
-			return;
-		}
-	});
+			}
+		});
+	}
+	listen(serverPort);
+
 	context.subscriptions.push({ dispose: () => server.close() });
 
 	//If first time extension opened, ask for opt-in to logging
