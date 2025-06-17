@@ -273,6 +273,30 @@ export class BashCommandViewModel{
 
       setTimeout(() => {
         if (!this.llm.isCopilotActive()){
+          this.activateCopilot();
+        }
+      }, 1000);
+
+      setTimeout(() => {
+        if (!this.llm.isCopilotActive()){
+          this.activateCopilot();
+        }
+      }, 5000);
+
+       setTimeout(() => {
+        if (!this.llm.isCopilotActive()){
+          this.activateCopilot();
+        }
+      }, 10000);
+
+      setTimeout(() => {
+        if (!this.llm.isCopilotActive()){
+          this.activateCopilot();
+        }
+      }, 30000);
+
+      setTimeout(() => {
+        if (!this.llm.isCopilotActive()){
           this.llm.isCopilotWaiting = false;
           if (this.llm.models.length === 0){
             vscode.window.showInformationMessage('Snakemaker: Copilot is not available. Please check your settings or set up an external LLM.');

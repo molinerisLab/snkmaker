@@ -303,9 +303,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	
 
-	/*
+
 	const rStudioController = new RStudioController();
-	// Inside activate()
 	const server = http.createServer((req, res) => {
 		res.writeHead(200, {'Content-Type': 'text/plain'});
 		res.end('Hello from VS Code extension!\n');
@@ -313,7 +312,29 @@ export function activate(context: vscode.ExtensionContext) {
 	server.listen(3000, '127.0.0.1', () => {
 		console.log('Server running at http://127.0.0.1:3000/');
 	});
-	context.subscriptions.push({ dispose: () => server.close() });*/
+	server.on('request', (req, res) => {
+		if (req.method === 'POST'){
+			let body = '';
+			req.on('data', chunk => {
+				body += chunk.toString(); // Convert Buffer to string
+			});
+			req.on('end', () => {
+				try{
+					console.log('Received POST data:', body);
+					const parsed = JSON.parse(body);
+					if (parsed.command == "push_r"){
+						viewModel.newRCommandsToExport(parsed.data);
+					}
+				} catch (error) {
+					console.error('Error parsing POST data:', error);
+					res.writeHead(400, {'Content-Type': 'text/plain'});
+					res.end('Invalid JSON\n');
+				}
+			});
+			return;
+		}
+	});
+	context.subscriptions.push({ dispose: () => server.close() });
 
 	//If first time extension opened, ask for opt-in to logging
 	const currentVersion = context.extension.packageJSON.version as string;

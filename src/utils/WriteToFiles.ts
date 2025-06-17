@@ -121,7 +121,27 @@ export class WriteToFiles{
             }
         }
 
-        // TODO: qui bisogna salvare i dati dello snakefilecontext.rScript
+        
+        let directory: string | undefined = undefined;
+        if (value.snakefile_path && value.snakefile_path!=null && value.snakefile_path?.length > 0 && value.snakefile_path.lastIndexOf("/")!=-1){
+            directory = value.snakefile_path.slice(0, value.snakefile_path.lastIndexOf("/"));
+        }
+       console.log(value.rScripts);
+
+       for (let i=0; i<value.rScripts.length; i++) {
+            const rScript = value.rScripts[i];
+            if (directory){
+                const path = directory + "/" + rScript.filename;
+                this.writeToFile(path, rScript.content);
+                rScript.needToSave = false;
+            } else {
+                await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { "languageId": "yaml"});
+                const script_editor = vscode.window.activeTextEditor;
+                await script_editor?.edit(editBuilder => {
+                    editBuilder.insert(new vscode.Position(0, 0), `#${rScript.filename}\n` + rScript.content);
+                });
+            }
+        }
 
         //Write to the file currently in focus, if any
         if (ExtensionSettings.instance.getAddCondaDirective()){

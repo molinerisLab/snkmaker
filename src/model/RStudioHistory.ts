@@ -142,10 +142,11 @@ export class RStudioController{
         //Go back to previous editor, if any
         if (foundSnakefile){
             await vscode.window.showTextDocument(foundSnakefile.document);
+            return RStudioHistory.fromJSON(null, foundSnakefile.document.fileName);
         } else if (openedEditor){
             await vscode.window.showTextDocument(openedEditor.document);
         }
-        return RStudioHistory.fromJSON(null, vscode.window.activeTextEditor?.document.fileName || null);
+        return RStudioHistory.fromJSON(null, null);
     }
 
 }

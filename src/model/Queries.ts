@@ -146,6 +146,7 @@ class ModelPrompts{
         "-Parameters passed to the scrits can be interesting to be in the config, the user might be interested in running the pipeline with different ones.\n"+
         "-It is very useful to put hardcoded absolute paths in the config, so the user can move the pipeline to different machines and easily update them.\n"+
         "-The conda directive must NEVER be changed, and things related to Conda environments should NEVER be put in the config.\n\n"+
+        "-The script directive must NEVER be changed, script paths and names must stay hardcoded.\n"+
         "Examples of good config fields:\nGENOME_PATH='/home/user/.../genome.fasta' #Very good, hardcoded paths are better in a config\n"+
         "NUMBER_RANDOMIZATION: 4 #Good, especially if this value is used in an expand to generate multiple files\n"+
         "STAR_OUT_SAM_TYPE: 'BAM' #Good, this is a parameter of the STAR tool that might be changed by the user\n"+
@@ -175,6 +176,7 @@ class ModelPrompts{
             //possa adattare anche le regole vecchie al nuovo contesto.
                 let prompt =  `I have the following set of R commands, run in R studio console:\n\n`+
                 `${formattedRules}\n${rulesContext}\n`+
+                (existingScripts && existingScripts.length>0 ? "These are the existing R scripts:\n" + existingScripts : "") +
                 `Please convert them into Snakemake rules.\n`+
                 "The R commands must be divided into blocks that define a single rule: generally, one or a few rules should cover the entire block, but you can consider the global context to take a decision. "+
                 "In general, splitting the commands in multiple rules can be useful if intermediate outputs are readed by different rules. If, instead, the entire block produces only one meaningful output, it's better to leave it in a single rule. "+
@@ -182,8 +184,7 @@ class ModelPrompts{
                 "Once you have decided how to split the commands into blocks, each rule will use the 'script' directive, specifying the filename of the .R script. The code you assign to the block will be exported in the .R file with the correct name.\n"
                 "Also consider these guidelines:\n"+
                 "* The R commands might save data into variable, while you might need to explicitly add code to save files. Consider the entire context to find what data must be saved to which files.\n"+
-                // TODO: aggiungiamo info su come usare bene la direttiva
-                //`* \n`+
+                "* In the R script, an S4 object named snakemake is available and allows access to input and output files and other parameters. Here the syntax follows that of S4 classes with attributes that are R lists, e.g. we can access the first input file with snakemake@input[[1]] (note that the first file does not have index 0 here, because R starts counting from 1). Named input and output files can be accessed in the same way, by just providing the name instead of an index, e.g. snakemake@input[[\"myfile\"]].\n"+
                 extraPrompt;
                 prompt += "* Use named input and outputs, with meaningful names. For example input:\n\tbam_file='somefile.bam'\n";
                 prompt += "* If some of the rules contain some type of loops, acting on multiple files, "+
@@ -201,6 +202,7 @@ class ModelPrompts{
                     "\t\nOne named 'rule', containing the Snakemake rules."+
                     "\t\nOne named 'rule_all', containing the rule all."+
                     "\t\nOne for each .R script that needs to be saved. Each block is named with the name of the file and contains the code. For example:\n"+
+                    "```rule\nSnakefile here...\n```\n"+
                     "```script_name.R\nR code here...\n```";
                     if (rulesContext.length>0){
                         prompt += "\nNote: the rule 'all' must be re-written entirely, so take the one existing and add inputs to it.\n"+
@@ -217,6 +219,7 @@ class ModelPrompts{
                     "* Write the following code blocks using the triple backticks:\n"+
                     "\t\nOne named 'rule', containing the Snakemake rules."+
                     "\t\nOne for each .R script that needs to be saved. Each block is named with the name of the file and contains the code. For example:\n"+
+                    "```rule\nSnakefile here...\n```\n"+
                     "```script_name.R\nR code here...\n```";
                     if (rulesContext.length>0){
                         prompt += "\nNote, the rules already existing in the file must not be repeated in 'rule', "+ 
@@ -372,7 +375,7 @@ export class Queries{
         }
         Object.keys(formatted).forEach(
             (key:string) => {
-                if (key!=='rule' && key==='rule_all'){
+                if (key!=='rule' && key!=='rule_all'){
                     context.rScripts.push(
                         {
                             filename: key, content: formatted[key], needToSave: true
@@ -570,7 +573,7 @@ Please write the documentation as a string in a JSON in this format: {documentat
         ).join("\n");
 
         const prompt = ModelPrompts.rulesFromRCommandBasicPrompt(formatted, extraPrompt, context, ruleAll, rScriptsFormatted);
-        const r = await this.updateSnakefileContextFromPrompt(prompt, currentSnakefileContext, PromptTemperature.RULE_OUTPUT);
+        const r = await this.updateSnakefileContextFromPromptRScript(prompt, currentSnakefileContext, PromptTemperature.RULE_OUTPUT);
         r['remove'] = ruleAll;
         if (!ruleAll || ruleAll.length === 0){
             ruleAll = this.extractAllRule(r["rule"]||"");
