@@ -305,17 +305,18 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 	const rStudioController = new RStudioController();
-	let serverPort = 7007;
-	const MAX_SERVER_PORT = serverPort+50;
+	const serverPorts = [
+		7007, 6512, 8321, 6812, 8924, 7235, 8521, 7442, 7621, 7006
+	];
+	let serverPort = serverPorts[0];
+	let portIndex = 0;
 	let serverActive = false;
 	const server = http.createServer((req, res) => {
-		res.writeHead(200, {'Content-Type': 'text/plain'});
-		res.end('Hello from VS Code extension!\n');
+		
 	});
 	const listen = (port:number) => {
 		server.listen(port, 'localhost', () => {
 			serverActive = true;
-			console.log(`Server is listening on port ${port}`);
 			vscode.window.showInformationMessage(`Snakemaker server is listening on port ${port}`);
 			bashCommandTitles = [' - NOT LISTENING', ' - LISTENING - port ' + port];
 			bashCommandView.title = 'Bash Commands' + bashCommandTitles[viewModel.isListening?1:0];
@@ -327,11 +328,16 @@ export function activate(context: vscode.ExtensionContext) {
 					body += chunk.toString(); // Convert Buffer to string
 				});
 				req.on('end', () => {
+					if (viewModel.isListening === false){
+						res.writeHead(400, {'Content-Type': 'text/plain'});
+						res.end('Snakemaker is not listening\n');
+						return;
+					}
 					try{
-						console.log('Received POST data:', body);
 						const parsed = JSON.parse(body);
 						if (parsed.command == "push_r"){
 							viewModel.newRCommandsToExport(parsed.data);
+							res.writeHead(200, {'Content-Type': 'text/plain'});
 						}
 					} catch (error) {
 						console.error('Error parsing POST data:', error);
@@ -340,15 +346,21 @@ export function activate(context: vscode.ExtensionContext) {
 					}
 				});
 				return;
+			} else if (req.method === 'GET' && req.url === '/ping'){
+				//Handle ping request
+				res.writeHead(200, {'Content-Type': 'text/plain'});
+				res.end('pong');
+				return;
 			}
 		});
 		server.on('error', (err:any) => {
 			if (err.code === 'EADDRINUSE') {
-				if (port < MAX_SERVER_PORT) {
-					serverPort++;
+				portIndex++;
+				if (portIndex < serverPorts.length) {
+					serverPort = serverPorts[portIndex];
 					listen(serverPort);
 				} else {
-					vscode.window.showErrorMessage(`Snakemaker: could not start server, ports between 505 and ${MAX_SERVER_PORT} are in use.`);
+					vscode.window.showErrorMessage(`Snakemaker: could not start server, all supported ports are busy. Please free one of these ports and restart VSCode: ${serverPorts}.`);
 				}
 			}
 		});

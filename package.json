@@ -2,7 +2,7 @@
   "name": "snkmaker",
   "displayName": "Snakemaker",
   "description": "",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "repository": "https://github.com/molinerisLab/snkmaker",
   "engines": {
     "vscode": "^1.95.0"
