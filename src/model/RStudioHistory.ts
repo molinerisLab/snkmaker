@@ -77,7 +77,7 @@ export class RStudioHistory {
     async exportCommands(commands: string[], llm: LLM): Promise<SnakefileContext> {
         this.addCommands(commands);
         const queries = new Queries(llm);
-        const context = queries.getRulesFromRHistory(this);
+        const context = await queries.getRulesFromRHistory(this);
 
         this.archive = this.archive.concat(this.history);
         this.history = [];

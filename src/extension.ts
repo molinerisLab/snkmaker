@@ -15,6 +15,7 @@ import { ChatExtensionNotebook } from './utils/ChatExtensionNotebook';
 import { ChatPanelView } from './view/ChatPanelView';
 import * as http from 'http';
 import { RStudioController } from './model/RStudioHistory';
+import console from 'node:console';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -312,7 +313,7 @@ export function activate(context: vscode.ExtensionContext) {
 	let portIndex = 0;
 	let serverActive = false;
 	const server = http.createServer((req, res) => {
-		
+
 	});
 	const listen = (port:number) => {
 		server.listen(port, 'localhost', () => {
@@ -360,7 +361,7 @@ export function activate(context: vscode.ExtensionContext) {
 					serverPort = serverPorts[portIndex];
 					listen(serverPort);
 				} else {
-					vscode.window.showErrorMessage(`Snakemaker: could not start server, all supported ports are busy. Please free one of these ports and restart VSCode: ${serverPorts}.`);
+					vscode.window.showErrorMessage(`Snakemaker: could not start server, all supported ports are busy. Please free one of these ports and restart VSCode: ${serverPorts.map(p=>p.toString()).join(", ")}.`);
 				}
 			}
 		});
