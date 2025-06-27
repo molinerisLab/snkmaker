@@ -344,7 +344,7 @@ export function activate(context: vscode.ExtensionContext) {
 								}
 							).catch((error:any) => {
 								console.error('Error processing R commands:', error);
-								res.writeHead(500, {'Content-Type': 'text/plain'});
+								res.writeHead(505, {'Content-Type': 'text/plain'});
 								res.end('Error parsing commands: ' + error.message + '\n');
 							});
 						}
