@@ -337,12 +337,20 @@ export function activate(context: vscode.ExtensionContext) {
 					try{
 						const parsed = JSON.parse(body);
 						if (parsed.command == "push_r"){
-							viewModel.newRCommandsToExport(parsed.data);
-							res.writeHead(200, {'Content-Type': 'text/plain'});
+							viewModel.newRCommandsToExport(parsed.data).then(
+								()=> {
+									res.writeHead(200, {'Content-Type': 'text/plain'});
+									res.end();
+								}
+							).catch((error:any) => {
+								console.error('Error processing R commands:', error);
+								res.writeHead(500, {'Content-Type': 'text/plain'});
+								res.end('Error parsing commands: ' + error.message + '\n');
+							});
 						}
 					} catch (error) {
 						console.error('Error parsing POST data:', error);
-						res.writeHead(400, {'Content-Type': 'text/plain'});
+						res.writeHead(505, {'Content-Type': 'text/plain'});
 						res.end('Invalid JSON\n');
 					}
 				});

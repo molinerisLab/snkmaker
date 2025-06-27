@@ -369,6 +369,9 @@ export class Queries{
             return null;
         });
         const formatted = await this.modelComms.runQueryAndParse(prompt, temperature, validate, false, "md");
+        if (!formatted){
+            throw new Error("No rule has been generated.");
+        }
         context["rule"] = formatted["rule"];
         if (formatted["rule_all"]){
             context['rule_all'] = formatted["rule_all"];
