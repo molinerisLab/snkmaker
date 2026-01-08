@@ -27,6 +27,10 @@ Semi-automatic Snakemake workflow generation from unstructured Bash commands or 
 The simplest way to install Snakemaker is through the **VSCode Extension Marketplace**.
 The official Snakemaker page can be found [at this link](https://marketplace.visualstudio.com/items?itemName=SnakemakerUnito.snkmaker) or by typing *snakemaker* into VSCode extension tab.
 
+<td width="30%" align="left">
+      <img src=".img/marketplace_screenshot.png" style="background-color: white; padding: 10px;"/>
+</td>
+
 ### Build from source code
 Snakemaker can be built and installed from the source code. A requirement for local build is [NodeJS](https://nodejs.org/en).
 * **Clone the repository**: `git clone https://github.com/molinerisLab/snkmaker.git`
