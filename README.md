@@ -16,10 +16,25 @@ Semi-automatic Snakemake workflow generation from unstructured Bash commands or 
 </table>
 
 ## Table of Contents
+- [Install Snakemaker](#installation)
 - [Setting up for first time](#setting-up-for-first-time)
 - [Bash Command Support](#bash-command-support)
 - [Notebook Support](#notebook-support)
-- [Local Build and Install](#build-and-install)
+
+# Installation
+
+### Install through VSCode Marketplace
+The simplest way to install Snakemaker is through the **VSCode Extension Marketplace**.
+The official Snakemaker page can be found [at this link](https://marketplace.visualstudio.com/items?itemName=SnakemakerUnito.snkmaker) or by typing *snakemaker* into VSCode extension tab.
+
+### Build from source code
+Snakemaker can be built and installed from the source code. A requirement for local build is [NodeJS](https://nodejs.org/en).
+* **Clone the repository**: `git clone https://github.com/molinerisLab/snkmaker.git`
+* **Set the desired version**: open "package.json", modify field "version"
+* **Build**: `npx @vscode/vsce -- package`. This command produces a *.vsix file.
+* **Install**: from VSCode, open the "Extension" sidebar, click on the three dots on the top-right corner of the sidebar, click Install from VSIX.
+
+### Build
 
 # Setting up for first time
 
@@ -259,10 +274,3 @@ The assistant can answer prompts regarding the current state of the process, ide
   </tr>
 </table>
 
-
-
-# Build and install extension for local usage
-* Clone the repository: "git clone https://github.com/molinerisLab/snkmaker.git"
-* Set version: open "package.json", modify field "version"
-* Build: "npx @vscode/vsce -- package". Produces a *.vsix file.
-* Install: from VSCode, open the "Extension" sidebar, click on the three dots on the top-right corner of the sidebar, click Install from VSIX.
