@@ -2,19 +2,6 @@
 Semi-automatic Snakemake workflow generation from unstructured Bash commands or Python Notebooks.
 <img src=".img/general_presentation.gif" width="600px"/>
 
-<br/>
-<table>
-  <tr>
-    <td width="70%" align="right">
-      <sub>This project is financed by the Essential Open Source Software for Science Program of the Chan Zuckerberg Initiative.
-      https://chanzuckerberg.com/eoss/</sub>
-    </td>
-    <td width="30%" align="left">
-      <img src=".img/chan_logo.png" width="100px" style="background-color: white; padding: 10px;"/>
-    </td>
-  </tr>
-</table>
-
 ## Citation
 
 If you use **Snakemaker** in your work, please cite:
@@ -300,3 +287,16 @@ The assistant can answer prompts regarding the current state of the process, ide
   </tr>
 </table>
 
+
+<br/>
+<table>
+  <tr>
+    <td width="70%" align="right">
+      <sub>This project is financed by the Essential Open Source Software for Science Program of the Chan Zuckerberg Initiative.
+      https://chanzuckerberg.com/eoss/</sub>
+    </td>
+    <td width="30%" align="left">
+      <img src=".img/chan_logo.png" width="100px" style="background-color: white; padding: 10px;"/>
+    </td>
+  </tr>
+</table>
