@@ -15,6 +15,28 @@ Semi-automatic Snakemake workflow generation from unstructured Bash commands or 
   </tr>
 </table>
 
+## Citation
+
+If you use **Snakemaker** in your work, please cite:
+
+> **Masera, Marco, et al.**  
+> [Snakemaker: Seamlessly transforming ad-hoc analyses into sustainable Snakemake workflows with generative AI](https://arxiv.org/abs/2505.02841).
+> *arXiv preprint arXiv:2505.02841*, 2025.
+
+<details>
+<summary>BibTeX</summary>
+
+```bibtex
+@article{masera2025snakemaker,
+  title   = {Snakemaker: Seamlessly transforming ad-hoc analyses into sustainable Snakemake workflows with generative AI},
+  author  = {Masera, Marco and others},
+  journal = {arXiv preprint arXiv:2505.02841},
+  year    = {2025},
+  url     = {https://arxiv.org/abs/2505.02841}
+}
+```
+</details> 
+
 ## Table of Contents
 - [Install Snakemaker](#installation)
 - [Setting up for first time](#setting-up-for-first-time)
