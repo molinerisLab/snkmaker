@@ -6,7 +6,7 @@ Semi-automatic Snakemake workflow generation from unstructured Bash commands or 
 
 If you use **Snakemaker** in your work, please cite:
 
-> **Masera, Marco, et al.**  
+> **Marco Masera, Alessandro Leone, Johannes Köster, Ivan Molineris.**  
 > [Snakemaker: Seamlessly transforming ad-hoc analyses into sustainable Snakemake workflows with generative AI](https://arxiv.org/abs/2505.02841).
 > *arXiv preprint arXiv:2505.02841*, 2025.
 
@@ -16,7 +16,7 @@ If you use **Snakemaker** in your work, please cite:
 ```bibtex
 @article{masera2025snakemaker,
   title   = {Snakemaker: Seamlessly transforming ad-hoc analyses into sustainable Snakemake workflows with generative AI},
-  author  = {Masera, Marco and others},
+  author  = {Marco Masera, Alessandro Leone, Johannes Köster, Ivan Molineris},
   journal = {arXiv preprint arXiv:2505.02841},
   year    = {2025},
   url     = {https://arxiv.org/abs/2505.02841}
